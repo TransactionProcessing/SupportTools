@@ -31,7 +31,7 @@ jobs:
       run: dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
 
     - name: Publish API
-      run: dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output publishOutput
+      run: dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
 
     - name: Install Octopus CLI
       run: |
@@ -44,7 +44,7 @@ jobs:
       run: >-
         octo pack
         --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
-        --basePath /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
+        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
         --id TransactionProcessor.HealthChecksUI
         --version ${{ steps.get_version.outputs.VERSION }}
         --format zip
