@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: "Release"
+    env:
+        ASPNETCORE_ENVIRONMENT: "Production"
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.100
+
+    - name: Restore Nuget Packages
+      run: dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+
+    - name: Build Code
+      run: dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+    
+    - name: Install Octopus CLI
+      run: |
+        sudo apt update && sudo apt install --no-install-recommends gnupg curl ca-certificates apt-transport-https && \
+        curl -sSfL https://apt.octopus.com/public.key | sudo apt-key add - && \
+        sudo sh -c "echo deb https://apt.octopus.com/ stable main > /etc/apt/sources.list.d/octopus.com.list" && \
+        sudo apt update && sudo apt install octopuscli
+    
+    - name: Pack Files for Octopus
+      run: >-
+        octo pack
+        --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
+        --basePath /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
+        --id TransactionProcessor.HealthChecksUI
+        --version ${{ steps.get_version.outputs.VERSION }}
+        --format zip
+        --verbose
+        --logLevel=verbose
+        
+    - name: Push Package to Octopus
+      run: >-
+        octo push
+        --server ${{ secrets.OCTOPUS_URL }}
+        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
+        --package /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
+        --overwrite-mode IgnoreIfExists
+    
+    - name: Get Release
+      id: getrelease
+      uses: octokit/request-action@v1.x
+      with:
+          route: GET /repos/StuartFerguson/SupportTools/releases/tags/${{ steps.get_version.outputs.VERSION }}
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Release Notes
+      id: buildreleasenotes
+      uses: gr2m/get-json-paths-action@v1.x
+      with:
+          json: ${{ steps.getrelease.outputs.data }}
+          releasenote: "body"
+    
+    - name: Create & Deploy Release in Octopus
+      run: >-
+        octo create-release
+        --server ${{ secrets.OCTOPUS_URL }}
+        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
+        --project "Support Tools"
+        --version ${{ steps.get_version.outputs.VERSION }}
+        --channel Default
+        --deployTo Development
+        --waitfordeployment
+        --deploymenttimeout 00:05:00
+        --releasenotes "${{ steps.buildreleasenotes.outputs.releasenote }}"
