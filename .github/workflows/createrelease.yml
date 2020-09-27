@@ -25,10 +25,10 @@ jobs:
         dotnet-version: 3.1.100
 
     - name: Restore Nuget Packages
-      run: dotnet restore TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+      run: dotnet restore TransactionProcessor.HealthChecksUI\TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
 
     - name: Build Code
-      run: dotnet build TransactionProcessor.HealthChecksUI.sln --configuration Release
+      run: dotnet build TransactionProcessor.HealthChecksUI\TransactionProcessor.HealthChecksUI.sln --configuration Release
     
     - name: Install Octopus CLI
       run: |
@@ -40,8 +40,8 @@ jobs:
     - name: Pack Files for Octopus
       run: >-
         octo pack
-        --outFolder /home/runner/work/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI
-        --basePath /home/runner/work/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/publishOutput
+        --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
+        --basePath /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
         --id TransactionProcessor.HealthChecksUI
         --version ${{ steps.get_version.outputs.VERSION }}
         --format zip
@@ -53,7 +53,7 @@ jobs:
         octo push
         --server ${{ secrets.OCTOPUS_URL }}
         --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --package /home/runner/work/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
+        --package /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
         --overwrite-mode IgnoreIfExists
     
     - name: Get Release
@@ -76,7 +76,7 @@ jobs:
         octo create-release
         --server ${{ secrets.OCTOPUS_URL }}
         --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --project "SupportTools"
+        --project "Support Tools"
         --version ${{ steps.get_version.outputs.VERSION }}
         --channel Default
         --deployTo Development
