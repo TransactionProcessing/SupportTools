@@ -111,9 +111,7 @@ namespace TransactionGeneratorWorker
 
             // Only use merchants that have a device
             merchants = merchants.Where(m => m.Devices != null && m.Devices.Any()).ToList();
-
-            merchants = merchants.Where(m => m.MerchantName == "Emulator Merchant").ToList();
-
+            
             List<Task> tasks = new List<Task>();
             foreach (MerchantResponse merchantResponse in merchants)
             {
