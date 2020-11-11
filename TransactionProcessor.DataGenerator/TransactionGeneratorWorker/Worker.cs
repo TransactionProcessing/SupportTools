@@ -304,14 +304,14 @@ namespace TransactionGeneratorWorker
                 Decimal amount = 0;
                 if (product.Value.HasValue)
                 {
-                    amount = product.Value.Value * 10;
+                    amount = product.Value.Value;
                 }
                 else
                 {
                     // generate an amount
-                    amount = r.Next(1000, 10000);
+                    amount = r.Next(100, 1000);
                 }
-                
+
                 DateTime transactionDateTime = new DateTime(this.CurrentRunDateTime.Year,
                                                             this.CurrentRunDateTime.Month,
                                                             this.CurrentRunDateTime.Day,
