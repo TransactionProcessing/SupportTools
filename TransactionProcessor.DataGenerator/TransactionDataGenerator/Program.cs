@@ -81,7 +81,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("2af2dab2-86d6-44e3-bcf8-51bec65cf8bc");
+            Guid estateId = Guid.Parse("3bf2dab2-86d6-44e3-bcf8-51bec65cf8bc");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -90,8 +90,8 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
 
             // Set the date range
-            DateTime startDate = new DateTime(2020,10,23);
-            DateTime endDate = new DateTime(2020, 11, 06);
+            DateTime startDate = new DateTime(2020,11,01);
+            DateTime endDate = new DateTime(2020, 11, 12);
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -251,12 +251,12 @@ namespace TransactionDataGenerator
                 Decimal amount = 0;
                 if (product.Value.HasValue)
                 {
-                    amount = product.Value.Value * 10;
+                    amount = product.Value.Value;
                 }
                 else
                 {
                     // generate an amount
-                    amount = r.Next(1000, 10000);
+                    amount = r.Next(100, 1000);
                 }
 
                 // Generate the time
