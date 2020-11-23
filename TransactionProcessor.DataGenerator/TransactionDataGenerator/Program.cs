@@ -89,9 +89,11 @@ namespace TransactionDataGenerator
             // Get the the merchant list for the estate
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
 
+            merchants = merchants.Where(m => m.MerchantName == "S7 Merchant").ToList();
+
             // Set the date range
-            DateTime startDate = new DateTime(2020,11,01);
-            DateTime endDate = new DateTime(2020, 11, 12);
+            DateTime startDate = new DateTime(2020,08,01);
+            DateTime endDate = new DateTime(2020, 11, 23);
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -237,7 +239,7 @@ namespace TransactionDataGenerator
             Random r = new Random();
             Int32 transactionNumber = 1;
             // get a number of transactions to generate
-            Int32 numberOfSales = r.Next(3, 15);
+            Int32 numberOfSales = r.Next(10, 50);
             //Int32 numberOfSales = 2;
 
             for (int i = 0; i < numberOfSales; i++)
@@ -256,7 +258,7 @@ namespace TransactionDataGenerator
                 else
                 {
                     // generate an amount
-                    amount = r.Next(100, 1000);
+                    amount = r.Next(9, 250);
                 }
 
                 // Generate the time
@@ -309,7 +311,7 @@ namespace TransactionDataGenerator
                                                                   DeviceIdentifier = deviceIdentifier,
                                                                   EstateId = merchant.EstateId,
                                                                   MerchantId = merchant.MerchantId,
-                                                                  TransactionDateTime = date.AddHours(2),
+                                                                  TransactionDateTime = date.AddMinutes(1),
                                                                   TransactionNumber = "1",
                                                                   TransactionType = "Logon"
                                                               };

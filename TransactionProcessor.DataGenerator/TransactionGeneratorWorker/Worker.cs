@@ -309,7 +309,7 @@ namespace TransactionGeneratorWorker
                 else
                 {
                     // generate an amount
-                    amount = r.Next(100, 1000);
+                    amount = r.Next(9, 250);
                 }
 
                 DateTime transactionDateTime = new DateTime(this.CurrentRunDateTime.Year,
