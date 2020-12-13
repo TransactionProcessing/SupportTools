@@ -89,11 +89,11 @@ namespace TransactionDataGenerator
             // Get the the merchant list for the estate
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
 
-            merchants = merchants.Where(m => m.MerchantName == "S7 Merchant").ToList();
+            //merchants = merchants.Where(m => m.MerchantName == "S7 Merchant").ToList();
 
             // Set the date range
-            DateTime startDate = new DateTime(2020,08,01);
-            DateTime endDate = new DateTime(2020, 11, 23);
+            DateTime startDate = new DateTime(2020,12,01);
+            DateTime endDate = new DateTime(2020, 12, 11);
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -269,7 +269,17 @@ namespace TransactionDataGenerator
                 // Build the metadata
                 Dictionary<String, String> requestMetaData = new Dictionary<String, String>();
                 requestMetaData.Add("Amount", amount.ToString());
-                requestMetaData.Add("CustomerAccountNumber", "1234567890");
+
+                var productType = Program.GetProductType(contract.OperatorName);
+                String operatorName = Program.GetOperatorName(contract, product);
+                if (productType == ProductType.MobileTopup)
+                {
+                    requestMetaData.Add("CustomerAccountNumber", "1234567890");
+                }
+                else if (productType == ProductType.Voucher)
+                {
+                    requestMetaData.Add("RecipientMobile", "1234567890");
+                }
 
                 String deviceIdentifier = merchant.Devices.Single().Value;
 
@@ -294,7 +304,7 @@ namespace TransactionDataGenerator
 
             return saleRequests;
         }
-
+        
         /// <summary>
         /// Does the logon transaction.
         /// </summary>
@@ -348,7 +358,7 @@ namespace TransactionDataGenerator
             }
             else
             {
-                while (endDate.Subtract(startDate).Days != 0)
+                while (endDate.Subtract(startDate).Days >= 0)
                 {
                     dateRange.Add(startDate);
                     startDate = startDate.AddDays(1);
@@ -357,5 +367,67 @@ namespace TransactionDataGenerator
 
             return dateRange;
         }
+
+        private static String GetOperatorName(ContractResponse contractResponse, ContractProduct contractProduct)
+        {
+            String operatorName = null;
+            ProductType productType = Program.GetProductType(contractResponse.OperatorName);
+            switch (productType)
+            {
+                case ProductType.Voucher:
+                    operatorName = contractResponse.Description;
+                    break;
+                default:
+                    operatorName = contractResponse.OperatorName;
+                    break;
+
+            }
+
+            return operatorName;
+        }
+
+        private static ProductType GetProductType(String operatorName)
+        {
+            ProductType productType = ProductType.NotSet;
+            switch (operatorName)
+            {
+                case "Safaricom":
+                    productType = ProductType.MobileTopup;
+                    break;
+                case "Voucher":
+                    productType = ProductType.Voucher;
+                    break;
+            }
+
+            return productType;
+        }
+    }
+
+    public enum ProductType
+    {
+        /// <summary>
+        /// The not set
+        /// </summary>
+        NotSet = 0,
+
+        /// <summary>
+        /// The mobile topup
+        /// </summary>
+        MobileTopup,
+
+        /// <summary>
+        /// The mobile wallet
+        /// </summary>
+        MobileWallet,
+
+        /// <summary>
+        /// The bill payment
+        /// </summary>
+        BillPayment,
+
+        /// <summary>
+        /// The voucher
+        /// </summary>
+        Voucher
     }
 }

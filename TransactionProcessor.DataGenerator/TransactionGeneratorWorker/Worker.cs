@@ -322,7 +322,17 @@ namespace TransactionGeneratorWorker
                 // Build the metadata
                 Dictionary<String, String> requestMetaData = new Dictionary<String, String>();
                 requestMetaData.Add("Amount", amount.ToString());
-                requestMetaData.Add("CustomerAccountNumber", "1234567890");
+
+                var productType = this.GetProductType(contract.OperatorName);
+                String operatorName = this.GetOperatorName(contract, product);
+                if (productType == ProductType.MobileTopup)
+                {
+                    requestMetaData.Add("CustomerAccountNumber", "1234567890");
+                }
+                else if (productType == ProductType.Voucher)
+                {
+                    requestMetaData.Add("RecipientMobile", "1234567890");
+                }
 
                 String deviceIdentifier = merchant.Devices.Single().Value;
 
@@ -337,7 +347,7 @@ namespace TransactionGeneratorWorker
                     TransactionType = "Sale",
                     TransactionDateTime = transactionDateTime.AddSeconds(r.Next(0, 59)),
                     TransactionNumber = transactionNumber.ToString(),
-                    OperatorIdentifier = contract.OperatorName,
+                    OperatorIdentifier = operatorName,
                     ProductId = product.ProductId
                 };
 
@@ -347,5 +357,67 @@ namespace TransactionGeneratorWorker
 
             return saleRequests;
         }
+
+        private String GetOperatorName(ContractResponse contractResponse, ContractProduct contractProduct)
+        {
+            String operatorName = null;
+            ProductType productType = this.GetProductType(contractResponse.OperatorName);
+            switch (productType)
+            {
+                case ProductType.Voucher:
+                    operatorName = contractResponse.Description;
+                    break;
+                default:
+                    operatorName = contractResponse.OperatorName;
+                    break;
+
+            }
+
+            return operatorName;
+        }
+
+        private ProductType GetProductType(String operatorName)
+        {
+            ProductType productType = ProductType.NotSet;
+            switch (operatorName)
+            {
+                case "Safaricom":
+                    productType = ProductType.MobileTopup;
+                    break;
+                case "Voucher":
+                    productType = ProductType.Voucher;
+                    break;
+            }
+
+            return productType;
+        }
+    }
+
+    public enum ProductType
+    {
+        /// <summary>
+        /// The not set
+        /// </summary>
+        NotSet = 0,
+
+        /// <summary>
+        /// The mobile topup
+        /// </summary>
+        MobileTopup,
+
+        /// <summary>
+        /// The mobile wallet
+        /// </summary>
+        MobileWallet,
+
+        /// <summary>
+        /// The bill payment
+        /// </summary>
+        BillPayment,
+
+        /// <summary>
+        /// The voucher
+        /// </summary>
+        Voucher
     }
 }
