@@ -3,11 +3,13 @@
 namespace TransactionDataGenerator
 {
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Net.Http;
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Threading.Tasks.Dataflow;
     using EstateManagement.Client;
     using EstateManagement.DataTransferObjects.Requests;
     using EstateManagement.DataTransferObjects.Responses;
@@ -16,6 +18,17 @@ namespace TransactionDataGenerator
     using SecurityService.DataTransferObjects.Responses;
     using TransactionProcessor.Client;
     using TransactionProcessor.DataTransferObjects;
+
+    public class Gimp
+    {
+        public class V1
+        {
+            public class GimpAddedEvent
+            {
+
+            }
+        }
+    }
 
     /// <summary>
     /// 
@@ -81,27 +94,28 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("3bf2dab2-86d6-44e3-bcf8-51bec65cf8bc");
+            Guid estateId = Guid.Parse("5b07ec2d-3856-4d05-ab31-e2dedb95ea27");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
 
             // Get the the merchant list for the estate
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
-
-            //merchants = merchants.Where(m => m.MerchantName == "S7 Merchant").ToList();
-
+            
             // Set the date range
-            DateTime startDate = new DateTime(2020,12,01);
-            DateTime endDate = new DateTime(2020, 12, 11);
+            DateTime startDate = new DateTime(2021,4,1);
+            DateTime endDate = new DateTime(2021, 4, 19);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
             merchants = merchants.Where(m => m.Devices != null && m.Devices.Any()).ToList();
-            
-            await Program.GenerateTransactions(merchants, dateRange);
 
-            Console.WriteLine($"Process Complete - {Program.TransactionCount} transactions generated");
+            foreach (DateTime dateTime in dateRange)
+            {
+                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+            }
+            
+            Console.WriteLine($"Process Complete");
         }
 
         /// <summary>
@@ -133,36 +147,86 @@ namespace TransactionDataGenerator
         /// <param name="merchants">The merchants.</param>
         /// <param name="dateRange">The date range.</param>
         private static async Task GenerateTransactions(List<MerchantResponse> merchants,
-                                                       List<DateTime> dateRange)
+                                                       DateTime dateTime,
+                                                       CancellationToken cancellationToken)
         {
-            foreach (DateTime dateTime in dateRange)
+            Int32 maxDegreeOfParallelism = 5;
+            Int32 boundedCapacityForActionBlock = merchants.Count;
+
+            ActionBlock<(MerchantResponse merchant, CancellationToken cancellationToken)> workerBlock =
+                new ActionBlock<(MerchantResponse merchant, CancellationToken cancellationToken)>(async (message) =>
+                                                                                                  {
+                                                                                                      try
+                                                                                                      {
+                                                                                                          Int32 transactionCount = 0;
+
+                                                                                                          // Do a logon transaction for each merchant
+                                                                                                          await Program.DoLogonTransaction(message.merchant, dateTime);
+                                                                                                          Console
+                                                                                                              .WriteLine($"Logon sent for Merchant [{message.merchant.MerchantName}]");
+
+                                                                                                          // Now generate some sales
+                                                                                                          List<SaleTransactionRequest> saleRequests =
+                                                                                                              await Program.CreateSaleRequests(message.merchant,
+                                                                                                                  dateTime);
+
+                                                                                                          // Work out how much of a deposit the merchant needs (minus 1 sale)
+                                                                                                          IEnumerable<Dictionary<String, String>> metadata =
+                                                                                                              saleRequests.Select(s => s.AdditionalTransactionMetadata);
+                                                                                                          List<String> amounts = metadata.Select(m => m["Amount"])
+                                                                                                              .ToList();
+
+                                                                                                          Decimal depositAmount = amounts.TakeLast(amounts.Count - 1)
+                                                                                                              .Sum(a => Decimal.Parse(a));
+
+                                                                                                          await Program.MakeMerchantDeposit(message.merchant,
+                                                                                                              depositAmount,
+                                                                                                              dateTime);
+
+                                                                                                          // Now send the sales
+                                                                                                          saleRequests = saleRequests.OrderBy(s => s.TransactionDateTime)
+                                                                                                              .ToList();
+                                                                                                          foreach (SaleTransactionRequest saleTransactionRequest in
+                                                                                                              saleRequests)
+                                                                                                          {
+                                                                                                              await Program.DoSaleTransaction(saleTransactionRequest);
+                                                                                                              Console
+                                                                                                                  .WriteLine($"Sale sent for Merchant [{message.merchant.MerchantName}]");
+                                                                                                              transactionCount++;
+                                                                                                          }
+
+                                                                                                          Console.ForegroundColor = ConsoleColor.Green;
+                                                                                                          Console
+                                                                                                              .WriteLine($"{transactionCount} transactions generated for {message.merchant.MerchantName} on date {dateTime.ToLongDateString()}");
+                                                                                                      }
+                                                                                                      catch(Exception ex)
+                                                                                                      {
+                                                                                                          Console.ForegroundColor = ConsoleColor.Red;
+                                                                                                          Console.WriteLine("Failed");
+                                                                                                          Console.WriteLine(ex);
+                                                                                                      }
+                                                                                                  },
+                                                                                                  new ExecutionDataflowBlockOptions
+                                                                                                  {
+                                                                                                      MaxDegreeOfParallelism = maxDegreeOfParallelism,
+                                                                                                      BoundedCapacity = boundedCapacityForActionBlock
+                                                                                                  });
+
+
+            try
             {
-                foreach (MerchantResponse merchant in merchants)
+                foreach (var merchant in merchants)
                 {
-                    // Do a logon transaction for each merchant
-                    await Program.DoLogonTransaction(merchant, dateTime);
-                    Console.WriteLine($"Logon sent for Merchant [{merchant.MerchantName}]");
-
-                    // Now generate some sales
-                    List<SaleTransactionRequest> saleRequests = await Program.CreateSaleRequests(merchant, dateTime);
-
-                    // Work out how much of a deposit the merchant needs (minus 1 sale)
-                    IEnumerable<Dictionary<String, String>> metadata = saleRequests.Select(s => s.AdditionalTransactionMetadata);
-                    List<String> amounts = metadata.Select(m => m["Amount"]).ToList();
-
-                    Decimal depositAmount = amounts.TakeLast(amounts.Count - 1).Sum(a => Decimal.Parse(a));
-
-                    await Program.MakeMerchantDeposit(merchant, depositAmount, dateTime);
-                    
-                    // Now send the sales
-                    saleRequests = saleRequests.OrderBy(s => s.TransactionDateTime).ToList();
-                    foreach (SaleTransactionRequest saleTransactionRequest in saleRequests)
-                    {
-                        await Program.DoSaleTransaction(saleTransactionRequest);
-                        Console.WriteLine($"Sale sent for Merchant [{merchant.MerchantName}]");
-                        TransactionCount++;
-                    }
+                    await workerBlock.SendAsync((merchant, cancellationToken), cancellationToken);
                 }
+
+                workerBlock.Complete();
+
+                await workerBlock.Completion;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
             }
         }
 
@@ -184,7 +248,7 @@ namespace TransactionDataGenerator
                                                            new MakeMerchantDepositRequest
                                                            {
                                                                Amount = depositAmount,
-                                                               DepositDateTime = dateTime,
+                                                               DepositDateTime = dateTime.AddSeconds(55),
                                                                Reference = "Test Data Gen Deposit",
                                                                Source = MerchantDepositSource.Manual
                                                            },
@@ -203,8 +267,8 @@ namespace TransactionDataGenerator
                 await Program.GetToken(CancellationToken.None);
 
                 SerialisedMessage requestSerialisedMessage = new SerialisedMessage();
-                requestSerialisedMessage.Metadata.Add("EstateId", saleTransactionRequest.EstateId.ToString());
-                requestSerialisedMessage.Metadata.Add("MerchantId", saleTransactionRequest.MerchantId.ToString());
+                requestSerialisedMessage.Metadata.Add("estate_id", saleTransactionRequest.EstateId.ToString());
+                requestSerialisedMessage.Metadata.Add("merchant_id", saleTransactionRequest.MerchantId.ToString());
                 requestSerialisedMessage.SerialisedData = JsonConvert.SerializeObject(saleTransactionRequest,
                                                                                       new JsonSerializerSettings
                                                                                       {
@@ -327,8 +391,8 @@ namespace TransactionDataGenerator
                                                               };
 
             SerialisedMessage requestSerialisedMessage = new SerialisedMessage();
-            requestSerialisedMessage.Metadata.Add("EstateId", merchant.EstateId.ToString());
-            requestSerialisedMessage.Metadata.Add("MerchantId", merchant.MerchantId.ToString());
+            requestSerialisedMessage.Metadata.Add("estate_id", merchant.EstateId.ToString());
+            requestSerialisedMessage.Metadata.Add("merchant_id", merchant.MerchantId.ToString());
             requestSerialisedMessage.SerialisedData = JsonConvert.SerializeObject(logonTransactionRequest,
                                                                                   new JsonSerializerSettings
                                                                                   {
