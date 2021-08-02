@@ -3,7 +3,7 @@
     {
       "id": "",
       "name": "Demo Estate",
-      "email_address": "bulkestateuser@demoestate1.co.uk",
+      "email_address": "estateuser@demoestate1.co.uk",
       "user": {
         "email_address": "estateuser@demoestate1.co.uk",
         "password": "123456",
@@ -25,7 +25,7 @@
             "email_address": "testcontact@testmerchant1.co.uk"
           },
           "user": {
-            "email_address": "bulkmerchantuser@testmerchant1.co.uk",
+            "email_address": "merchantuser@testmerchant1.co.uk",
             "password": "123456",
             "given_name": "Test Merchant 1",
             "middle_name": "",
@@ -52,7 +52,7 @@
             "Voucher"
           ],
           "user": {
-            "email_address": "bulkmerchantuser@testmerchant2.co.uk",
+            "email_address": "merchantuser@testmerchant2.co.uk",
             "password": "123456",
             "given_name": "Test Merchant 2",
             "middle_name": "",
@@ -79,7 +79,7 @@
             "Voucher"
           ],
           "user": {
-            "email_address": "bulkmerchantuser@testmerchant3.co.uk",
+            "email_address": "merchantuser@testmerchant3.co.uk",
             "password": "123456",
             "given_name": "Test Merchant 3",
             "middle_name": "",
@@ -90,7 +90,7 @@
           }
         },
         {
-          "name": "Emulator Merchant",
+          "name": "v28 Emulator Merchant",
           "address": {
             "address_line_1": "test address line 1",
             "country": "United Kingdom",
@@ -106,14 +106,14 @@
             "Voucher"
           ],
           "user": {
-            "email_address": "bulkmerchantuser@emulatormerchant.co.uk",
+            "email_address": "merchantuser@v28emulatormerchant.co.uk",
             "password": "123456",
-            "given_name": "Emulator Merchant",
+            "given_name": "v28 Emulator Merchant",
             "middle_name": "",
             "family_name": "User"
           },
           "device": {
-            "device_identifier": "EMULATOR30X0X26X0"
+            "device_identifier": "d6b3e40886681417"
           }
         },
         {
@@ -133,7 +133,7 @@
             "Voucher"
           ],
           "user": {
-            "email_address": "bulkmerchantuser@s7merchant.co.uk",
+            "email_address": "merchantuser@s7merchant.co.uk",
             "password": "123456",
             "given_name": "S7 Merchant",
             "middle_name": "",
@@ -160,7 +160,7 @@
             "Voucher"
           ],
           "user": {
-            "email_address": "bulkmerchantuser@xperiamerchant.co.uk",
+            "email_address": "merchantuser@xperiamerchant.co.uk",
             "password": "123456",
             "given_name": "Xperia Merchant",
             "middle_name": "",

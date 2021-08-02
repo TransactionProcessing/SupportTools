@@ -21,4 +21,10 @@
     <PackageReference Include="SecurityService.Client" Version="1.0.6.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="identityserverconfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

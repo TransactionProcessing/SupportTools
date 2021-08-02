@@ -58,7 +58,18 @@ namespace TransactionDataGenerator
         /// <param name="args">The arguments.</param>
         static async Task Main(string[] args)
         {
-            HttpClient httpClient = new HttpClient();
+
+            HttpClientHandler handler = new HttpClientHandler
+                                        {
+                                            ServerCertificateCustomValidationCallback = (message,
+                                                                                         cert,
+                                                                                         chain,
+                                                                                         errors) =>
+                                                                                        {
+                                                                                            return true;
+                                                                                        }
+                                        };
+            HttpClient httpClient = new HttpClient(handler);
 
             baseAddressFunc = (apiName) =>
                                                    {
@@ -69,7 +80,7 @@ namespace TransactionDataGenerator
 
                                                        if (apiName == "SecurityService")
                                                        {
-                                                           return "http://192.168.1.133:5001";
+                                                           return "https://192.168.1.133:5001";
                                                        }
 
                                                        if (apiName == "TransactionProcessorApi")
@@ -79,7 +90,7 @@ namespace TransactionDataGenerator
 
                                                        if (apiName == "FileProcessorApi")
                                                        {
-                                                           return "http://192.168.1.133:5009";
+                                                           return "http://127.0.0.1:5009";
                                                        }
 
                                                        return null;
@@ -92,7 +103,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("9ea91bd8-39fd-40a3-9e77-9957c8571887");
+            Guid estateId = Guid.Parse("2c1787c5-eda2-45df-bbcf-cff11a22e596");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -101,16 +112,17 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,6,1);
-            DateTime endDate = new DateTime(2021, 6, 1);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2021,7,28);
+            DateTime endDate = new DateTime(2021, 7, 28);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
-            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any()).ToList();
-
+            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any() &&
+                                             m.MerchantName != "Test Merchant 4").ToList();
+            
             foreach (DateTime dateTime in dateRange)
             {
-                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
                 await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
             }
             
@@ -148,7 +160,7 @@ namespace TransactionDataGenerator
                         fileData = voucherFile.fileLines;
                         // Need to make a deposit for this amount - last sale
                         Decimal depositAmount = voucherFile.totalValue - voucherFile.lastSale;
-                        await MakeMerchantDeposit(merchant, depositAmount, dateTime);
+                        await MakeMerchantDeposit(merchant, depositAmount, dateTime.AddSeconds(1));
                     }
                     else
                     {
@@ -157,7 +169,7 @@ namespace TransactionDataGenerator
                         fileData = topupFile.fileLines;
                         // Need to make a deposit for this amount - last sale
                         Decimal depositAmount = topupFile.totalValue - topupFile.lastSale;
-                        await MakeMerchantDeposit(merchant, depositAmount, dateTime);
+                        await MakeMerchantDeposit(merchant, depositAmount, dateTime.AddSeconds(2));
                     }
 
                     // Write this file to disk
@@ -174,10 +186,13 @@ namespace TransactionDataGenerator
                     // Get the files
                     var files = Directory.GetFiles($"/home/txnproc/txngenerator/{merchantOperator.Name}");
 
+                    var fileDateTime = dateTime.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute).AddSeconds(DateTime.Now.Second);
+
                     foreach (String file in files)
                     {
                         var fileProfileId = await GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
-                        await UploadFile(file, merchant.EstateId, merchant.MerchantId, fileProfileId, estateUser.SecurityUserId, cancellationToken);
+                        
+                        await UploadFile(file, merchant.EstateId, merchant.MerchantId, fileProfileId, estateUser.SecurityUserId, fileDateTime, cancellationToken);
                         // Remove file onece uploaded
                         File.Delete(file);
                     }
@@ -200,7 +215,7 @@ namespace TransactionDataGenerator
             }
         }
 
-        private static async Task<HttpResponseMessage> UploadFile(String filePath, Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId, CancellationToken cancellationToken)
+        private static async Task<HttpResponseMessage> UploadFile(String filePath, Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId, DateTime fileDateTime, CancellationToken cancellationToken)
         {
             var client = new HttpClient();
             var formData = new MultipartFormDataContent();
@@ -212,7 +227,8 @@ namespace TransactionDataGenerator
             formData.Add(new StringContent(merchantId.ToString()), "request.MerchantId");
             formData.Add(new StringContent(fileProfileId.ToString()), "request.FileProfileId");
             formData.Add(new StringContent(userId.ToString()), "request.UserId");
-            
+            formData.Add(new StringContent(fileDateTime.ToString()), "request.UploadDateTime");
+
             var request = new HttpRequestMessage(HttpMethod.Post, $"{baseAddressFunc("FileProcessorApi")}/api/files")
                           {
                               Content = formData
@@ -310,7 +326,7 @@ namespace TransactionDataGenerator
                                                        DateTime dateTime,
                                                        CancellationToken cancellationToken)
         {
-            Int32 maxDegreeOfParallelism = 5;
+            Int32 maxDegreeOfParallelism = 1;
             Int32 boundedCapacityForActionBlock = merchants.Count;
 
             ActionBlock<(MerchantResponse merchant, CancellationToken cancellationToken)> workerBlock =

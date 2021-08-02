@@ -8,13 +8,14 @@ namespace TransactionProcessor.SystemSetupTool
     using System.Net.Http;
     using System.Runtime.CompilerServices;
     using System.Text.Json;
-    using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
+    using estateconfig;
     using EstateManagement.Client;
     using EstateManagement.DataTransferObjects;
     using EstateManagement.DataTransferObjects.Requests;
     using EstateManagement.DataTransferObjects.Responses;
+    using identityserverconfig;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Requests;
     using SecurityService.DataTransferObjects.Responses;
@@ -30,26 +31,154 @@ namespace TransactionProcessor.SystemSetupTool
         static async Task Main(string[] args)
         {
             Func<String, String> estateResolver = s => { return "http://192.168.1.133:5000"; };
-            Func<String, String> securityResolver = s => { return "http://192.168.1.133:5001"; };
-            HttpClient client = new HttpClient();
+            Func<String, String> securityResolver = s => { return "https://192.168.1.133:5001"; };
+            HttpClientHandler handler = new HttpClientHandler
+                                        {
+                                            ServerCertificateCustomValidationCallback = (message,
+                                                                                         cert,
+                                                                                         chain,
+                                                                                         errors) =>
+                                                                                        {
+                                                                                            return true;
+                                                                                        }
+                                        };
+            HttpClient client = new HttpClient(handler);
 
             Program.EstateClient = new EstateClient(estateResolver, client);
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
 
-            // Read the json string
-            String jsonData = null;
+            //await Program.SetupIdentityServerFromConfig();
+
+            await Program.SetupEstatesFromConfig();
+        }
+
+        private static async Task SetupIdentityServerFromConfig()
+        {
+            // Read the identity server config json string
+            String identityServerJsonData = null;
+            using(StreamReader sr = new StreamReader("identityserverconfig.json"))
+            {
+                identityServerJsonData = await sr.ReadToEndAsync();
+            }
+
+            IdentityServerConfiguration identityServerConfiguration = JsonSerializer.Deserialize<IdentityServerConfiguration>(identityServerJsonData);
+
+            foreach (String role in identityServerConfiguration.roles)
+            {
+                await Program.CreateRole(role, CancellationToken.None);
+            }
+            foreach (ApiResource apiResource in identityServerConfiguration.apiresources)
+            {
+                await Program.CreateApiResource(apiResource, CancellationToken.None);
+            }
+
+            foreach (IdentityResource identityResource in identityServerConfiguration.identityresources)
+            {
+                await Program.CreateIdentityResource(identityResource, CancellationToken.None);
+            }
+
+            foreach (Client client in identityServerConfiguration.clients)
+            {
+                await Program.CreateClient(client, CancellationToken.None);
+            }
+
+            foreach (ApiScope apiscope in identityServerConfiguration.apiscopes)
+            {
+                await Program.CreateApiScope(apiscope, CancellationToken.None);
+            }
+        }
+
+        private static async Task CreateRole(String role,
+                                             CancellationToken cancellationToken)
+        {
+            CreateRoleRequest createRoleRequest = new CreateRoleRequest
+                                                  {
+                                                      RoleName = role
+                                                  };
+
+            await Program.SecurityServiceClient.CreateRole(createRoleRequest, cancellationToken);
+        }
+
+        private static async Task CreateApiScope(ApiScope apiscope,
+                                                 CancellationToken cancellationToken)
+        {
+            CreateApiScopeRequest createApiScopeRequest = new CreateApiScopeRequest
+                                                          {
+                                                              Description = apiscope.description,
+                                                              DisplayName = apiscope.display_name,
+                                                              Name = apiscope.name
+                                                          };
+
+            await Program.SecurityServiceClient.CreateApiScope(createApiScopeRequest, cancellationToken);
+        }
+
+        private static async Task CreateIdentityResource(IdentityResource identityResource,
+                                                         CancellationToken cancellationToken)
+        {
+            CreateIdentityResourceRequest createIdentityResourceRequest = new CreateIdentityResourceRequest
+                                                                          {
+                                                                              Claims = identityResource.claims,
+                                                                              Description = identityResource.description,
+                                                                              DisplayName = identityResource.displayName,
+                                                                              Emphasize = identityResource.emphasize,
+                                                                              Name = identityResource.name,
+                                                                              Required = identityResource.required,
+                                                                              ShowInDiscoveryDocument = identityResource.showInDiscoveryDocument
+                                                                          };
+
+            await Program.SecurityServiceClient.CreateIdentityResource(createIdentityResourceRequest, cancellationToken);
+        }
+
+        private static async Task SetupEstatesFromConfig()
+        {
+            // Read the estate config json string
+            String estateJsonData = null;
             using(StreamReader sr = new StreamReader("setupconfig.json"))
             {
-                jsonData = await sr.ReadToEndAsync();
+                estateJsonData = await sr.ReadToEndAsync();
             }
 
             Program.TokenResponse = await Program.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
-            Root estateConfiguration = JsonSerializer.Deserialize<Root>(jsonData);
+            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
 
             foreach (var estate in estateConfiguration.Estates)
             {
-                await CreateEstate(estate, CancellationToken.None);
+                await Program.CreateEstate(estate, CancellationToken.None);
             }
+        }
+
+        static async Task CreateClient(Client client, CancellationToken cancellationToken)
+        {
+            CreateClientRequest createClientRequest = new CreateClientRequest
+                                                      {
+                                                          AllowOfflineAccess = client.allow_offline_access.GetValueOrDefault(false),
+                                                          AllowedGrantTypes = client.allowed_grant_types,
+                                                          AllowedScopes = client.allowed_scopes,
+                                                          ClientDescription = client.client_description,
+                                                          ClientId = client.client_id,
+                                                          ClientName = client.client_name,
+                                                          ClientPostLogoutRedirectUris = client.client_post_logout_redirect_uris,
+                                                          ClientRedirectUris = client.client_redirect_uris,
+                                                          RequireConsent = client.require_consent.GetValueOrDefault(false),
+                                                          Secret = client.secret
+                                                      };
+            await Program.SecurityServiceClient.CreateClient(createClientRequest, cancellationToken);
+        }
+
+        static async Task CreateApiResource(ApiResource apiResource,
+                                            CancellationToken cancellationToken)
+        {
+            CreateApiResourceRequest createApiResourceRequest = new CreateApiResourceRequest
+                                                                {
+                                                                    Secret = apiResource.secret,
+                                                                    Description = apiResource.description,
+                                                                    DisplayName = apiResource.display_name,
+                                                                    Name = apiResource.name,
+                                                                    Scopes = apiResource.scopes,
+                                                                    UserClaims = apiResource.user_claims
+                                                                };
+
+            await Program.SecurityServiceClient.CreateApiResource(createApiResourceRequest, cancellationToken);
         }
 
         static async Task CreateEstate(Estate estateToCreate, CancellationToken cancellationToken)
@@ -202,153 +331,4 @@ namespace TransactionProcessor.SystemSetupTool
             }
         }
     }
-
-    public class Address
-    {
-        [JsonPropertyName("address_line_1")]
-        public string AddressLine1 { get; set; }
-
-        [JsonPropertyName("country")]
-        public string Country { get; set; }
-
-        [JsonPropertyName("region")]
-        public string Region { get; set; }
-
-        [JsonPropertyName("town")]
-        public string Town { get; set; }
-    }
-
-    public class Contact
-    {
-        [JsonPropertyName("contact_name")]
-        public string ContactName { get; set; }
-
-        [JsonPropertyName("email_address")]
-        public string EmailAddress { get; set; }
-    }
-
-    public class User
-    {
-        [JsonPropertyName("email_address")]
-        public string EmailAddress { get; set; }
-
-        [JsonPropertyName("password")]
-        public string Password { get; set; }
-
-        [JsonPropertyName("given_name")]
-        public string GivenName { get; set; }
-
-        [JsonPropertyName("middle_name")]
-        public string MiddleName { get; set; }
-
-        [JsonPropertyName("family_name")]
-        public string FamilyName { get; set; }
-    }
-
-    public class Device
-    {
-        [JsonPropertyName("device_identifier")]
-        public string DeviceIdentifier { get; set; }
-    }
-
-    public class Merchant
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-
-        [JsonPropertyName("address")]
-        public Address Address { get; set; }
-
-        [JsonPropertyName("contact")]
-        public Contact Contact { get; set; }
-
-        [JsonPropertyName("user")]
-        public User User { get; set; }
-
-        [JsonPropertyName("device")]
-        public Device Device { get; set; }
-    }
-
-    public class Operator
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-
-        [JsonPropertyName("require_custom_merchant_number")]
-        public bool RequireCustomMerchantNumber { get; set; }
-
-        [JsonPropertyName("require_custom_terminal_number")]
-        public bool RequireCustomTerminalNumber { get; set; }
-    }
-
-    public class TransactionFee
-    {
-        [JsonPropertyName("calculation_type")]
-        public int CalculationType { get; set; }
-
-        [JsonPropertyName("description")]
-        public string Description { get; set; }
-
-        [JsonPropertyName("value")]
-        public decimal Value { get; set; }
-
-        [JsonPropertyName("fee_type")]
-        public int FeeType { get; set; }
-    }
-
-    public class Product
-    {
-        [JsonPropertyName("display_text")]
-        public string DisplayText { get; set; }
-
-        [JsonPropertyName("product_name")]
-        public string ProductName { get; set; }
-
-        [JsonPropertyName("value")]
-        public decimal? Value { get; set; }
-
-        [JsonPropertyName("transaction_fees")]
-        public List<TransactionFee> TransactionFees { get; set; }
-    }
-
-    public class Contract
-    {
-        [JsonPropertyName("operator_name")]
-        public string OperatorName { get; set; }
-
-        [JsonPropertyName("description")]
-        public string Description { get; set; }
-
-        [JsonPropertyName("products")]
-        public List<Product> Products { get; set; }
-    }
-
-    public class Estate
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; }
-
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-
-    [JsonPropertyName("user")]
-    public User User { get; set; }
-
-    [JsonPropertyName("merchants")]
-        public List<Merchant> Merchants { get; set; }
-
-        [JsonPropertyName("operators")]
-        public List<Operator> Operators { get; set; }
-
-        [JsonPropertyName("contracts")]
-        public List<Contract> Contracts { get; set; }
-    }
-
-    public class Root
-    {
-        [JsonPropertyName("estates")]
-        public List<Estate> Estates { get; set; }
-    }
-
-
 }
