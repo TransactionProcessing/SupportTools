@@ -19,6 +19,7 @@ namespace TransactionProcessor.SystemSetupTool
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Requests;
     using SecurityService.DataTransferObjects.Responses;
+    using EventStore.Client;
 
     class Program
     {
@@ -26,12 +27,16 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static SecurityServiceClient SecurityServiceClient;
 
+        private static EventStoreProjectionManagementClient ProjectionClient;
+
+        private static EventStorePersistentSubscriptionsClient PersistentSubscriptionsClient;
+
         private static TokenResponse TokenResponse;
 
         static async Task Main(string[] args)
         {
-            Func<String, String> estateResolver = s => { return "http://192.168.1.133:5000"; };
-            Func<String, String> securityResolver = s => { return "https://192.168.1.133:5001"; };
+            Func<String, String> estateResolver = s => { return "http://127.0.0.1:5000"; };
+            Func<String, String> securityResolver = s => { return "https://127.0.0.1:5001"; };
             HttpClientHandler handler = new HttpClientHandler
                                         {
                                             ServerCertificateCustomValidationCallback = (message,
@@ -46,10 +51,66 @@ namespace TransactionProcessor.SystemSetupTool
 
             Program.EstateClient = new EstateClient(estateResolver, client);
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
+            EventStoreClientSettings settings = EventStoreClientSettings.Create("esdb://admin:changeit@127.0.0.1:4113?tls=false");
+            Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
+            Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
+            
+            await Program.SetupIdentityServerFromConfig();
 
-            //await Program.SetupIdentityServerFromConfig();
+            // Setup latest projections
+            await DeployProjections();
 
-            await Program.SetupEstatesFromConfig();
+            // Setup subcriptions
+            await SetupSubscriptions();
+
+            await Program.SetupEstatesFromConfig();            
+        }
+
+        private static async Task SetupSubscriptions()
+        {
+            String estateJsonData = null;
+            using (StreamReader sr = new StreamReader("setupconfig.json"))
+            {
+                estateJsonData = await sr.ReadToEndAsync();
+            }
+
+            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+
+            foreach (var estate in estateConfiguration.Estates)
+            {
+                PersistentSubscriptionSettings s = new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: 5);
+                // Setup the subscrtipions
+                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", s);
+                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "FileProcessor", s);
+                await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", s);
+            }
+        }
+
+        private static async Task DeployProjections()
+        {
+            var currentProjections = await ProjectionClient.ListAllAsync().ToListAsync();
+
+            var projectionsToDeploy = Directory.GetFiles("projections/continuous");
+
+            foreach (var projection in projectionsToDeploy)
+            {
+                FileInfo f = new FileInfo(projection);
+                String name = f.Name.Substring(0, f.Name.Length - (f.Name.Length - f.Name.LastIndexOf(".")));
+                var body = File.ReadAllText(f.FullName);
+                // Is this already deployed (in the master list)
+                if ( currentProjections.Any(p => p.Name == name) == false)
+                {
+                    // Projection does not exist so create
+                    await ProjectionClient.CreateContinuousAsync(name, body, true);
+                }
+                else
+                {
+                    // Already exists so we need to update but do not reset
+                    await ProjectionClient.DisableAsync(name);
+                    await ProjectionClient.UpdateAsync(name, body, true);
+                    await ProjectionClient.EnableAsync(name);
+                }
+            }
         }
 
         private static async Task SetupIdentityServerFromConfig()
@@ -193,7 +254,7 @@ namespace TransactionProcessor.SystemSetupTool
                                                       };
 
             var estateResponse = await Program.EstateClient.CreateEstate(Program.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
-
+            
             // Create Estate user
             CreateEstateUserRequest createEstateUserRequest = new CreateEstateUserRequest
             {
@@ -270,6 +331,8 @@ namespace TransactionProcessor.SystemSetupTool
             // Now create the merchants
             foreach (Merchant merchant in estateToCreate.Merchants)
             {
+                SettlementSchedule settlementSchedule = Enum.Parse<SettlementSchedule>(merchant.SettlementSchedule);
+
                 CreateMerchantRequest createMerchantRequest = new CreateMerchantRequest
                                                               {
                                                                   Address = new EstateManagement.DataTransferObjects.Requests.Address
@@ -284,7 +347,8 @@ namespace TransactionProcessor.SystemSetupTool
                                                                             {
                                                                                 ContactName = merchant.Contact.ContactName,
                                                                                 EmailAddress = merchant.Contact.EmailAddress
-                                                                            }
+                                                                            },
+                                                                  SettlementSchedule = settlementSchedule
                                                               };
                 var merchantResponse = await Program.EstateClient.CreateMerchant(Program.TokenResponse.AccessToken, estateResponse.EstateId, createMerchantRequest, cancellationToken);
 

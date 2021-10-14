@@ -46,11 +46,6 @@ namespace TransactionDataGenerator
         /// </summary>
         private static TokenResponse TokenResponse;
 
-        /// <summary>
-        /// The transaction count
-        /// </summary>
-        private static Int32 TransactionCount = 0;
-
         private static Func<String, String> baseAddressFunc;
         /// <summary>
         /// Defines the entry point of the application.
@@ -75,17 +70,17 @@ namespace TransactionDataGenerator
                                                    {
                                                        if (apiName == "EstateManagementApi")
                                                        {
-                                                           return "http://192.168.1.133:5000";
+                                                           return "http://127.0.0.1:5000";
                                                        }
 
                                                        if (apiName == "SecurityService")
                                                        {
-                                                           return "https://192.168.1.133:5001";
+                                                           return "https://127.0.0.1:5001";
                                                        }
 
                                                        if (apiName == "TransactionProcessorApi")
                                                        {
-                                                           return "http://192.168.1.133:5002";
+                                                           return "http://127.0.0.1:5002";
                                                        }
 
                                                        if (apiName == "FileProcessorApi")
@@ -103,7 +98,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("2c1787c5-eda2-45df-bbcf-cff11a22e596");
+            Guid estateId = Guid.Parse("0b40040d-7964-4784-a25a-d8a989572a23");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -112,14 +107,14 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,7,28);
-            DateTime endDate = new DateTime(2021, 7, 28);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2021,10,1); //27/7
+            DateTime endDate = new DateTime(2021,10,13);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
             merchants = merchants.Where(m => m.Devices != null && m.Devices.Any() &&
                                              m.MerchantName != "Test Merchant 4").ToList();
-            
+
             foreach (DateTime dateTime in dateRange)
             {
                 //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
@@ -182,7 +177,7 @@ namespace TransactionDataGenerator
                         }
                     }
 
-                    // Upload the generated files for this merchant/operator
+                    // Upload the generated files for this merchant/operatorcd 
                     // Get the files
                     var files = Directory.GetFiles($"/home/txnproc/txngenerator/{merchantOperator.Name}");
 
@@ -190,7 +185,7 @@ namespace TransactionDataGenerator
 
                     foreach (String file in files)
                     {
-                        var fileProfileId = await GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
+                        var fileProfileId = GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
                         
                         await UploadFile(file, merchant.EstateId, merchant.MerchantId, fileProfileId, estateUser.SecurityUserId, fileDateTime, cancellationToken);
                         // Remove file onece uploaded
@@ -200,7 +195,7 @@ namespace TransactionDataGenerator
             }
         }
 
-        private static async Task<Guid> GetFileProfileIdFromOperator(String operatorName, CancellationToken cancellationToken)
+        private static Guid GetFileProfileIdFromOperator(String operatorName, CancellationToken cancellationToken)
         {
             // TODO: get this profile list from API
 
@@ -227,13 +222,13 @@ namespace TransactionDataGenerator
             formData.Add(new StringContent(merchantId.ToString()), "request.MerchantId");
             formData.Add(new StringContent(fileProfileId.ToString()), "request.FileProfileId");
             formData.Add(new StringContent(userId.ToString()), "request.UserId");
-            formData.Add(new StringContent(fileDateTime.ToString()), "request.UploadDateTime");
+            formData.Add(new StringContent(fileDateTime.ToString("yyyy-MM-dd HH:mm:ss")), "request.UploadDateTime");
 
             var request = new HttpRequestMessage(HttpMethod.Post, $"{baseAddressFunc("FileProcessorApi")}/api/files")
                           {
-                              Content = formData
+                              Content = formData,
                           };
-
+            request.Headers.Authorization = new AuthenticationHeaderValue("bearer", Program.TokenResponse.AccessToken);
             var response = await client.SendAsync(request, cancellationToken);
 
             return response;
