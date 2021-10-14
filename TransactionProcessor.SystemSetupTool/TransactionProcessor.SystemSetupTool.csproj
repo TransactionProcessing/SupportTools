@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,8 +6,49 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="1.0.5" />
-    <PackageReference Include="SecurityService.Client" Version="1.0.2.1" />
+    <None Remove="setupconfig.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="setupconfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EstateManagement.Client" Version="1.0.15-build77" />
+    <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="21.2.0" />
+    <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="21.2.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="SecurityService.Client" Version="1.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="identityserverconfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\EstateAggregator.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\FileProcessorSubscriptionStreamBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\MerchantAggregator.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\MerchantBalanceCalculator.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\TransactionEnricher.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="projections\continuous\TransactionProcessorSubscriptionStreamBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="projections\continuous\" />
   </ItemGroup>
 
 </Project>

@@ -4,8 +4,10 @@ namespace TransactionDataGenerator
 {
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.IO;
     using System.Linq;
     using System.Net.Http;
+    using System.Net.Http.Headers;
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
@@ -18,18 +20,7 @@ namespace TransactionDataGenerator
     using SecurityService.DataTransferObjects.Responses;
     using TransactionProcessor.Client;
     using TransactionProcessor.DataTransferObjects;
-
-    public class Gimp
-    {
-        public class V1
-        {
-            public class GimpAddedEvent
-            {
-
-            }
-        }
-    }
-
+    
     /// <summary>
     /// 
     /// </summary>
@@ -55,33 +46,46 @@ namespace TransactionDataGenerator
         /// </summary>
         private static TokenResponse TokenResponse;
 
-        /// <summary>
-        /// The transaction count
-        /// </summary>
-        private static Int32 TransactionCount = 0;
+        private static Func<String, String> baseAddressFunc;
         /// <summary>
         /// Defines the entry point of the application.
         /// </summary>
         /// <param name="args">The arguments.</param>
         static async Task Main(string[] args)
         {
-            HttpClient httpClient = new HttpClient();
 
-            Func<String, String> baseAddressFunc = (apiName) =>
+            HttpClientHandler handler = new HttpClientHandler
+                                        {
+                                            ServerCertificateCustomValidationCallback = (message,
+                                                                                         cert,
+                                                                                         chain,
+                                                                                         errors) =>
+                                                                                        {
+                                                                                            return true;
+                                                                                        }
+                                        };
+            HttpClient httpClient = new HttpClient(handler);
+
+            baseAddressFunc = (apiName) =>
                                                    {
                                                        if (apiName == "EstateManagementApi")
                                                        {
-                                                           return "http://192.168.1.133:5000";
+                                                           return "http://127.0.0.1:5000";
                                                        }
 
                                                        if (apiName == "SecurityService")
                                                        {
-                                                           return "http://192.168.1.133:5001";
+                                                           return "https://127.0.0.1:5001";
                                                        }
 
                                                        if (apiName == "TransactionProcessorApi")
                                                        {
-                                                           return "http://192.168.1.133:5002";
+                                                           return "http://127.0.0.1:5002";
+                                                       }
+
+                                                       if (apiName == "FileProcessorApi")
+                                                       {
+                                                           return "http://127.0.0.1:5009";
                                                        }
 
                                                        return null;
@@ -94,7 +98,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("5b07ec2d-3856-4d05-ab31-e2dedb95ea27");
+            Guid estateId = Guid.Parse("0b40040d-7964-4784-a25a-d8a989572a23");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -103,19 +107,186 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,4,1);
-            DateTime endDate = new DateTime(2021, 4, 19);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2021,10,1); //27/7
+            DateTime endDate = new DateTime(2021,10,13);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
-            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any()).ToList();
+            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any() &&
+                                             m.MerchantName != "Test Merchant 4").ToList();
 
             foreach (DateTime dateTime in dateRange)
             {
-                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
             }
             
             Console.WriteLine($"Process Complete");
+        }
+
+        private static async Task GenerateFileUploads(List<MerchantResponse> merchants,
+                                                      DateTime dateTime,
+                                                      CancellationToken cancellationToken)
+        {
+            foreach (MerchantResponse merchant in merchants)
+            {
+                Random r = new Random();
+                
+                // get a number of transactions to generate
+                Int32 numberOfSales = r.Next(5, 15);
+
+                List<ContractResponse> contracts =
+                    await Program.EstateClient.GetMerchantContracts(Program.TokenResponse.AccessToken, merchant.EstateId, merchant.MerchantId, cancellationToken);
+
+                EstateResponse estate = await Program.EstateClient.GetEstate(Program.TokenResponse.AccessToken, merchant.EstateId, cancellationToken);
+
+                var estateUser = estate.SecurityUsers.FirstOrDefault();
+
+                foreach (MerchantOperatorResponse merchantOperator in merchant.Operators)
+                {
+                    List<String> fileData = null;
+                    // get the contract 
+                    var contract = contracts.SingleOrDefault(c => c.OperatorId == merchantOperator.OperatorId);
+
+                    if (merchantOperator.Name == "Voucher")
+                    {
+                        // Generate a voucher file
+                        var voucherFile = GenerateVoucherFile(dateTime, contract.Description.Replace("Contract", ""), numberOfSales);
+                        fileData = voucherFile.fileLines;
+                        // Need to make a deposit for this amount - last sale
+                        Decimal depositAmount = voucherFile.totalValue - voucherFile.lastSale;
+                        await MakeMerchantDeposit(merchant, depositAmount, dateTime.AddSeconds(1));
+                    }
+                    else
+                    {
+                        // generate a topup file
+                        var topupFile = GenerateTopupFile(dateTime, numberOfSales);
+                        fileData = topupFile.fileLines;
+                        // Need to make a deposit for this amount - last sale
+                        Decimal depositAmount = topupFile.totalValue - topupFile.lastSale;
+                        await MakeMerchantDeposit(merchant, depositAmount, dateTime.AddSeconds(2));
+                    }
+
+                    // Write this file to disk
+                    Directory.CreateDirectory($"/home/txnproc/txngenerator/{merchantOperator.Name}");
+                    using(StreamWriter sw = new StreamWriter($"/home/txnproc/txngenerator/{merchantOperator.Name}/{contract.Description.Replace("Contract", "")}-{dateTime:yyyy-MM-dd-HH-mm-ss}"))
+                    {
+                        foreach (String fileLine in fileData)  
+                        {
+                            sw.WriteLine(fileLine);
+                        }
+                    }
+
+                    // Upload the generated files for this merchant/operatorcd 
+                    // Get the files
+                    var files = Directory.GetFiles($"/home/txnproc/txngenerator/{merchantOperator.Name}");
+
+                    var fileDateTime = dateTime.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute).AddSeconds(DateTime.Now.Second);
+
+                    foreach (String file in files)
+                    {
+                        var fileProfileId = GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
+                        
+                        await UploadFile(file, merchant.EstateId, merchant.MerchantId, fileProfileId, estateUser.SecurityUserId, fileDateTime, cancellationToken);
+                        // Remove file onece uploaded
+                        File.Delete(file);
+                    }
+                }
+            }
+        }
+
+        private static Guid GetFileProfileIdFromOperator(String operatorName, CancellationToken cancellationToken)
+        {
+            // TODO: get this profile list from API
+
+            switch(operatorName)
+            {
+                case "Safaricom":
+                    return Guid.Parse("B2A59ABF-293D-4A6B-B81B-7007503C3476");
+                case "Voucher":
+                    return Guid.Parse("8806EDBC-3ED6-406B-9E5F-A9078356BE99");
+                default:
+                    return Guid.Empty;
+            }
+        }
+
+        private static async Task<HttpResponseMessage> UploadFile(String filePath, Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId, DateTime fileDateTime, CancellationToken cancellationToken)
+        {
+            var client = new HttpClient();
+            var formData = new MultipartFormDataContent();
+
+            var fileContent = new ByteArrayContent(await File.ReadAllBytesAsync(filePath));
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
+            formData.Add(fileContent, "file", Path.GetFileName(filePath));
+            formData.Add(new StringContent(estateId.ToString()), "request.EstateId");
+            formData.Add(new StringContent(merchantId.ToString()), "request.MerchantId");
+            formData.Add(new StringContent(fileProfileId.ToString()), "request.FileProfileId");
+            formData.Add(new StringContent(userId.ToString()), "request.UserId");
+            formData.Add(new StringContent(fileDateTime.ToString("yyyy-MM-dd HH:mm:ss")), "request.UploadDateTime");
+
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{baseAddressFunc("FileProcessorApi")}/api/files")
+                          {
+                              Content = formData,
+                          };
+            request.Headers.Authorization = new AuthenticationHeaderValue("bearer", Program.TokenResponse.AccessToken);
+            var response = await client.SendAsync(request, cancellationToken);
+
+            return response;
+        }
+
+        private static (List<String> fileLines, Decimal totalValue, Decimal lastSale) GenerateTopupFile(DateTime dateTime,
+                                                                                                        Int32 numberOfLines)
+        {
+            List<String> fileLines = new List<String>();
+            Decimal totalValue = 0;
+            Decimal lastSale = 0;
+            String mobileNumber = "07777777305";
+            Random r = new Random();
+
+            fileLines.Add($"H,{dateTime:yyyy-MM-dd-HH-mm-ss}");
+
+            for (int i = 0; i < numberOfLines; i++)
+            {
+                Int32 amount = r.Next(75, 250);
+                totalValue += amount;
+                lastSale = amount;
+                fileLines.Add($"D,{mobileNumber},{amount}");
+            }
+
+            fileLines.Add($"T,{numberOfLines}");
+
+            return (fileLines, totalValue, lastSale);
+        }
+
+        private static (List<String> fileLines, Decimal totalValue, Decimal lastSale) GenerateVoucherFile(DateTime dateTime, String issuerName, Int32 numberOfLines)
+        {
+            // Build the header
+            List<String> fileLines = new List<String>();
+            fileLines.Add($"H,{dateTime:yyyy-MM-dd-HH-mm-ss}");
+            String emailAddress = "testrecipient@email.com";
+            String mobileNumber = "07777777305";
+            Random r = new Random();
+            Decimal totalValue = 0;
+            Decimal lastSale = 0;
+
+            for (int i = 0; i < numberOfLines; i++)
+            {
+                Int32 amount = r.Next(75, 250);
+                totalValue += amount;
+                lastSale = amount;
+                if (i % 2 == 0)
+                {
+                    fileLines.Add($"D,{issuerName},{emailAddress},{amount}");
+                }
+                else
+                {
+                    fileLines.Add($"D,{issuerName},{mobileNumber},{amount}");
+                }
+            }
+
+            fileLines.Add($"T,{numberOfLines}");
+
+            return (fileLines, totalValue, lastSale);
         }
 
         /// <summary>
@@ -150,7 +321,7 @@ namespace TransactionDataGenerator
                                                        DateTime dateTime,
                                                        CancellationToken cancellationToken)
         {
-            Int32 maxDegreeOfParallelism = 5;
+            Int32 maxDegreeOfParallelism = 1;
             Int32 boundedCapacityForActionBlock = merchants.Count;
 
             ActionBlock<(MerchantResponse merchant, CancellationToken cancellationToken)> workerBlock =
