@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "TransactionProcessing.SettlementProcessor": {
+      "commandName": "Project",
+      //"commandLineArgs": "4FC2692F-067A-443E-8006-335BF2732248 2021-10-27 2021-10-27"
+      "commandLineArgs": "4FC2692F-067A-443E-8006-335BF2732248"
+    }
+  }
+}

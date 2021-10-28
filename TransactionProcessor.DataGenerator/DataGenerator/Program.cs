@@ -67,29 +67,30 @@ namespace TransactionDataGenerator
             HttpClient httpClient = new HttpClient(handler);
 
             baseAddressFunc = (apiName) =>
-                                                   {
-                                                       if (apiName == "EstateManagementApi")
-                                                       {
-                                                           return "http://127.0.0.1:5000";
-                                                       }
+                              {
+                                  String ipaddress = "192.168.1.133";
+                                  if (apiName == "EstateManagementApi")
+                                  {
+                                      return $"http://{ipaddress}:5000";
+                                  }
 
-                                                       if (apiName == "SecurityService")
-                                                       {
-                                                           return "https://127.0.0.1:5001";
-                                                       }
+                                  if (apiName == "SecurityService")
+                                  {
+                                      return $"https://{ipaddress}:5001";
+                                  }
 
-                                                       if (apiName == "TransactionProcessorApi")
-                                                       {
-                                                           return "http://127.0.0.1:5002";
-                                                       }
+                                  if (apiName == "TransactionProcessorApi")
+                                  {
+                                      return $"http://{ipaddress}:5002";
+                                  }
 
-                                                       if (apiName == "FileProcessorApi")
-                                                       {
-                                                           return "http://127.0.0.1:5009";
-                                                       }
+                                  if (apiName == "FileProcessorApi")
+                                  {
+                                      return $"http://{ipaddress}:5009";
+                                  }
 
-                                                       return null;
-                                                   };
+                                  return null;
+                              };
 
             Program.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
 
@@ -98,7 +99,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("0b40040d-7964-4784-a25a-d8a989572a23");
+            Guid estateId = Guid.Parse("4fc2692f-067a-443e-8006-335bf2732248");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -107,8 +108,8 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,10,1); //27/7
-            DateTime endDate = new DateTime(2021,10,13);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2021,10,6); //27/7
+            DateTime endDate = new DateTime(2021,10,27);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -117,8 +118,8 @@ namespace TransactionDataGenerator
 
             foreach (DateTime dateTime in dateRange)
             {
-                //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
-                await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
+                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                //await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
             }
             
             Console.WriteLine($"Process Complete");
