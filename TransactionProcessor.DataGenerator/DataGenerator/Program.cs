@@ -108,8 +108,8 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,10,6); //27/7
-            DateTime endDate = new DateTime(2021,10,27);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2021,11,06); //27/7
+            DateTime endDate = new DateTime(2021,11,23);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -118,8 +118,8 @@ namespace TransactionDataGenerator
 
             foreach (DateTime dateTime in dateRange)
             {
-                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
-                //await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
+                //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
             }
             
             Console.WriteLine($"Process Complete");
