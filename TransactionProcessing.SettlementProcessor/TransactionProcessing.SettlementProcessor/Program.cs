@@ -19,6 +19,9 @@ namespace TransactionProcessing.SettlementProcessor
                 endDate = DateTime.ParseExact(args[2], "yyyy-MM-dd", null);
             }
 
+            startDate = new DateTime(2021,10,29);
+            endDate = new DateTime(2021,11,24);
+
             SettlementProcessor processor = new SettlementProcessor();
             processor.LoadConfiguration();
             await processor.ProcessSettlement(estateId, startDate, endDate);
