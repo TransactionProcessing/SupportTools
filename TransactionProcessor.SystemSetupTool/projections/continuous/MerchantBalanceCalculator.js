@@ -1,7 +1,3 @@
-var fromCategory = fromCategory || require('../../node_modules/esprojection-testing-framework').scope.fromCategory;
-var partitionBy = partitionBy !== null ? partitionBy : require('../../node_modules/esprojection-testing-framework').scope.partitionBy;
-var emit = emit || require('../../node_modules/esprojection-testing-framework').scope.emit;
-
 fromCategory('MerchantArchive')
     .foreachStream()
     .when({
@@ -130,7 +126,7 @@ var merchantCreatedEventHandler = function (s, e) {
 var emitBalanceChangedEvent = function (aggregateId, eventId, s, changeAmount, dateTime, reference) {
 
     if (s.initialised === true) {
-        
+
         // Emit an opening balance event
         var openingBalanceEvent = {
             $type: getEventTypeName(),
@@ -243,7 +239,7 @@ var merchantFeeAddedToTransactionEventHandler = function (s, e) {
 
     // increment the balance now
     incrementBalanceFromMerchantFee(s, e.data.calculatedValue, e.data.feeCalculatedDateTime);
-    
+
     // emit an balance changed event here
     s = emitBalanceChangedEvent(e.data.transactionId, e.eventId, s, e.data.calculatedValue, e.data.feeCalculatedDateTime, "Transaction Fee Processed");
 }

@@ -23,7 +23,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@testmerchant1.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "user": {
             "email_address": "merchantuser@testmerchant1.co.uk",
@@ -47,7 +47,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@testmerchant2.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
             "Safaricom",
@@ -75,7 +75,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@testmerchant3.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
             "Safaricom",
@@ -103,7 +103,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@emulatormerchant.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
             "Safaricom",
@@ -131,7 +131,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@s7merchant.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
             "Safaricom",
@@ -159,7 +159,7 @@
           },
           "contact": {
             "contact_name": "Test Contact",
-            "email_address": "testcontact@xperiamerchant.co.uk"
+            "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
             "Safaricom",

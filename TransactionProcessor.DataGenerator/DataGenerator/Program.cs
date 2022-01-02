@@ -68,7 +68,7 @@ namespace TransactionDataGenerator
 
             baseAddressFunc = (apiName) =>
                               {
-                                  String ipaddress = "192.168.1.133";
+                                  String ipaddress = "192.168.0.133";
                                   if (apiName == "EstateManagementApi")
                                   {
                                       return $"http://{ipaddress}:5000";
@@ -99,7 +99,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("4fc2692f-067a-443e-8006-335bf2732248");
+            Guid estateId = Guid.Parse("0f7040a6-e3c1-48ad-9d1b-39c1536fa688");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -108,13 +108,12 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2021,11,06); //27/7
-            DateTime endDate = new DateTime(2021,11,23);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2022,1,1); //27/7
+            DateTime endDate = new DateTime(2022,1,2);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
-            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any() &&
-                                             m.MerchantName != "Test Merchant 4").ToList();
+            merchants = merchants.Where(m => m.Devices != null && m.Devices.Any()).ToList();
 
             foreach (DateTime dateTime in dateRange)
             {
@@ -142,7 +141,7 @@ namespace TransactionDataGenerator
                 EstateResponse estate = await Program.EstateClient.GetEstate(Program.TokenResponse.AccessToken, merchant.EstateId, cancellationToken);
 
                 var estateUser = estate.SecurityUsers.FirstOrDefault();
-
+                
                 foreach (MerchantOperatorResponse merchantOperator in merchant.Operators)
                 {
                     List<String> fileData = null;
@@ -421,8 +420,7 @@ namespace TransactionDataGenerator
                                                            {
                                                                Amount = depositAmount,
                                                                DepositDateTime = dateTime.AddSeconds(55),
-                                                               Reference = "Test Data Gen Deposit",
-                                                               Source = MerchantDepositSource.Manual
+                                                               Reference = "Test Data Gen Deposit"
                                                            },
                                                            CancellationToken.None);
             Console.WriteLine($"Deposit made for Merchant [{merchant.MerchantName}]");
