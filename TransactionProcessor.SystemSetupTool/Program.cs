@@ -35,8 +35,8 @@ namespace TransactionProcessor.SystemSetupTool
 
         static async Task Main(string[] args)
         {
-            Func<String, String> estateResolver = s => { return "http://127.0.0.1:5000"; };
-            Func<String, String> securityResolver = s => { return "https://127.0.0.1:5001"; };
+            Func<String, String> estateResolver = s => { return "http://192.168.0.133:5000"; };
+            Func<String, String> securityResolver = s => { return "https://192.168.0.133:5001"; };
             HttpClientHandler handler = new HttpClientHandler
                                         {
                                             ServerCertificateCustomValidationCallback = (message,
@@ -51,17 +51,17 @@ namespace TransactionProcessor.SystemSetupTool
 
             Program.EstateClient = new EstateClient(estateResolver, client);
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
-            EventStoreClientSettings settings = EventStoreClientSettings.Create("esdb://admin:changeit@127.0.0.1:4113?tls=false");
+            EventStoreClientSettings settings = EventStoreClientSettings.Create("esdb://admin:changeit@192.168.0.133:2113?tls=true&tlsVerifyCert=false");
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
             
-            await Program.SetupIdentityServerFromConfig();
+            //await Program.SetupIdentityServerFromConfig();
 
             // Setup latest projections
             await DeployProjections();
 
             // Setup subcriptions
-            await SetupSubscriptions();
+            //await SetupSubscriptions();
 
             await Program.SetupEstatesFromConfig();            
         }
@@ -83,6 +83,7 @@ namespace TransactionProcessor.SystemSetupTool
                 await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", s);
                 await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "FileProcessor", s);
                 await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", s);
+                await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", s);
             }
         }
 

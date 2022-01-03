@@ -134,8 +134,7 @@ namespace TransactionGeneratorWorker
                                                             {
                                                                 Amount = depositAmount,
                                                                 DepositDateTime = dateTime,
-                                                                Reference = "Test Data Gen Deposit",
-                                                                Source = MerchantDepositSource.Manual
+                                                                Reference = "Test Data Gen Deposit"
                                                             },
                                                             CancellationToken.None);
                 Logger.LogInformation($"Deposit made for Merchant [{merchant.MerchantName}]");
