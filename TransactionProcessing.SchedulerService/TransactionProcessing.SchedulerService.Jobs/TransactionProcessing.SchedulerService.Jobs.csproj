@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="EstateManagement.Client" Version="1.0.18" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SecurityService.Client" Version="1.0.9" />
     <PackageReference Include="TransactionProcessor.Client" Version="1.0.17" />
   </ItemGroup>
