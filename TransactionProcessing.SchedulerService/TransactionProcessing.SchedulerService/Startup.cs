@@ -5,6 +5,8 @@ namespace TransactionProcessing.SchedulerService
     using System.Configuration;
     using System.Linq;
     using System.Reflection;
+    using System.Threading;
+    using System.Threading.Tasks;
     using Jobs;
     using Microsoft.AspNetCore.Builder;
     using Microsoft.AspNetCore.Hosting;
@@ -152,15 +154,17 @@ namespace TransactionProcessing.SchedulerService
             this.RegisterJobBootstrappers();
             this.RegisterJobs(services);
 
+            IScheduler scheduler = StdSchedulerFactory.GetDefaultScheduler().Result;
+            
             services.AddSilkierQuartz(s =>
-                                      {
-                                          s.VirtualPathRoot = "/quartz";
-                                          s.UseLocalTime = true;
-                                          s.DefaultDateFormat = "yyyy-MM-dd";
-                                          s.DefaultTimeFormat = "HH:mm:ss";
-                                          s.Scheduler = StdSchedulerFactory.GetDefaultScheduler().Result;
-                                      },
-                                      a => { a.AccessRequirement = SilkierQuartzAuthenticationOptions.SimpleAccessRequirement.AllowAnonymous; });
+                                                   {
+                                                       s.VirtualPathRoot = "/quartz";
+                                                       s.UseLocalTime = true;
+                                                       s.DefaultDateFormat = "yyyy-MM-dd";
+                                                       s.DefaultTimeFormat = "HH:mm:ss";
+                                                       s.Scheduler = scheduler;
+                                                   },
+                                                   a => { a.AccessRequirement = SilkierQuartzAuthenticationOptions.SimpleAccessRequirement.AllowAnonymous; });
         }
 
         /// <summary>
