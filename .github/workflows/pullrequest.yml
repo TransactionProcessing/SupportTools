@@ -17,7 +17,11 @@ jobs:
     - uses: actions/checkout@v1
 
     - name: Restore Nuget Packages
-      run: dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+      run: |
+        dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+        dotnet restore TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
 
     - name: Build Code
-      run: dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+      run: |
+        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.sln --configuration Release
