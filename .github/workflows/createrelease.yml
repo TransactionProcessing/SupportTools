@@ -20,13 +20,19 @@ jobs:
       run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
     - name: Restore Nuget Packages
-      run: dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+      run: |
+        dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+        dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
 
     - name: Build Code
-      run: dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+      run: |
+        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
 
     - name: Publish API
-      run: dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
+      run: |
+        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessor.TransactionProcessing/publishOutput
 
     - name: Install Octopus CLI
       run: |
@@ -35,7 +41,7 @@ jobs:
         sudo sh -c "echo deb https://apt.octopus.com/ stable main > /etc/apt/sources.list.d/octopus.com.list" && \
         sudo apt update && sudo apt install octopuscli
     
-    - name: Pack Files for Octopus
+    - name: Pack Files for Octopus Health Checks UI
       run: >-
         octo pack
         --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
@@ -45,13 +51,32 @@ jobs:
         --format zip
         --verbose
         --logLevel=verbose
+
+    - name: Pack Files for Octopus Scheduler Service
+      run: >-
+        octo pack
+        --outFolder /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
+        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
+        --id TransactionProcessor.SchedulerService
+        --version ${{ steps.get_version.outputs.VERSION }}
+        --format zip
+        --verbose
+        --logLevel=verbose
         
-    - name: Push Package to Octopus
+    - name: Push Package to Octopus Health Checks UI
       run: >-
         octo push
         --server ${{ secrets.OCTOPUS_URL }}
         --apiKey ${{ secrets.OCTOPUS_APIKEY }}
         --package /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
+        --overwrite-mode IgnoreIfExists
+
+    - name: Push Package to Octopus Scheduler Service
+      run: >-
+        octo push
+        --server ${{ secrets.OCTOPUS_URL }}
+        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
+        --package /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.${{ steps.get_version.outputs.VERSION }}.zip
         --overwrite-mode IgnoreIfExists
     
     - name: Get Release
