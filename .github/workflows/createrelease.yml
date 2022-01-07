@@ -32,7 +32,7 @@ jobs:
     - name: Publish API
       run: |
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
-        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessor.TransactionProcessing/publishOutput
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput
 
     - name: Install Octopus CLI
       run: |
@@ -57,7 +57,7 @@ jobs:
         octo pack
         --outFolder /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
         --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
-        --id TransactionProcessor.SchedulerService
+        --id TransactionProcessing.SchedulerService
         --version ${{ steps.get_version.outputs.VERSION }}
         --format zip
         --verbose
