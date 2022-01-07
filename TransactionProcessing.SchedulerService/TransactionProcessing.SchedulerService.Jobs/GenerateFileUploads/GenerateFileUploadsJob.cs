@@ -19,6 +19,7 @@
     /// 
     /// </summary>
     /// <seealso cref="Quartz.IJob" />
+    [DisallowConcurrentExecution]
     public class GenerateFileUploadsJob : IJob
     {
         #region Fields

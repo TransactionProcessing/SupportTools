@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
     <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.3.3" />
     <PackageReference Include="Quartz.Extensions.Hosting" Version="3.3.3" />
+    <PackageReference Include="Quartz.Plugins.TimeZoneConverter" Version="3.3.3" />
     <PackageReference Include="Quartz.Serialization.Json" Version="3.3.3" />
     <PackageReference Include="Shared" Version="1.1.0" />
     <PackageReference Include="SilkierQuartz" Version="5.0.309" />
