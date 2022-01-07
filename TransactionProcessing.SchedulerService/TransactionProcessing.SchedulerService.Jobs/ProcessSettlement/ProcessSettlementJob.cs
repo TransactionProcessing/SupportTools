@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 namespace TransactionProcessing.SchedulerService.Jobs
 {
     using System.Threading;
-    using Microsoft.Extensions.DependencyInjection;
     using Quartz;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
@@ -19,7 +18,7 @@ namespace TransactionProcessing.SchedulerService.Jobs
 
         public ProcessSettlementJob(Func<String, IBootstrapper> bootstrapperResolver)
         {
-            this.Bootstrapper = bootstrapperResolver(nameof(GenerateTransactionsJob));
+            this.Bootstrapper = bootstrapperResolver(nameof(ProcessSettlementJob));
         }
 
         /// <summary>
@@ -66,24 +65,5 @@ namespace TransactionProcessing.SchedulerService.Jobs
                                  };
             }
         }
-    }
-
-    public class ProcessSettlementBootstrapper : BaseBoostrapper
-    {
-        #region Methods
-
-        /// <summary>
-        /// Configures the service additional.
-        /// </summary>
-        /// <param name="jobExecutionContext">The job execution context.</param>
-        public override void ConfigureServiceAdditional(IJobExecutionContext jobExecutionContext)
-        {
-            this.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
-            this.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
-
-            this.Services.AddSingleton<Func<String, String>>(container => serviceName => { return jobExecutionContext.MergedJobDataMap.GetString(serviceName); });
-        }
-
-        #endregion
     }
 }
