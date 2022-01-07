@@ -22,17 +22,17 @@ jobs:
     - name: Restore Nuget Packages
       run: |
         dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
-        dotnet restore TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+        dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
 
     - name: Build Code
       run: |
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
-        dotnet build TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.sln --configuration Release
+        dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
 
     - name: Publish API
       run: |
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
-        dotnet publish "TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.csproj" --configuration Release --output TransactionProcessor.SchedulerService/publishOutput
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessor.TransactionProcessing/publishOutput
 
     - name: Install Octopus CLI
       run: |
@@ -55,8 +55,8 @@ jobs:
     - name: Pack Files for Octopus Scheduler Service
       run: >-
         octo pack
-        --outFolder /home/runner/work/SupportTools/TransactionProcessor.SchedulerService/
-        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessor.SchedulerService/publishOutput
+        --outFolder /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
+        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
         --id TransactionProcessor.SchedulerService
         --version ${{ steps.get_version.outputs.VERSION }}
         --format zip
@@ -76,7 +76,7 @@ jobs:
         octo push
         --server ${{ secrets.OCTOPUS_URL }}
         --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --package /home/runner/work/SupportTools/TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService.${{ steps.get_version.outputs.VERSION }}.zip
+        --package /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.${{ steps.get_version.outputs.VERSION }}.zip
         --overwrite-mode IgnoreIfExists
     
     - name: Get Release
