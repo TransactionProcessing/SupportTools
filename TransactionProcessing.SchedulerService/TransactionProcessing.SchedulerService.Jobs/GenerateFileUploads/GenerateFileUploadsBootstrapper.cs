@@ -10,7 +10,7 @@
     /// 
     /// </summary>
     /// <seealso cref="TransactionProcessing.SchedulerService.Jobs.BaseBoostrapper" />
-    public class GenerateFileUploadsBootstrapper : BaseBoostrapper
+    public class GenerateFileUploadsJobBootstrapper : BaseBoostrapper
     {
         #region Methods
 

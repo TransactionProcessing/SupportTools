@@ -48,6 +48,7 @@ namespace TransactionProcessing.SchedulerService
                                                      webBuilder.UseConfiguration(config);
                                                      webBuilder.UseKestrel();
                                                  }).ConfigureSilkierQuartzHost();
+
             return hostBuilder;
         }
 
