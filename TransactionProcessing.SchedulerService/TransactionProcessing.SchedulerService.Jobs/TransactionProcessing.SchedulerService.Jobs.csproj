@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
@@ -8,17 +8,8 @@
     <PackageReference Include="EstateManagement.Client" Version="1.0.18" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Quartz" Version="3.3.3" />
     <PackageReference Include="SecurityService.Client" Version="1.0.9" />
     <PackageReference Include="TransactionProcessor.Client" Version="1.0.17" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\..\..\..\Users\stuar\.nuget\packages\newtonsoft.json\13.0.1\lib\netstandard2.0\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="Quartz">
-      <HintPath>..\..\..\..\..\Users\stuar\.nuget\packages\quartz\3.3.3\lib\netstandard2.0\Quartz.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>
