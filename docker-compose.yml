@@ -1,7 +1,7 @@
 version: '3'
 services:
   sqlserver:
-    image: stuartferguson/subscriptionservicedatabasesqlserver
+    image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: sqlserver
     ports:
       - "14433:1433"
@@ -13,7 +13,7 @@ services:
       - SA_PASSWORD=thisisalongpassword123!
   
   eventstore:
-    image: eventstore/eventstore:20.10.0-buster-slim
+    image: eventstore/eventstore:21.2.0-buster-slim
     container_name: eventstore
     ports: 
       - "3113:1113"
@@ -53,7 +53,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5000
@@ -71,7 +71,7 @@ services:
     ports: 
       - "5005:5005"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5005
@@ -89,7 +89,7 @@ services:
     ports:
       - "5006:5006"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5006
@@ -107,7 +107,7 @@ services:
     ports:
       - "5002:5002"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5002
@@ -119,7 +119,7 @@ services:
     depends_on:
       - eventstore
       - securityservice
-      - estatemangement
+      - estatemanagement
       - vouchermanagement
       - testhosts
 
@@ -149,7 +149,7 @@ services:
     ports:
       - "5007:5007"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5007
@@ -186,6 +186,8 @@ services:
     container_name: testhosts
     volumes:
       - F:\home\txnproc\docker\trace:/home/txnproc/trace
+    environment:
+    - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel
     ports: 
       - "9000:9000"
 
@@ -198,7 +200,7 @@ services:
     ports:
       - "5009:5009"
     environment:
-      - EventStoreSettings:ConnectionString=http://eventstore:2113
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5009
@@ -213,3 +215,13 @@ services:
     depends_on:
       - eventstore
       - securityservice
+
+  #callbackhandler:
+  #  image: stuartferguson/callbackhandler
+  #  container_name: callbackhandler
+  #  volumes:
+  #    - F:\home\txnproc\docker\trace:/home/txnproc/trace
+  #  ports:
+  #    - "5010:5010"
+  #  environment:
+  #    - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
