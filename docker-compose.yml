@@ -40,6 +40,7 @@ services:
       - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore
       - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration
       - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
       - urls=https://*:5001
     restart: on-failure:5
     depends_on:
@@ -58,6 +59,7 @@ services:
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5000
       - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
     depends_on:
       - sqlserver
       - eventstore
@@ -76,6 +78,7 @@ services:
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5005
       - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
     depends_on:
       - sqlserver
       - eventstore
@@ -154,6 +157,7 @@ services:
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5007
       - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
@@ -190,6 +194,9 @@ services:
     - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel
     ports: 
       - "9000:9000"
+    restart: on-failure:5
+    depends_on:
+      - sqlserver
 
   fileprocessor:
     image: stuartferguson/fileprocessor
@@ -209,6 +216,7 @@ services:
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
       - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
       - AppSettings:FileProfiles:0:ListeningDirectory=/home/txnproc/bulkfiles/safaricom
       - AppSettings:FileProfiles:1:ListeningDirectory=/home/txnproc/bulkfiles/voucher
@@ -216,12 +224,12 @@ services:
       - eventstore
       - securityservice
 
-  #callbackhandler:
-  #  image: stuartferguson/callbackhandler
-  #  container_name: callbackhandler
-  #  volumes:
-  #    - F:\home\txnproc\docker\trace:/home/txnproc/trace
-  #  ports:
-  #    - "5010:5010"
-  #  environment:
-  #    - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+  callbackhandler:
+    image: stuartferguson/callbackhandler
+    container_name: callbackhandler
+    volumes:
+      - F:\home\txnproc\docker\trace:/home/txnproc/trace
+    ports:
+      - "5010:5010"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
