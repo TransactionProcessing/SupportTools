@@ -1,0 +1,235 @@
+version: '3'
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: sqlserver_dev
+    ports:
+      - "14433:1433"
+    volumes:
+      - F:\home\txnproc\docker\dev\db\data:/var/opt/mssql/data
+      - F:\home\txnproc\docker\dev\db\log:/var/opt/mssql/log
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=thisisalongpassword123!
+  
+  eventstore:
+    image: eventstore/eventstore:21.2.0-buster-slim
+    container_name: eventstore_dev
+    ports: 
+      - "3113:1113"
+      - "4113:2113"
+    volumes:
+      - F:\home\txnproc\docker\dev\eventstore:/var/lib/eventstore
+    environment:
+      - EVENTSTORE_RUN_PROJECTIONS=all
+      - EVENTSTORE_START_STANDARD_PROJECTIONS=true
+      - EVENTSTORE_INSECURE=true
+      - EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP=true
+      - EVENTSTORE_ENABLE_EXTERNAL_TCP=true
+
+  securityservice:
+    image: stuartferguson/securityservice:dev
+    container_name: securityservice_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports: 
+      - "5001:5001"
+    environment: 
+      - ServiceOptions:PublicOrigin=https://securityservice:5001
+      - ServiceOptions:IssuerUrl=https://securityservice:5001
+      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore
+      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration
+      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - urls=https://*:5001
+    restart: on-failure:5
+    depends_on:
+      - sqlserver_dev
+
+  estatemanagement: 
+    image: stuartferguson/estatemanagement:dev 
+    container_name: estatemanagement_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5000:5000"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5000
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+    depends_on:
+      - sqlserver_dev
+      - eventstore_dev
+      - securityservice_dev
+      
+  estatereporting: 
+    image: stuartferguson/estatereporting:dev 
+    container_name: estatereporting_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports: 
+      - "5005:5005"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5005
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+    depends_on:
+      - sqlserver_dev
+      - eventstore_dev
+      - securityservice_dev
+
+  messagingservice: 
+    image: stuartferguson/messagingservice:dev   
+    container_name: messagingservice_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5006:5006"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5006
+      - AppSettings:EmailProxy=Integration
+      - AppSettings:SMSProxy=Integration
+    depends_on:
+      - eventstore_dev  
+      - securityservice_dev
+
+  transactionprocessor:
+    image: stuartferguson/transactionprocesso:dev
+    container_name: transactionprocessor_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5002:5002"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5002
+      - AppSettings:EstateManagementApi=http://estatemanagement:5000
+      - AppSettings:VoucherManagementApi=http://vouchermanagement:5007
+      - AppSettings:ClientId=serviceClient
+      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
+    depends_on:
+      - eventstore_dev
+      - securityservice_dev
+      - estatemanagement_dev
+      - vouchermanagement_dev
+      - testhosts_dev
+
+  transactionprocessoracl:
+    image: stuartferguson/transactionprocessoracl:dev
+    container_name: transactionprocessoracl_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5003:5003"
+    environment:
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5003
+      - AppSettings:TransactionProcessorApi=http://transactionprocessor:5002
+      - AppSettings:ClientId=serviceClient
+      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+    depends_on:
+      - securityservice_dev
+      - transactionprocessor_dev
+
+  vouchermanagement:
+    image: stuartferguson/vouchermanagement:dev
+    container_name: vouchermanagement_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5007:5007"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5007
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - AppSettings:ClientId=serviceClient
+      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:EstateManagementApi=http://estatemanagement:5000
+    depends_on:
+      - sqlserver_dev
+      - eventstore_dev
+      - securityservice_dev
+      - estatemanagement_dev
+
+  vouchermanagementacl:
+    image: stuartferguson/vouchermanagementacl:dev
+    container_name: vouchermanagementacl_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5008:5008"
+    environment:
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5008
+      - AppSettings:ClientId=serviceClient
+      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:VoucherManagementApi=http://vouchermanagement:5007     
+    depends_on:
+      - securityservice_dev
+      - vouchermanagement_dev
+
+  testhosts:
+    image: stuartferguson/testhosts:dev
+    container_name: testhosts_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    environment:
+    - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel
+    ports: 
+      - "9000:9000"
+    restart: on-failure:5
+    depends_on:
+      - sqlserver_dev
+
+  fileprocessor:
+    image: stuartferguson/fileprocessor:dev
+    container_name: fileprocessor_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+      - F:\home\txnproc\docker\dev\bulkfiles:/home/txnproc/bulkfiles
+    ports:
+      - "5009:5009"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5009
+      - AppSettings:TransactionProcessorApi=http://transactionProcessor:5002
+      - AppSettings:EstateManagementApi=http://estateManamgement:5000
+      - AppSettings:ClientId=serviceClient
+      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
+      - AppSettings:FileProfiles:0:ListeningDirectory=/home/txnproc/bulkfiles/safaricom
+      - AppSettings:FileProfiles:1:ListeningDirectory=/home/txnproc/bulkfiles/voucher
+    depends_on:
+      - eventstore_dev
+      - securityservice_dev
+
+  callbackhandler:
+    image: stuartferguson/callbackhandler:dev
+    container_name: callbackhandler_dev
+    volumes:
+      - F:\home\txnproc\docker\dev\trace:/home/txnproc/trace
+    ports:
+      - "5010:5010"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
