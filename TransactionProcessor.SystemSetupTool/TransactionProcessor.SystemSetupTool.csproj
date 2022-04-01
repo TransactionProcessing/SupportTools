@@ -19,11 +19,17 @@
     <PackageReference Include="EstateManagement.Client" Version="1.0.15-build77" />
     <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="21.2.0" />
     <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="21.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SecurityService.Client" Version="1.0.8" />
+    <PackageReference Include="Shared" Version="1.1.8" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="identityserverconfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
