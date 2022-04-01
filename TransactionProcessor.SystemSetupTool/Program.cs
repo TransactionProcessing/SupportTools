@@ -20,6 +20,8 @@ namespace TransactionProcessor.SystemSetupTool
     using SecurityService.DataTransferObjects.Requests;
     using SecurityService.DataTransferObjects.Responses;
     using EventStore.Client;
+    using Microsoft.Extensions.Configuration;
+    using Shared.General;
 
     class Program
     {
@@ -32,11 +34,16 @@ namespace TransactionProcessor.SystemSetupTool
         private static EventStorePersistentSubscriptionsClient PersistentSubscriptionsClient;
 
         private static TokenResponse TokenResponse;
-
+        
         static async Task Main(string[] args)
         {
-            Func<String, String> estateResolver = s => { return "http://192.168.0.133:5000"; };
-            Func<String, String> securityResolver = s => { return "https://192.168.0.133:5001"; };
+            
+            IConfigurationBuilder builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            IConfigurationRoot configurationRoot = builder.Build();
+            ConfigurationReader.Initialise(configurationRoot);
+
+            Func<String, String> estateResolver = s => { return ConfigurationReader.GetValue("EstateManagementUri"); };
+            Func<String, String> securityResolver = s => { return ConfigurationReader.GetValue("SecurityServiceUri"); };
             HttpClientHandler handler = new HttpClientHandler
                                         {
                                             ServerCertificateCustomValidationCallback = (message,
@@ -51,7 +58,7 @@ namespace TransactionProcessor.SystemSetupTool
 
             Program.EstateClient = new EstateClient(estateResolver, client);
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
-            EventStoreClientSettings settings = EventStoreClientSettings.Create("esdb://admin:changeit@192.168.0.133:2113?tls=true&tlsVerifyCert=false");
+            EventStoreClientSettings settings = EventStoreClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
             
@@ -61,7 +68,7 @@ namespace TransactionProcessor.SystemSetupTool
             await DeployProjections();
 
             // Setup subcriptions
-            //await SetupSubscriptions();
+            await SetupSubscriptions();
 
             await Program.SetupEstatesFromConfig();            
         }

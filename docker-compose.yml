@@ -55,6 +55,7 @@ services:
       - "5000:5000"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5000
@@ -74,6 +75,7 @@ services:
       - "5005:5005"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5005
@@ -93,6 +95,7 @@ services:
       - "5006:5006"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5006
@@ -111,6 +114,7 @@ services:
       - "5002:5002"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5002
@@ -153,6 +157,7 @@ services:
       - "5007:5007"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5007
@@ -208,6 +213,7 @@ services:
       - "5009:5009"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5009
@@ -233,3 +239,4 @@ services:
       - "5010:5010"
     environment:
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
