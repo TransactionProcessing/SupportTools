@@ -1,3 +1,9 @@
+//starttestsetup
+var fromCategory = fromCategory || require('../../node_modules/@transactionprocessing/esprojection-testing-framework').scope.fromCategory;
+var emit = emit || require('../../node_modules/@transactionprocessing/esprojection-testing-framework').scope.emit;
+var linkTo = linkTo || require("../../node_modules/@transactionprocessing/esprojection-testing-framework").scope.linkTo;
+//endtestsetup
+
 fromCategory('TransactionAggregate')
     .foreachStream()
     .when({

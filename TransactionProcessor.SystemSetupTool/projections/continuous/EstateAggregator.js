@@ -1,3 +1,8 @@
+//starttestsetup
+var fromAll = fromAll || require("../../node_modules/@transactionprocessing/esprojection-testing-framework").scope.fromAll;
+var linkTo = linkTo || require("../../node_modules/@transactionprocessing/esprojection-testing-framework").scope.linkTo;
+//endtestsetup
+
 isEstateEvent = (e) => { return (e.data && e.data.estateId); }
 isAnEstateCreatedEvent = (e) => { return compareEventTypeSafely(e.eventType, 'EstateCreatedEvent') };
 
@@ -20,6 +25,8 @@ isTruncated = function (metadata) {
     return false;
 };
 
+getStringWithNoSpaces = function(inputString) { return inputString.replace(/-/gi, "").replace(/ /g, ""); }
+
 fromAll()
     .when({
             $init: function (s, e) {
@@ -33,8 +40,7 @@ fromAll()
 
                     if (isAnEstateCreatedEvent(e)) {
                         s.estates[e.data.estateId] = {
-                            filteredName: e.data.estateName.replace(/-/gi, ""),
-                            name: e.data.estateName.replace(/-/gi, "").replace(" ", "")
+                            name: getStringWithNoSpaces(e.data.estateName)
                         };
                     }
 

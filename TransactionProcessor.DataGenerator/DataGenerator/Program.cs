@@ -99,7 +99,7 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("0f7040a6-e3c1-48ad-9d1b-39c1536fa688");
+            Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -108,8 +108,8 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2022,1,5); //27/7
-            DateTime endDate = new DateTime(2022,1,5);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2022,8,1); //27/7
+            DateTime endDate = new DateTime(2022,8,1);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -189,10 +189,13 @@ namespace TransactionDataGenerator
                         
                         await UploadFile(file, merchant.EstateId, merchant.MerchantId, fileProfileId, estateUser.SecurityUserId, fileDateTime, cancellationToken);
                         // Remove file onece uploaded
+                        Console.WriteLine($"File Uploaded for Merchant {merchant.MerchantName}");
                         File.Delete(file);
                     }
                 }
             }
+
+            await Task.Delay(10000);
         }
 
         private static Guid GetFileProfileIdFromOperator(String operatorName, CancellationToken cancellationToken)
