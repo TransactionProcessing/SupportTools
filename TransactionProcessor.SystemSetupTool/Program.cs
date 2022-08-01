@@ -85,10 +85,10 @@ namespace TransactionProcessor.SystemSetupTool
 
             foreach (var estate in estateConfiguration.Estates)
             {
-                PersistentSubscriptionSettings s = new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: 5);
+                PersistentSubscriptionSettings s = new PersistentSubscriptionSettings(resolveLinkTos:true, maxRetryCount:5);
                 // Setup the subscrtipions
                 await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", s);
-                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "FileProcessor", s);
+                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "File sProcessor", s);
                 await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", s);
                 await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", s);
             }
@@ -105,6 +105,12 @@ namespace TransactionProcessor.SystemSetupTool
                 FileInfo f = new FileInfo(projection);
                 String name = f.Name.Substring(0, f.Name.Length - (f.Name.Length - f.Name.LastIndexOf(".")));
                 var body = File.ReadAllText(f.FullName);
+
+                var x = body.IndexOf("//endtestsetup");
+                x = x + "//endtestsetup".Length;
+
+                body = body.Substring(x);
+
                 // Is this already deployed (in the master list)
                 if ( currentProjections.Any(p => p.Name == name) == false)
                 {
@@ -212,7 +218,7 @@ namespace TransactionProcessor.SystemSetupTool
 
             foreach (var estate in estateConfiguration.Estates)
             {
-                await Program.CreateEstate(estate, CancellationToken.None);
+                    await Program.CreateEstate(estate, CancellationToken.None);
             }
         }
 

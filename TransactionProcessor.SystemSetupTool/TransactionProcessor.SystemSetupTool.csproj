@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +23,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SecurityService.Client" Version="1.0.8" />
-    <PackageReference Include="Shared" Version="1.1.8" />
+    <PackageReference Include="Shared" Version="1.3.3" />
   </ItemGroup>
 
   <ItemGroup>
