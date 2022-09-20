@@ -80,12 +80,13 @@
 
             Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
             Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
+            String contractsToSkip = context.MergedJobDataMap.GetString("contractsToSkip");
 
             this.SecurityServiceClient = this.Bootstrapper.GetService<ISecurityServiceClient>();
             this.EstateClient = this.Bootstrapper.GetService<IEstateClient>();
             this.baseAddressFunc = this.Bootstrapper.GetService<Func<String, String>>();
 
-            await this.GenerateFileUploads(estateId, merchantId, context.CancellationToken);
+            await this.GenerateFileUploads(estateId, merchantId,contractsToSkip, context.CancellationToken);
         }
 
         /// <summary>
@@ -96,6 +97,7 @@
         /// <param name="cancellationToken">The cancellation token.</param>
         private async Task GenerateFileUploads(Guid estateId,
                                                Guid merchantId,
+                                               String contractsToSkip,
                                                CancellationToken cancellationToken)
         {
             DateTime fileDate = DateTime.Now;
@@ -111,6 +113,12 @@
             Int32 numberOfSales = r.Next(5, 15);
 
             List<ContractResponse> contracts = await this.EstateClient.GetMerchantContracts(accessToken, merchant.EstateId, merchant.MerchantId, cancellationToken);
+
+            if (String.IsNullOrEmpty(contractsToSkip) == false)
+            {
+                String[] skipContracts = contractsToSkip.Split('|');
+                contracts = contracts.Where(c => skipContracts.Contains(c.Description) == false).ToList();
+            }
 
             EstateResponse estate = await this.EstateClient.GetEstate(accessToken, merchant.EstateId, cancellationToken);
 
