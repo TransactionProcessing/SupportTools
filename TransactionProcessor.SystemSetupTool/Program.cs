@@ -62,7 +62,7 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
             
-            //await Program.SetupIdentityServerFromConfig();
+            await Program.SetupIdentityServerFromConfig();
 
             // Setup latest projections
             await DeployProjections();
