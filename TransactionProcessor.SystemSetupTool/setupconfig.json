@@ -51,7 +51,8 @@
           },
           "operators": [
             "Safaricom",
-            "Voucher"
+            "Voucher",
+            "PataPawa PostPay"
           ],
           "user": {
             "email_address": "merchantuser@testmerchant2.co.uk",
@@ -79,7 +80,8 @@
           },
           "operators": [
             "Safaricom",
-            "Voucher"
+            "Voucher",
+            "PataPawa PostPay"
           ],
           "user": {
             "email_address": "merchantuser@testmerchant3.co.uk",
@@ -107,7 +109,8 @@
           },
           "operators": [
             "Safaricom",
-            "Voucher"
+            "Voucher",
+            "PataPawa PostPay"
           ],
           "user": {
             "email_address": "merchantuser@v28emulatormerchant.co.uk",
@@ -135,7 +138,8 @@
           },
           "operators": [
             "Safaricom",
-            "Voucher"
+            "Voucher",
+            "PataPawa PostPay"
           ],
           "user": {
             "email_address": "merchantuser@s7merchant.co.uk",
@@ -163,7 +167,8 @@
           },
           "operators": [
             "Safaricom",
-            "Voucher"
+            "Voucher",
+            "PataPawa PostPay"
           ],
           "user": {
             "email_address": "merchantuser@xperiamerchant.co.uk",
@@ -185,6 +190,11 @@
         },
         {
           "name": "Voucher",
+          "require_custom_merchant_number": false,
+          "require_custom_terminal_number": false
+        },
+        {
+          "name": "PataPawa PostPay",
           "require_custom_merchant_number": false,
           "require_custom_terminal_number": false
         }
@@ -261,6 +271,25 @@
                   "calculation_type": 0,
                   "description": "Merchant Commission",
                   "value": 0.3,
+                  "fee_type": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "operator_name": "PataPawa PostPay",
+          "description": "PataPawa PostPay Contract",
+          "products": [
+            {
+              "display_text": "Bill Pay (Post)",
+              "product_name": "Post Pay Bill Pay",
+              "value": null,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.95,
                   "fee_type": 0
                 }
               ]

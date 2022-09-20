@@ -87,12 +87,13 @@
                 Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
                 Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
                 Boolean requireLogon = context.MergedJobDataMap.GetBooleanValueFromString("requireLogon");
+                String contractsToSkip = context.MergedJobDataMap.GetString("contractsToSkip");
 
                 this.SecurityServiceClient = this.Bootstrapper.GetService<ISecurityServiceClient>();
                 this.TransactionProcessorClient = this.Bootstrapper.GetService<ITransactionProcessorClient>();
                 this.EstateClient = this.Bootstrapper.GetService<IEstateClient>();
 
-                await this.GenerateTransactions(estateId, merchantId, requireLogon, context.CancellationToken);
+                await this.GenerateTransactions(estateId, merchantId, requireLogon, contractsToSkip, context.CancellationToken);
             }
             catch(Exception e)
             {
@@ -111,9 +112,15 @@
         private async Task<List<SaleTransactionRequest>> CreateSaleRequests(String accessToken,
                                                                             MerchantResponse merchant,
                                                                             DateTime dateTime,
+                                                                            String contractsToSkip,
                                                                             CancellationToken cancellationToken)
         {
             List<ContractResponse> contracts = await this.EstateClient.GetMerchantContracts(accessToken, merchant.EstateId, merchant.MerchantId, cancellationToken);
+
+            if (String.IsNullOrEmpty(contractsToSkip) == false) {
+                String[] skipContracts = contractsToSkip.Split('|');
+                contracts = contracts.Where(c => skipContracts.Contains(c.Description) == false).ToList(); 
+            }
 
             List<SaleTransactionRequest> saleRequests = new List<SaleTransactionRequest>();
 
@@ -264,6 +271,7 @@
         private async Task GenerateTransactions(Guid estateId,
                                                                             Guid merchantId,
                                                                             Boolean requiresLogon,
+                                                                            String contractsToSkip,
                                                                             CancellationToken cancellationToken)
         {
             DateTime transactionDate = DateTime.Now;
@@ -285,7 +293,7 @@
             }
 
             // Now generate some sales
-            List<SaleTransactionRequest> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, cancellationToken);
+            List<SaleTransactionRequest> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, contractsToSkip, cancellationToken);
 
             // Work out how much of a deposit the merchant needs (minus 1 sale)
             IEnumerable<Dictionary<String, String>> metadata = saleRequests.Select(s => s.AdditionalTransactionMetadata);
