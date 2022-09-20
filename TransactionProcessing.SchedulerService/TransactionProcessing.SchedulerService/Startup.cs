@@ -16,6 +16,7 @@ namespace TransactionProcessing.SchedulerService
     using Quartz;
     using Quartz.Impl;
     using SilkierQuartz;
+    using ConfigurationManager = System.Configuration.ConfigurationManager;
 
     /// <summary>
     /// 

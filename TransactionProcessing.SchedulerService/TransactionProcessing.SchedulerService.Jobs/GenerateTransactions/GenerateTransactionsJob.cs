@@ -293,7 +293,7 @@
             }
 
             // Now generate some sales
-            List<SaleTransactionRequest> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, cancellationToken);
+            List<SaleTransactionRequest> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, contractsToSkip, cancellationToken);
 
             // Work out how much of a deposit the merchant needs (minus 1 sale)
             IEnumerable<Dictionary<String, String>> metadata = saleRequests.Select(s => s.AdditionalTransactionMetadata);
