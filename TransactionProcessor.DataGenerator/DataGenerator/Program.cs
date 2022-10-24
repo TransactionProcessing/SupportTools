@@ -99,7 +99,8 @@ namespace TransactionDataGenerator
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
-            Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+            //Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+            Guid estateId = Guid.Parse("7c757c2c-4ec9-4d78-ac9b-3a7bfc6d5877");
 
             // Get a token
             await Program.GetToken(CancellationToken.None);
@@ -108,8 +109,8 @@ namespace TransactionDataGenerator
             List<MerchantResponse> merchants = await Program.EstateClient.GetMerchants(Program.TokenResponse.AccessToken, estateId, CancellationToken.None);
             
             // Set the date range
-            DateTime startDate = new DateTime(2022,8,1); //27/7
-            DateTime endDate = new DateTime(2022,8,1);  // This is the date of te last generated transaction
+            DateTime startDate = new DateTime(2022,10,1); //27/7
+            DateTime endDate = new DateTime(2022,10,22);  // This is the date of te last generated transaction
             List<DateTime> dateRange = Program.GenerateDateRange(startDate, endDate);
 
             // Only use merchants that have a device
@@ -117,8 +118,8 @@ namespace TransactionDataGenerator
 
             foreach (DateTime dateTime in dateRange)
             {
-                await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
-                //await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
+                //await Program.GenerateTransactions(merchants, dateTime, CancellationToken.None);
+                await Program.GenerateFileUploads(merchants, dateTime, CancellationToken.None);
             }
             
             Console.WriteLine($"Process Complete");

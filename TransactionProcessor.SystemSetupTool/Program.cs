@@ -37,6 +37,8 @@ namespace TransactionProcessor.SystemSetupTool
         
         static async Task Main(string[] args)
         {
+
+
             
             IConfigurationBuilder builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
             IConfigurationRoot configurationRoot = builder.Build();
@@ -61,14 +63,14 @@ namespace TransactionProcessor.SystemSetupTool
             EventStoreClientSettings settings = EventStoreClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
-            
-            await Program.SetupIdentityServerFromConfig();
 
-            // Setup latest projections
-            await DeployProjections();
+            //await Program.SetupIdentityServerFromConfig();
 
-            // Setup subcriptions
-            await SetupSubscriptions();
+            //Setup latest projections
+            //await DeployProjections();
+
+            //Setup subcriptions
+            //await SetupSubscriptions();
 
             await Program.SetupEstatesFromConfig();            
         }
@@ -83,15 +85,23 @@ namespace TransactionProcessor.SystemSetupTool
 
             EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
 
+            
             foreach (var estate in estateConfiguration.Estates)
             {
-                PersistentSubscriptionSettings s = new PersistentSubscriptionSettings(resolveLinkTos:true, maxRetryCount:5);
+                
                 // Setup the subscrtipions
-                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", s);
-                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "File sProcessor", s);
-                await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", s);
-                await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", s);
+                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", CreatePersistentSettings());
+                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "File Processor", CreatePersistentSettings(2));
+                await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", CreatePersistentSettings());
+                await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", CreatePersistentSettings(1));
             }
+
+            await PersistentSubscriptionsClient.CreateAsync($"$et-EstateCreatedEvent", "Transaction Processor - Ordered", CreatePersistentSettings(1));
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-MerchantBalanceArchive", "Transaction Processor - Ordered", CreatePersistentSettings());
+        }
+
+        private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) {
+            return new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: retryCount);
         }
 
         private static async Task DeployProjections()
@@ -362,7 +372,9 @@ namespace TransactionProcessor.SystemSetupTool
                                                                                 ContactName = merchant.Contact.ContactName,
                                                                                 EmailAddress = merchant.Contact.EmailAddress
                                                                             },
-                                                                  SettlementSchedule = settlementSchedule
+                                                                  SettlementSchedule = settlementSchedule,
+                                                                  CreatedDateTime = merchant.CreateDate,
+                                                                  MerchantId = merchant.MerchantId,
                                                               };
                 var merchantResponse = await Program.EstateClient.CreateMerchant(Program.TokenResponse.AccessToken, estateResponse.EstateId, createMerchantRequest, cancellationToken);
 
