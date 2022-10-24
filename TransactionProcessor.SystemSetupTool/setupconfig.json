@@ -13,6 +13,7 @@
       },
       "merchants": [
         {
+          "merchant_id": "AB1C99FB-1C6C-4694-9A32-B71BE5D1DA33",
           "name": "Test Merchant 1",
           "settlementschedule": "Weekly",
           "address": {
@@ -34,9 +35,11 @@
           },
           "device": {
             "device_identifier": "testmerchant1device"
-          }
+          },
+          "createdate":  "2022-08-31"
         },
         {
+          "merchant_id": "AF4D7C7C-9B8D-4E58-A12A-28D3E0B89DF6",
           "name": "Test Merchant 2",
           "settlementschedule": "Weekly",
           "address": {
@@ -63,9 +66,11 @@
           },
           "device": {
             "device_identifier": "testmerchant2device"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "0D20A8B7-DA2E-421A-B591-53A08E694CEF",
           "name": "Test Merchant 3",
           "settlementschedule": "Monthly",
           "address": {
@@ -92,9 +97,11 @@
           },
           "device": {
             "device_identifier": "testmerchant3device"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "8BC8434D-41F9-4CC3-83BC-E73F20C02E1D",
           "name": "v28 Emulator Merchant",
           "settlementschedule": "Immediate",
           "address": {
@@ -121,9 +128,11 @@
           },
           "device": {
             "device_identifier": "dea09153b9c4220c"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "A5B55C9A-12D6-4DE3-BF51-B111B5C8792C",
           "name": "S7 Merchant",
           "settlementschedule": "Immediate",
           "address": {
@@ -150,9 +159,11 @@
           },
           "device": {
             "device_identifier": "ce11160bbd98480601"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "22549CD1-AFDD-44F9-882F-51C3EA71CCC0",
           "name": "Xperia Merchant",
           "settlementschedule": "Immediate",
           "address": {
@@ -179,7 +190,8 @@
           },
           "device": {
             "device_identifier": "CB5A26UB14"
-          }
+          },
+          "createdate": "2022-08-31"
         }
       ],
       "operators": [
@@ -312,6 +324,7 @@
       },
       "merchants": [
         {
+          "merchant_id": "1E637E40-9621-472E-9DC0-52DF473829B4",
           "name": "Test Merchant 4",
           "settlementschedule": "Immediate",
           "address": {
@@ -333,9 +346,11 @@
           },
           "device": {
             "device_identifier": "testmerchant4device"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "7042BA14-7549-4531-9892-2BD840C5BC63",
           "name": "Test Merchant 5",
           "settlementschedule": "Weekly",
           "address": {
@@ -361,9 +376,11 @@
           },
           "device": {
             "device_identifier": "testmerchant5device"
-          }
+          },
+          "createdate": "2022-08-31"
         },
         {
+          "merchant_id": "D6DBA8D5-AE1F-49E6-BA94-D1432F41F686",
           "name": "Test Merchant 6",
           "settlementschedule": "Monthly",
           "address": {
@@ -389,7 +406,8 @@
           },
           "device": {
             "device_identifier": "testmerchant6device"
-          }
+          },
+          "createdate": "2022-08-31"
         }
       ],
       "operators": [

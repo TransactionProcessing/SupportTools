@@ -5,6 +5,12 @@
 
     public class Merchant
     {
+        [JsonPropertyName("merchant_id")]
+        public Guid MerchantId { get; set; }
+
+        [JsonPropertyName("createdate")]
+        public DateTime CreateDate { get; set; }
+
         [JsonPropertyName("name")]
         public String Name { get; set; }
 
