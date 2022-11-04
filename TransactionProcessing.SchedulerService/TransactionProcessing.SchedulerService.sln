@@ -5,7 +5,11 @@ VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransactionProcessing.SchedulerService", "TransactionProcessing.SchedulerService\TransactionProcessing.SchedulerService.csproj", "{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionProcessing.SchedulerService.Jobs", "TransactionProcessing.SchedulerService.Jobs\TransactionProcessing.SchedulerService.Jobs.csproj", "{0A8E0EA7-3A93-4605-A690-C663F6239099}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransactionProcessing.SchedulerService.Jobs", "TransactionProcessing.SchedulerService.Jobs\TransactionProcessing.SchedulerService.Jobs.csproj", "{0A8E0EA7-3A93-4605-A690-C663F6239099}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0131F226-313F-4F7C-9576-7AA726FA9584}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{8EBAA9CC-7C39-497D-A925-866E68CFE20A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,6 +28,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C} = {0131F226-313F-4F7C-9576-7AA726FA9584}
+		{0A8E0EA7-3A93-4605-A690-C663F6239099} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FCE31FDA-32E8-49AB-8D30-0D36D461CBC1}
