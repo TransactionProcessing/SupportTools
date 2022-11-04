@@ -12,6 +12,7 @@
     using EstateManagement.DataTransferObjects.Requests;
     using EstateManagement.DataTransferObjects.Responses;
     using Quartz;
+    using Quartz.Impl;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
 
@@ -130,58 +131,57 @@
                 // get the contract 
                 var contract = contracts.SingleOrDefault(c => c.OperatorId == merchantOperator.OperatorId);
 
-                if (merchantOperator.Name == "Voucher")
-                {
-                    // Generate a voucher file
-                    var voucherFile = this.GenerateVoucherFile(fileDate, contract.Description.Replace("Contract", ""), numberOfSales);
-                    fileData = voucherFile.fileLines;
-                    // Need to make a deposit for this amount - last sale
-                    Decimal depositAmount = voucherFile.totalValue - voucherFile.lastSale;
-                    await this.MakeMerchantDeposit(accessToken, merchant, depositAmount, fileDate.AddSeconds(1), cancellationToken);
-                }
-                else
-                {
-                    // generate a topup file
-                    var topupFile = this.GenerateTopupFile(fileDate, numberOfSales);
-                    fileData = topupFile.fileLines;
-                    // Need to make a deposit for this amount - last sale
-                    Decimal depositAmount = topupFile.totalValue - topupFile.lastSale;
-                    await this.MakeMerchantDeposit(accessToken, merchant, depositAmount, fileDate.AddSeconds(2), cancellationToken);
-                }
+                // Only process if we find the contract
+                if (contract != null) {
 
-                // Write this file to disk
-                Directory.CreateDirectory($"/home/txnproc/txngenerator/{merchantOperator.Name}");
-                using(StreamWriter sw =
-                      new
-                          StreamWriter($"/home/txnproc/txngenerator/{merchantOperator.Name}/{contract.Description.Replace("Contract", "")}-{fileDate:yyyy-MM-dd-HH-mm-ss}"))
-                {
-                    foreach (String fileLine in fileData)
-                    {
-                        sw.WriteLine(fileLine);
+                    if (merchantOperator.Name == "Voucher") {
+                        // Generate a voucher file
+                        var voucherFile = this.GenerateVoucherFile(fileDate, contract.Description.Replace("Contract", ""), numberOfSales);
+                        fileData = voucherFile.fileLines;
+                        // Need to make a deposit for this amount - last sale
+                        Decimal depositAmount = voucherFile.totalValue - voucherFile.lastSale;
+                        await this.MakeMerchantDeposit(accessToken, merchant, depositAmount, fileDate.AddSeconds(1), cancellationToken);
                     }
-                }
+                    else {
+                        // generate a topup file
+                        var topupFile = this.GenerateTopupFile(fileDate, numberOfSales);
+                        fileData = topupFile.fileLines;
+                        // Need to make a deposit for this amount - last sale
+                        Decimal depositAmount = topupFile.totalValue - topupFile.lastSale;
+                        await this.MakeMerchantDeposit(accessToken, merchant, depositAmount, fileDate.AddSeconds(2), cancellationToken);
+                    }
 
-                // Upload the generated files for this merchant/operator
-                // Get the files
-                var files = Directory.GetFiles($"/home/txnproc/txngenerator/{merchantOperator.Name}");
+                    // Write this file to disk
+                    Directory.CreateDirectory($"/home/txnproc/txngenerator/{merchantOperator.Name}");
+                    using(StreamWriter sw =
+                          new
+                              StreamWriter($"/home/txnproc/txngenerator/{merchantOperator.Name}/{contract.Description.Replace("Contract", "")}-{fileDate:yyyy-MM-dd-HH-mm-ss}")) {
+                        foreach (String fileLine in fileData) {
+                            sw.WriteLine(fileLine);
+                        }
+                    }
 
-                var fileDateTime = fileDate.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute).AddSeconds(DateTime.Now.Second);
+                    // Upload the generated files for this merchant/operator
+                    // Get the files
+                    var files = Directory.GetFiles($"/home/txnproc/txngenerator/{merchantOperator.Name}");
 
-                foreach (String file in files)
-                {
-                    var fileProfileId = this.GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
+                    var fileDateTime = fileDate.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute).AddSeconds(DateTime.Now.Second);
 
-                    await this.UploadFile(accessToken,
-                                          file,
-                                          merchant.EstateId,
-                                          merchant.MerchantId,
-                                          fileProfileId,
-                                          estateUser.SecurityUserId,
-                                          fileDateTime,
-                                          cancellationToken);
+                    foreach (String file in files) {
+                        var fileProfileId = this.GetFileProfileIdFromOperator(merchantOperator.Name, cancellationToken);
 
-                    // Remove file once uploaded
-                    File.Delete(file);
+                        await this.UploadFile(accessToken,
+                                              file,
+                                              merchant.EstateId,
+                                              merchant.MerchantId,
+                                              fileProfileId,
+                                              estateUser.SecurityUserId,
+                                              fileDateTime,
+                                              cancellationToken);
+
+                        // Remove file once uploaded
+                        File.Delete(file);
+                    }
                 }
             }
         }
