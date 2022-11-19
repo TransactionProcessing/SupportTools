@@ -2,14 +2,14 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="1.1.5" />
+    <PackageReference Include="EstateManagement.Client" Version="1.1.6-build21" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SecurityService.Client" Version="1.0.6" />
-    <PackageReference Include="TransactionProcessor.Client" Version="1.1.11" />
+    <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
+    <PackageReference Include="TransactionProcessor.Client" Version="1.1.13-build29" />
   </ItemGroup>
 
 </Project>

@@ -1,15 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="1.1.3" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.2" />
+    <PackageReference Include="EstateManagement.Client" Version="1.1.6-build21" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="Quartz" Version="3.3.3" />
-    <PackageReference Include="SecurityService.Client" Version="1.1.1" />
-    <PackageReference Include="TransactionProcessor.Client" Version="1.1.9" />
+    <PackageReference Include="Quartz" Version="3.5.0" />
+    <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
+    <PackageReference Include="TransactionProcessor.Client" Version="1.1.13-build29" />
   </ItemGroup>
 </Project>
