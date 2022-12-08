@@ -8,7 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
     <PackageReference Include="Shared" Version="1.5.1" />
     <PackageReference Include="TransactionProcessor.Client" Version="1.1.13-build29" />
