@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="EstateManagement.Client" Version="1.1.6-build21" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
     <PackageReference Include="TransactionProcessor.Client" Version="1.1.13-build29" />
   </ItemGroup>
