@@ -3,6 +3,8 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net.Http;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using EstateManagement.Client;
@@ -37,6 +39,8 @@
         /// The estate client
         /// </summary>
         private IEstateClient EstateClient;
+
+        private String TestHostApi;
 
         /// <summary>
         /// The security service client
@@ -88,6 +92,7 @@
                 Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
                 Boolean requireLogon = context.MergedJobDataMap.GetBooleanValueFromString("requireLogon");
                 String contractsToSkip = context.MergedJobDataMap.GetString("contractsToSkip");
+                this.TestHostApi = context.MergedJobDataMap.GetString("TestHostApi");
 
                 this.SecurityServiceClient = this.Bootstrapper.GetService<ISecurityServiceClient>();
                 this.TransactionProcessorClient = this.Bootstrapper.GetService<ITransactionProcessorClient>();
@@ -109,20 +114,20 @@
         /// <param name="dateTime">The date time.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns></returns>
-        private async Task<List<SaleTransactionRequest>> CreateSaleRequests(String accessToken,
+        private async Task<List<(SaleTransactionRequest request,Decimal amount)>> CreateSaleRequests(String accessToken,
                                                                             MerchantResponse merchant,
                                                                             DateTime dateTime,
                                                                             String contractsToSkip,
                                                                             CancellationToken cancellationToken)
         {
             List<ContractResponse> contracts = await this.EstateClient.GetMerchantContracts(accessToken, merchant.EstateId, merchant.MerchantId, cancellationToken);
-
+            
             if (String.IsNullOrEmpty(contractsToSkip) == false) {
                 String[] skipContracts = contractsToSkip.Split('|');
-                contracts = contracts.Where(c => skipContracts.Contains(c.Description) == false).ToList(); 
+                contracts = contracts.Where(c => skipContracts.Contains(c.Description) == true).ToList(); 
             }
 
-            List<SaleTransactionRequest> saleRequests = new List<SaleTransactionRequest>();
+            List<(SaleTransactionRequest request, Decimal amount)> saleRequests = new List<(SaleTransactionRequest request, Decimal amount)>();
 
             Random r = new Random();
             Int32 transactionNumber = 1;
@@ -131,46 +136,86 @@
 
             for (Int32 i = 0; i < numberOfSales; i++)
             {
-                // Pick a contract
-                ContractResponse contract = contracts[r.Next(0, contracts.Count)];
+                var requests = await this.CreateSaleTransactionRequest(merchant, dateTime, contracts, r, transactionNumber);
 
-                // Pick a product
-                ContractProduct product = contract.Products[r.Next(0, contract.Products.Count)];
+                saleRequests.AddRange(requests);
+                transactionNumber++;
+            }
 
-                Decimal amount = 0;
-                if (product.Value.HasValue)
-                {
-                    amount = product.Value.Value;
-                }
-                else
-                {
-                    // generate an amount
-                    amount = r.Next(9, 250);
-                }
+            return saleRequests;
+        }
 
-                // Generate the time
-                DateTime transactionDateTime = new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, 0);
+        private async Task<List<(SaleTransactionRequest request, Decimal amount)>> CreateSaleTransactionRequest(MerchantResponse merchant, DateTime dateTime, List<ContractResponse> contracts, Random r, Int32 transactionNumber){
+            // Pick a contract
+            ContractResponse contract = contracts[r.Next(0, contracts.Count)];
 
-                // Build the metadata
-                Dictionary<String, String> requestMetaData = new Dictionary<String, String>();
-                requestMetaData.Add("Amount", amount.ToString());
+            // Pick a product
+            ContractProduct product = contract.Products[r.Next(0, contract.Products.Count)];
 
-                var productType = GenerateTransactionsJob.GetProductType(contract.OperatorName);
+            Decimal amount = 0;
+            if (product.Value.HasValue){
+                amount = product.Value.Value;
+            }
+            else{
+                // generate an amount
+                amount = r.Next(9, 250);
+            }
+
+            // Generate the time
+            DateTime transactionDateTime = new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, 0);
+
+            // Build the metadata
+            Dictionary<String, String> requestMetaData = new Dictionary<String, String>();
+            requestMetaData.Add("Amount", amount.ToString());
+
+            List<(SaleTransactionRequest request, Decimal amount)> requests = new List<(SaleTransactionRequest request, Decimal amount)>();
+
+            ProductType productType = GenerateTransactionsJob.GetProductType(contract.OperatorName);
+            if (productType != ProductType.BillPayment){
                 String operatorName = GenerateTransactionsJob.GetOperatorName(contract);
-                if (productType == ProductType.MobileTopup)
-                {
+                if (productType == ProductType.MobileTopup){
                     requestMetaData.Add("CustomerAccountNumber", "1234567890");
                 }
-                else if (productType == ProductType.Voucher)
-                {
+                else if (productType == ProductType.Voucher){
                     requestMetaData.Add("RecipientMobile", "1234567890");
                 }
-
+                
                 String deviceIdentifier = merchant.Devices.Single().Value;
 
-                SaleTransactionRequest request = new SaleTransactionRequest
+                SaleTransactionRequest request = new SaleTransactionRequest{
+                                                                               AdditionalTransactionMetadata = requestMetaData,
+                                                                               ContractId = contract.ContractId,
+                                                                               CustomerEmailAddress = string.Empty,
+                                                                               DeviceIdentifier = deviceIdentifier,
+                                                                               MerchantId = merchant.MerchantId,
+                                                                               EstateId = merchant.EstateId,
+                                                                               TransactionType = "Sale",
+                                                                               TransactionDateTime = transactionDateTime.AddSeconds(r.Next(0, 59)),
+                                                                               TransactionNumber = transactionNumber.ToString(),
+                                                                               OperatorIdentifier = contract.OperatorName,
+                                                                               ProductId = product.ProductId
+                                                                           };
+                requests.Add((request, amount));
+            }
+            else{
+                (Int32 accountNumber, String accountName, Decimal balance) billDetails = await CreateBill(contract, amount, r);
+
+                if (billDetails == default)
+                    return new List<(SaleTransactionRequest request, Decimal amount)>();
+
+                // Create the requests required
+                String deviceIdentifier = merchant.Devices.Single().Value;
+
+
+                // First request is Get Account
+                Dictionary<String, String> getAccountRequestMetaData = new Dictionary<String, String>{
+                                                                                                         { "CustomerAccountNumber", billDetails.accountNumber.ToString() },
+                                                                                                         { "PataPawaPostPaidMessageType", "VerifyAccount" }
+                                                                                                     };
+                
+                SaleTransactionRequest getAccountRequest = new SaleTransactionRequest
                                                  {
-                                                     AdditionalTransactionMetadata = requestMetaData,
+                                                     AdditionalTransactionMetadata = getAccountRequestMetaData,
                                                      ContractId = contract.ContractId,
                                                      CustomerEmailAddress = string.Empty,
                                                      DeviceIdentifier = deviceIdentifier,
@@ -183,11 +228,62 @@
                                                      ProductId = product.ProductId
                                                  };
 
-                saleRequests.Add(request);
-                transactionNumber++;
+                requests.Add((getAccountRequest,0));
+
+                // Second request is Make Payment
+                var makePaymentRequestMetaData = new Dictionary<String, String>{
+                                                                                  { "CustomerAccountNumber", billDetails.accountNumber.ToString() },
+                                                                                  { "CustomerName", billDetails.accountName},
+                                                                                  { "MobileNumber", "1234567890"},
+                                                                                  { "Amount", amount.ToString()},
+                                                                                  { "PataPawaPostPaidMessageType", "ProcessBill" }
+                                                                              };
+
+                SaleTransactionRequest makePaymentRequest = new SaleTransactionRequest
+                                                                    {
+                                                                        AdditionalTransactionMetadata = makePaymentRequestMetaData,
+                                                                        ContractId = contract.ContractId,
+                                                                        CustomerEmailAddress = string.Empty,
+                                                                        DeviceIdentifier = deviceIdentifier,
+                                                                        MerchantId = merchant.MerchantId,
+                                                                        EstateId = merchant.EstateId,
+                                                                        TransactionType = "Sale",
+                                                                        TransactionDateTime = transactionDateTime.AddSeconds(r.Next(0, 59)),
+                                                                        TransactionNumber = transactionNumber.ToString(),
+                                                                        OperatorIdentifier = contract.OperatorName,
+                                                                        ProductId = product.ProductId
+                                                                    };
+
+                requests.Add((makePaymentRequest, amount));
+
             }
 
-            return saleRequests;
+            return requests;
+        }
+
+        private async Task<(Int32 accountNumber, String accountName, Decimal balance)> CreateBill(ContractResponse contract, Decimal amount, Random r)
+        {
+            if (contract.OperatorName == "PataPawa PostPay"){
+
+                Int32 accountNumber = r.Next(1, 100000);
+                
+                HttpClient httpClient = new HttpClient();
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.TestHostApi}/api/developer/patapawapostpay/createbill");
+                var body = new{
+                                  due_date = DateTime.Now.AddDays(1),
+                                  amount = amount * 100,
+                                  account_number = accountNumber,
+                                  account_name = "Test Account 1"
+                              };
+                request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+                HttpResponseMessage response = await httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode){
+                    return (body.account_number, body.account_name, body.amount);
+                }
+            }
+
+            return default;
         }
 
         /// <summary>
@@ -269,11 +365,10 @@
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns></returns>
         private async Task GenerateTransactions(Guid estateId,
-                                                                            Guid merchantId,
-                                                                            Boolean requiresLogon,
-                                                                            String contractsToSkip,
-                                                                            CancellationToken cancellationToken)
-        {
+                                                Guid merchantId,
+                                                Boolean requiresLogon,
+                                                String contractsToSkip,
+                                                CancellationToken cancellationToken){
             DateTime transactionDate = DateTime.Now;
 
             // get a token
@@ -284,8 +379,7 @@
 
             Int32 transactionCount = 0;
 
-            if (requiresLogon)
-            {
+            if (requiresLogon){
                 // Do a logon transaction for the merchant
                 await this.DoLogonTransaction(accessToken, merchant, transactionDate, cancellationToken);
 
@@ -293,21 +387,19 @@
             }
 
             // Now generate some sales
-            List<SaleTransactionRequest> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, contractsToSkip, cancellationToken);
+            List<(SaleTransactionRequest request, Decimal amount)> saleRequests = await this.CreateSaleRequests(accessToken, merchant, transactionDate, contractsToSkip, cancellationToken);
 
             // Work out how much of a deposit the merchant needs (minus 1 sale)
-            IEnumerable<Dictionary<String, String>> metadata = saleRequests.Select(s => s.AdditionalTransactionMetadata);
-            List<String> amounts = metadata.Select(m => m["Amount"]).ToList();
+            IEnumerable<Decimal> amountList = saleRequests.Select(s => s.amount).ToList();
 
-            Decimal depositAmount = amounts.TakeLast(amounts.Count - 1).Sum(a => decimal.Parse(a));
+            Decimal depositAmount = amountList.TakeLast(amountList.Count() - 1).Sum(a => a);
 
             await this.MakeMerchantDeposit(accessToken, merchant, depositAmount, transactionDate, cancellationToken);
 
             // Now send the sales
-            saleRequests = saleRequests.OrderBy(s => s.TransactionDateTime).ToList();
-            foreach (SaleTransactionRequest saleTransactionRequest in saleRequests)
-            {
-                await this.DoSaleTransaction(accessToken, saleTransactionRequest, cancellationToken);
+            saleRequests = saleRequests.OrderBy(s => s.request.TransactionDateTime).ToList();
+            foreach ((SaleTransactionRequest request, Decimal amount) saleTransactionRequest in saleRequests){
+                await this.DoSaleTransaction(accessToken, saleTransactionRequest.request, cancellationToken);
                 Console.WriteLine($"Sale sent for Merchant [{merchant.MerchantName}]");
                 transactionCount++;
             }
@@ -350,6 +442,9 @@
                     break;
                 case "Voucher":
                     productType = ProductType.Voucher;
+                    break;
+                case "PataPawa PostPay":
+                    productType = ProductType.BillPayment;
                     break;
             }
 
