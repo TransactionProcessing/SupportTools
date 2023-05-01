@@ -7,37 +7,35 @@ using System.Threading.Tasks;
 namespace TransactionProcessing.SchedulerService.Jobs
 {
     using System.Threading;
+    using EstateManagement.Client;
     using Quartz;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
+    using TransactionProcessing.DataGeneration;
     using TransactionProcessor.Client;
 
     public class ProcessSettlementJob : IJob
     {
+        private Func<String, String> baseAddressFunc;
+
         private readonly IBootstrapper Bootstrapper;
+
+        private IEstateClient EstateClient;
+
+        private ISecurityServiceClient SecurityServiceClient;
+
+        private ITransactionProcessorClient TransactionProcessorClient;
 
         public ProcessSettlementJob(Func<String, IBootstrapper> bootstrapperResolver)
         {
             this.Bootstrapper = bootstrapperResolver(nameof(ProcessSettlementJob));
         }
-
-        /// <summary>
-        /// The security service client
-        /// </summary>
-        private ISecurityServiceClient SecurityServiceClient;
-
-        private ITransactionProcessorClient TransactionProcessorClient;
-
-        /// <summary>
-        /// Gets the token.
-        /// </summary>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns></returns>
-        private async Task<String> GetToken(CancellationToken cancellationToken)
+        
+        private async Task<String> GetToken(String clientId,
+                                            String clientSecret, 
+                                            CancellationToken cancellationToken)
         {
-            // Get a token to talk to the estate service
-            String clientId = "serviceClient";
-            String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
+           
 
             TokenResponse token = await this.SecurityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
 
@@ -46,24 +44,26 @@ namespace TransactionProcessing.SchedulerService.Jobs
 
         public async Task Execute(IJobExecutionContext context)
         {
-            try
-            {
-                this.Bootstrapper.ConfigureServices(context);
+            this.Bootstrapper.ConfigureServices(context);
+            String clientId = context.MergedJobDataMap.GetString("ClientId");
+            String clientSecret = context.MergedJobDataMap.GetString("ClientSecret");
+            Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
 
-                Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
+            this.SecurityServiceClient = this.Bootstrapper.GetService<ISecurityServiceClient>();
+            this.TransactionProcessorClient = this.Bootstrapper.GetService<ITransactionProcessorClient>();
+            this.EstateClient = this.Bootstrapper.GetService<IEstateClient>();
+            this.baseAddressFunc = this.Bootstrapper.GetService<Func<String, String>>();
+            
+            ITransactionDataGenerator g = new TransactionDataGenerator(this.SecurityServiceClient,
+                                                                       this.EstateClient,
+                                                                       this.TransactionProcessorClient,
+                                                                       this.baseAddressFunc("FileProcessorApi"),
+                                                                       this.baseAddressFunc("TestHostApi"),
+                                                                       clientId,
+                                                                       clientSecret,
+                                                                       RunningMode.Live);
 
-                this.SecurityServiceClient = this.Bootstrapper.GetService<ISecurityServiceClient>();
-                this.TransactionProcessorClient = this.Bootstrapper.GetService<ITransactionProcessorClient>();
-                String token = await this.GetToken(context.CancellationToken);
-                await this.TransactionProcessorClient.ProcessSettlement(token, DateTime.Now.Date, estateId, context.CancellationToken);
-            }
-            catch (Exception e)
-            {
-                context.Result = new
-                                 {
-                                     ErrorMessage = e.Message
-                                 };
-            }
+            await g.PerformSettlement(DateTime.Now.Date, estateId, context.CancellationToken);
         }
     }
 }
