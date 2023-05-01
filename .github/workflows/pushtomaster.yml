@@ -32,7 +32,7 @@ jobs:
 
     - name: Build Code
       run: |
-        dotnet build TransactionProcessing.HealthChecksUI/TransactionProcessing.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessing.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
         dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
         dotnet build TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln.sln --configuration Release
 
