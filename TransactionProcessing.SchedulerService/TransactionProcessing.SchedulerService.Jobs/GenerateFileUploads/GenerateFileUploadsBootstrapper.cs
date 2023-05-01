@@ -5,6 +5,7 @@
     using Microsoft.Extensions.DependencyInjection;
     using Quartz;
     using SecurityService.Client;
+    using TransactionProcessor.Client;
 
     /// <summary>
     /// 
@@ -22,6 +23,7 @@
         {
             this.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
             this.Services.AddSingleton<IEstateClient, EstateClient>();
+            this.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
 
             this.Services.AddSingleton<Func<String, String>>(container => serviceName => { return jobExecutionContext.MergedJobDataMap.GetString(serviceName); });
         }
