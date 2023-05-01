@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="EstateManagement.Client" Version="2023.3.2" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+		<PackageReference Include="SecurityService.Client" Version="2023.3.1" />
+		<PackageReference Include="TransactionProcessor.Client" Version="2023.3.1" />
+	</ItemGroup>
+</Project>
