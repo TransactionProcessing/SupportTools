@@ -32,9 +32,9 @@ jobs:
 
     - name: Build Code
       run: |
-        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessing.HealthChecksUI/TransactionProcessing.HealthChecksUI.sln --configuration Release
         dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
-        dotnet build TransactionProcessing.DataGenerator/TransactionProcessing.DataGenerator.sln --configuration Release
+        dotnet build TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln.sln --configuration Release
 
     - name: 'Get Previous tag'
       id: get-latest-tag
@@ -55,5 +55,5 @@ jobs:
         
     - name: Build and Publish Nuget Packages
       run: |
-        dotnet pack "TransactionProcessing.DataGenerator\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.next_version.outputs.VERSION }} --output Nugets -c Release            
+        dotnet pack "TransactionProcessor.DataGenerator\TransactionProcessing.DataGeneration\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.next_version.outputs.VERSION }} --output Nugets -c Release            
         dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.next_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.MYGET_APIKEY }} --source https://www.myget.org/F/transactionprocessing/api/v2/package
