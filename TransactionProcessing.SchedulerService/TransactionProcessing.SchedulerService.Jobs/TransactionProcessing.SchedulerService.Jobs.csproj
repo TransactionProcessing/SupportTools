@@ -9,7 +9,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="Quartz" Version="3.5.0" />
-    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2022.12.1-build6" />
+    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2022.12.1-build8" />
     
   </ItemGroup>
 </Project>
