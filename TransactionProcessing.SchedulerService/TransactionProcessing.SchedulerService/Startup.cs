@@ -21,26 +21,10 @@ namespace TransactionProcessing.SchedulerService
     /// <summary>
     /// 
     /// </summary>
-    public class Startup
-    {
-        #region Fields
-
-        /// <summary>
-        /// The job bootstrappers
-        /// </summary>
-        private readonly List<(String name, IBootstrapper instance)> JobBootstrappers = new List<(String, IBootstrapper)>();
-
-        #endregion
-
+    public class Startup{
         #region Constructors
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Startup"/> class.
-        /// </summary>
-        /// <param name="webHostEnvironment">The web host environment.</param>
-        public Startup(IWebHostEnvironment webHostEnvironment)
-        {
-            //this.Configuration = configuration;
+        public Startup(IWebHostEnvironment webHostEnvironment){
             IConfigurationBuilder builder = new ConfigurationBuilder().SetBasePath(webHostEnvironment.ContentRootPath)
                                                                       .AddJsonFile("/home/txnproc/config/appsettings.json", true, true)
                                                                       .AddJsonFile($"/home/txnproc/config/appsettings.{webHostEnvironment.EnvironmentName}.json",
@@ -52,79 +36,49 @@ namespace TransactionProcessing.SchedulerService
             Startup.Configuration = builder.Build();
             Startup.WebHostEnvironment = webHostEnvironment;
 
-            var connectionString = Startup.Configuration.GetConnectionString("SchedulerReadModel");
+            String connectionString = Startup.Configuration.GetConnectionString("SchedulerReadModel");
             Startup.AddOrUpdateConnectionString("SchedulerReadModel", connectionString);
         }
 
         #endregion
 
         #region Properties
-
-        /// <summary>
-        /// Gets or sets the configuration.
-        /// </summary>
-        /// <value>
-        /// The configuration.
-        /// </value>
-        public static IConfigurationRoot Configuration { get; set; }
-
-        /// <summary>
-        /// Gets or sets the web host environment.
-        /// </summary>
-        /// <value>
-        /// The web host environment.
-        /// </value>
-        public static IWebHostEnvironment WebHostEnvironment { get; set; }
+        
+        public static IConfigurationRoot Configuration{ get; set; }
+        
+        public static IWebHostEnvironment WebHostEnvironment{ get; set; }
 
         #endregion
 
         #region Methods
 
-        /// <summary>
-        /// Adds the or update connection string.
-        /// </summary>
-        /// <param name="name">The name.</param>
-        /// <param name="connectionString">The connection string.</param>
         public static void AddOrUpdateConnectionString(String name,
-                                                       String connectionString)
-        {
-            try
-            {
+                                                       String connectionString){
+            try{
                 Configuration configFile = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
                 ConnectionStringSettingsCollection settings = configFile.ConnectionStrings.ConnectionStrings;
 
-                if (settings[name] == null)
-                {
+                if (settings[name] == null){
                     settings.Add(new ConnectionStringSettings(name, connectionString));
                 }
-                else
-                {
+                else{
                     settings[name].ConnectionString = connectionString;
                 }
 
                 configFile.Save(ConfigurationSaveMode.Modified);
                 ConfigurationManager.RefreshSection(configFile.AppSettings.SectionInformation.Name);
             }
-            catch(ConfigurationErrorsException)
-            {
+            catch(ConfigurationErrorsException){
                 Console.WriteLine("Error writing connection string");
             }
         }
 
-        /// <summary>
-        /// Configures the specified application.
-        /// </summary>
-        /// <param name="app">The application.</param>
-        /// <param name="env">The env.</param>
         public void Configure(IApplicationBuilder app,
-                              IWebHostEnvironment env)
-        {
-            if (env.IsDevelopment())
-            {
+                              IWebHostEnvironment env){
+            if (env.IsDevelopment()){
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
+            else{
                 app.UseExceptionHandler("/Error");
             }
 
@@ -137,57 +91,23 @@ namespace TransactionProcessing.SchedulerService
             app.UseEndpoints(endpoints => { endpoints.MapRazorPages(); });
         }
 
-        /// <summary>
-        /// Configures the services.
-        /// </summary>
-        /// <param name="services">The services.</param>
-        public void ConfigureServices(IServiceCollection services)
-        {
-            services.AddSingleton<Func<String, IBootstrapper>>(container => type =>
-                                                                            {
-                                                                                (String name, IBootstrapper instance) bootstrapper =
-                                                                                    this.JobBootstrappers.SingleOrDefault(b => b.name == $"{type}Bootstrapper");
-                                                                                return bootstrapper.instance;
-                                                                            });
-
+        public void ConfigureServices(IServiceCollection services){
             services.AddRazorPages();
 
-            this.RegisterJobBootstrappers();
             this.RegisterJobs(services);
 
             IScheduler scheduler = StdSchedulerFactory.GetDefaultScheduler().Result;
-            
-            services.AddSilkierQuartz(s =>
-                                                   {
-                                                       s.VirtualPathRoot = "/quartz";
-                                                       s.UseLocalTime = true;
-                                                       s.DefaultDateFormat = "yyyy-MM-dd";
-                                                       s.DefaultTimeFormat = "HH:mm:ss";
-                                                       s.Scheduler = scheduler;
-                                                   },
-                                                   a => { a.AccessRequirement = SilkierQuartzAuthenticationOptions.SimpleAccessRequirement.AllowAnonymous; });
+
+            services.AddSilkierQuartz(s => {
+                                          s.VirtualPathRoot = "/quartz";
+                                          s.UseLocalTime = true;
+                                          s.DefaultDateFormat = "yyyy-MM-dd";
+                                          s.DefaultTimeFormat = "HH:mm:ss";
+                                          s.Scheduler = scheduler;
+                                      },
+                                      a => { a.AccessRequirement = SilkierQuartzAuthenticationOptions.SimpleAccessRequirement.AllowAnonymous; });
         }
-
-        /// <summary>
-        /// Registers the job bootstrappers.
-        /// </summary>
-        private void RegisterJobBootstrappers()
-        {
-            IEnumerable<Type> jobs = typeof(IBootstrapper).GetTypeInfo().Assembly.DefinedTypes
-                                                          .Where(t => typeof(IBootstrapper).GetTypeInfo().IsAssignableFrom(t.AsType()) && t.IsClass &&
-                                                                      t.IsAbstract == false).Select(p => p.AsType());
-
-            foreach (Type job in jobs)
-            {
-                Object instance = Activator.CreateInstance(job);
-                this.JobBootstrappers.Add((job.Name, (IBootstrapper)instance));
-            }
-        }
-
-        /// <summary>
-        /// Registers the jobs.
-        /// </summary>
-        /// <param name="services">The services.</param>
+    
         private void RegisterJobs(IServiceCollection services)
         {
             Type type = typeof(IJob);
