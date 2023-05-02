@@ -37,6 +37,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private readonly ITransactionProcessorClient TransactionProcessorClient;
 
+    private readonly String EstateManagementApi;
+
     #endregion
 
     #region Constructors
@@ -44,6 +46,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     public TransactionDataGenerator(ISecurityServiceClient securityServiceClient,
                                     IEstateClient estateClient,
                                     ITransactionProcessorClient transactionProcessorClient,
+                                    String estateManagementApi,
                                     String fileProcessorApi,
                                     String testHostApi,
                                     String clientId,
@@ -52,6 +55,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         this.SecurityServiceClient = securityServiceClient;
         this.EstateClient = estateClient;
         this.TransactionProcessorClient = transactionProcessorClient;
+        this.EstateManagementApi = estateManagementApi;
         this.FileProcessorApi = fileProcessorApi;
         this.TestHostApi = testHostApi;
 
@@ -178,6 +182,33 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
 
         await this.UploadFile(uploadFile, Guid.Empty, dateTime, cancellationToken);
+    }
+
+    public async Task<MerchantResponse> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken){
+        String token = await this.GetAuthToken(cancellationToken);
+        return await this.EstateClient.GetMerchant(token, estateId, merchantId, cancellationToken);
+    }
+
+    public async Task GenerateMerchantStatement(Guid estateId, Guid merchantId, DateTime statementDateTime, CancellationToken cancellationToken)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.EstateManagementApi}/api/estates/{estateId}/merchants/{merchantId}/statements");
+        var body = new
+                   {
+                       merchant_statement_date = statementDateTime,
+                   };
+        request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+
+        if (this.RunningMode == RunningMode.WhatIf)
+        {
+            Console.WriteLine($"Merchant Statement Generated for merchant [{merchantId}] Statement Date [{body.merchant_statement_date}]");
+        }
+        String token = await this.GetAuthToken(cancellationToken);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using (HttpClient client = new HttpClient())
+        {
+            await client.SendAsync(request, cancellationToken);
+        }
     }
 
     private List<(SaleTransactionRequest request, Decimal amount)> BuildBillPaymentSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct product, (Int32 accountNumber, String accountName, Decimal balance) billDetails){
