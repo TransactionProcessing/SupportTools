@@ -68,9 +68,7 @@ namespace TransactionDataGenerator{
             // Set an estate
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
             
-            // Set the date range
-            DateTime startDate = new DateTime(2023, 4, 27); //27/7
-            DateTime endDate = new DateTime(2023, 4, 28); // This is the date of the last generated transaction
+            
             
             // Get a token to talk to the estate service
             CancellationToken cancellationToken = new CancellationToken();
@@ -79,11 +77,30 @@ namespace TransactionDataGenerator{
             ITransactionDataGenerator g = new TransactionDataGenerator(Program.SecurityServiceClient,
                                                                        Program.EstateClient,
                                                                        Program.TransactionProcessorClient,
+                                                                       Program.baseAddressFunc("EstateManagementApi"),
                                                                        Program.baseAddressFunc("FileProcessorApi"),
                                                                        Program.baseAddressFunc("TestHostApi"),
                                                                        clientId,
                                                                        clientSecret,
                                                                        RunningMode.Live);
+
+            //await Program.GenerateTransactions(g, estateId, cancellationToken);
+            await Program.GenerateStatements(g, estateId, cancellationToken);
+
+            Console.WriteLine($"Process Complete");
+        }
+
+        private static async Task GenerateStatements(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
+            List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
+            foreach (MerchantResponse merchant in merchants){
+                await g.GenerateMerchantStatement(merchant.EstateId, merchant.MerchantId, DateTime.Now.AddMonths(-2), cancellationToken);
+            }
+        }
+
+        private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
+            // Set the date range
+            DateTime startDate = new DateTime(2023, 4, 27); //27/7
+            DateTime endDate = new DateTime(2023, 4, 28); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
@@ -109,8 +126,6 @@ namespace TransactionDataGenerator{
                 // Settlement
                 await g.PerformSettlement(dateTime, estateId, cancellationToken);
             }
-
-            Console.WriteLine($"Process Complete");
         }
     }
 }
