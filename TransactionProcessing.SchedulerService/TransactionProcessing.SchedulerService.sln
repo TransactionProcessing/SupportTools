@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0131F226-313
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{8EBAA9CC-7C39-497D-A925-866E68CFE20A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JobTestDriver", "JobTestDriver\JobTestDriver.csproj", "{B7C455B1-F86A-41CD-91D6-DC041FC83B27}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,6 +27,10 @@ Global
 		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -32,6 +38,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 		{0A8E0EA7-3A93-4605-A690-C663F6239099} = {0131F226-313F-4F7C-9576-7AA726FA9584}
+		{B7C455B1-F86A-41CD-91D6-DC041FC83B27} = {8EBAA9CC-7C39-497D-A925-866E68CFE20A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FCE31FDA-32E8-49AB-8D30-0D36D461CBC1}

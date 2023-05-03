@@ -38,33 +38,7 @@
 
                 ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
 
-                // get a token
-                String accessToken = await this.GetToken(clientId,
-                                                         clientSecret,
-                                                         context.CancellationToken);
-
-                // get the merchant
-                MerchantResponse merchant = await this.GetMerchant(accessToken, estateId, merchantId, context.CancellationToken);
-
-                DateTime transactionDate = DateTime.Now;
-
-                if (requireLogon){
-                    // Do a logon transaction for the merchant
-                    await t.PerformMerchantLogon(transactionDate, merchant, context.CancellationToken);
-                }
-
-                // Get the merchants contracts
-                List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, context.CancellationToken);
-
-                foreach (ContractResponse contract in contracts){
-                    // Generate and send some sales
-                    await t.SendSales(transactionDate, merchant, contract, context.CancellationToken);
-
-                    // Generate a file and upload
-                    await t.SendUploadFile(transactionDate, contract, merchant, context.CancellationToken);
-                }
-
-                Console.WriteLine($"Logon sent for Merchant [{merchant.MerchantName}]");
+                await Jobs.GenerateTransactions(t, estateId, merchantId, requireLogon, context.CancellationToken);
             }
             catch(Exception e){
                 // TODO: Log the error

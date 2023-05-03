@@ -7,6 +7,7 @@ using System.Threading;
 using DataGeneration;
 using EstateManagement.Client;
 using EstateManagement.DataTransferObjects.Responses;
+using MessagingService.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using SecurityService.Client;
@@ -37,6 +38,7 @@ public static class Bootstrapper{
             
         Bootstrapper.Services.AddSingleton(httpClient);
         Bootstrapper.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
+        Bootstrapper.Services.AddSingleton<IMessagingServiceClient, MessagingServiceClient>();
         Bootstrapper.Services.AddSingleton<IEstateClient, EstateClient>();
         Bootstrapper.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
         Bootstrapper.Services.AddSingleton<Func<String, String>>(container => serviceName => { return jobExecutionContext.MergedJobDataMap.GetString(serviceName); });
@@ -75,10 +77,5 @@ public class BaseJob{
         TokenResponse token = await securityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
 
         return token.AccessToken;
-    }
-
-    protected async Task<MerchantResponse> GetMerchant(String accessToken, Guid estateId, Guid merchantId, CancellationToken cancellationToken){
-        IEstateClient estateClient = Bootstrapper.GetService<IEstateClient>();
-        return await estateClient.GetMerchant(accessToken, estateId, merchantId, cancellationToken);
     }
 }
