@@ -24,7 +24,7 @@ namespace TransactionProcessing.SchedulerService.Jobs
 
             ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
 
-            await t.PerformSettlement(DateTime.Now.Date, estateId, context.CancellationToken);
+            await Jobs.PerformSettlement(t, DateTime.Now, estateId, context.CancellationToken);
         }
     }
 }
