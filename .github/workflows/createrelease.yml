@@ -10,7 +10,7 @@ jobs:
     env:
         ASPNETCORE_ENVIRONMENT: "Production"
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v1
@@ -36,8 +36,8 @@ jobs:
 
     - name: Publish API
       run: |
-        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
-        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput
+        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput -r win-x64 --self-contained
 
     - name: Install Octopus CLI
       run: |
