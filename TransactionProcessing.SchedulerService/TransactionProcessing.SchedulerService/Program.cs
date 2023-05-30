@@ -33,8 +33,6 @@ namespace TransactionProcessing.SchedulerService
 
         public static IHostBuilder CreateHostBuilder(string[] args)
         {
-            Console.Title = "Scheduler Service";
-
             //At this stage, we only need our hosting file for ip and ports
             IConfigurationRoot config = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
                                                                   .AddJsonFile("hosting.json", optional: true)
