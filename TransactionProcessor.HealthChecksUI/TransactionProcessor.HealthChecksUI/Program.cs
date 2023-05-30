@@ -20,8 +20,6 @@ namespace TransactionProcessor.HealthChecksUI
 
         public static IHostBuilder CreateHostBuilder(string[] args)
         {
-            Console.Title = "Transaction Processor Health Checks";
-
             //At this stage, we only need our hosting file for ip and ports
             IConfigurationRoot config = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
                                                                   .AddJsonFile("hosting.json", optional: true)
