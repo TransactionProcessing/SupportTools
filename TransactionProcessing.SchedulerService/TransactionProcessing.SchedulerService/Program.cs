@@ -40,6 +40,7 @@ namespace TransactionProcessing.SchedulerService
                                                                   .AddEnvironmentVariables().Build();
 
             IHostBuilder hostBuilder = Host.CreateDefaultBuilder(args);
+            hostBuilder.UseWindowsService();
             hostBuilder.ConfigureWebHostDefaults(webBuilder =>
                                                  {
                                                      webBuilder.UseStartup<Startup>();
