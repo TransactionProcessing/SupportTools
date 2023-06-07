@@ -37,9 +37,6 @@ namespace TransactionProcessor.SystemSetupTool
         
         static async Task Main(string[] args)
         {
-
-
-            
             IConfigurationBuilder builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
             IConfigurationRoot configurationRoot = builder.Build();
             ConfigurationReader.Initialise(configurationRoot);
@@ -90,7 +87,7 @@ namespace TransactionProcessor.SystemSetupTool
             {
                 
                 // Setup the subscrtipions
-                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Reporting", CreatePersistentSettings());
+                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Estate Management", CreatePersistentSettings());
                 await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "File Processor", CreatePersistentSettings(2));
                 await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", CreatePersistentSettings());
                 await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", CreatePersistentSettings(1));

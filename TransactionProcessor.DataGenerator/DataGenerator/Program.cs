@@ -68,8 +68,6 @@ namespace TransactionDataGenerator{
             // Set an estate
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
             
-            
-            
             // Get a token to talk to the estate service
             CancellationToken cancellationToken = new CancellationToken();
             String clientId = "serviceClient";
@@ -84,8 +82,8 @@ namespace TransactionDataGenerator{
                                                                        clientSecret,
                                                                        RunningMode.Live);
 
-            //await Program.GenerateTransactions(g, estateId, cancellationToken);
-            await Program.GenerateStatements(g, estateId, cancellationToken);
+            await Program.GenerateTransactions(g, estateId, cancellationToken);
+            //await Program.GenerateStatements(g, estateId, cancellationToken);
 
             Console.WriteLine($"Process Complete");
         }
@@ -99,32 +97,42 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2023, 4, 27); //27/7
-            DateTime endDate = new DateTime(2023, 4, 28); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2023, 6, 6); //27/7
+            DateTime endDate = new DateTime(2023, 6, 7); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
 
             foreach (DateTime dateTime in dateRange){
-                foreach (MerchantResponse merchant in merchants){
+                foreach (MerchantResponse merchant in merchants)
+                {
                     // Send a logon transaction
                     await g.PerformMerchantLogon(dateTime, merchant, cancellationToken);
 
                     // Get the merchants contracts
                     List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
 
-                    foreach (ContractResponse contract in contracts){
-                        // Generate and send some sales
-                        await g.SendSales(dateTime, merchant, contract, cancellationToken);
+                    foreach (ContractResponse contract in contracts)
+                    {
+                       // Generate and send some sales
+                       await g.SendSales(dateTime, merchant, contract, cancellationToken);
 
-                        // Generate a file and upload
-                        await g.SendUploadFile(dateTime, contract, merchant, cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+
+                       // Generate a file and upload
+                       await g.SendUploadFile(dateTime, contract, merchant, cancellationToken);
+
+                        await Task.Delay(TimeSpan.FromSeconds(10));
                     }
+
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                 }
 
                 // Settlement
                 await g.PerformSettlement(dateTime, estateId, cancellationToken);
+
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
             }
         }
     }

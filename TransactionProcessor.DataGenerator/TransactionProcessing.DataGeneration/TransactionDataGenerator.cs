@@ -171,17 +171,24 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     public async Task SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, CancellationToken cancellationToken){
         Int32 numberOfSales = this.r.Next(5, 15);
-        UploadFile uploadFile = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
+        (Decimal, UploadFile) uploadFile = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
 
-        if (uploadFile == null){
+        if (uploadFile.Item2 == null){
             return;
         }
         if (this.RunningMode == RunningMode.WhatIf){
-            Console.WriteLine($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.GetNumberOfLines()}]");
+            Console.WriteLine($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.Item2.GetNumberOfLines()}]");
             return;
         }
 
-        await this.UploadFile(uploadFile, Guid.Empty, dateTime, cancellationToken);
+        // Build up a deposit (minus the last sale amount)
+        MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(uploadFile.Item1, dateTime);
+
+        // Send the deposit
+        await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
+
+
+        await this.UploadFile(uploadFile.Item2, Guid.Empty, dateTime, cancellationToken);
     }
 
     public async Task<MerchantResponse> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken){
@@ -296,32 +303,44 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return requests;
     }
 
-    private async Task<UploadFile> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken){
+    private async Task<(Decimal, UploadFile)> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken){
         ProductType productType = this.GetProductType(contract.OperatorName);
         Guid fileProfileId = await TransactionDataGenerator.GetFileProfileIdFromOperator(contract.OperatorName, cancellationToken);
         String token = await this.GetAuthToken(cancellationToken);
         EstateResponse estate = await this.EstateClient.GetEstate(token, merchant.EstateId, cancellationToken);
         Guid userId = estate.SecurityUsers.First().SecurityUserId;
-
+        Decimal depositAmount = 0;
         if (productType == ProductType.MobileTopup){
             MobileTopupUploadFile mobileTopupUploadFile = new MobileTopupUploadFile(contract.EstateId, merchant.MerchantId, fileProfileId, userId);
             mobileTopupUploadFile.AddHeader(dateTime);
 
-            for (Int32 i = 0; i < numberOfLines; i++){
+            for (Int32 i = 1; i <= numberOfLines; i++){
                 Decimal amount = this.GetAmount();
                 String mobileNumber = String.Format($"077777777{i.ToString().PadLeft(2, '0')}");
                 mobileTopupUploadFile.AddLine(amount, mobileNumber);
-            }
+                
+                // Add the value of the sale to the deposit amount
+                Boolean addToDeposit = i switch
+                {
+                    _ when i == numberOfLines => false,
+                    _ => true
+                };
 
+                if (addToDeposit)
+                {
+                    depositAmount += amount;
+                }
+            }
+            
             mobileTopupUploadFile.AddTrailer();
-            return mobileTopupUploadFile;
+            return (depositAmount,mobileTopupUploadFile);
         }
 
         if (productType == ProductType.Voucher){
             VoucherTopupUploadFile voucherTopupUploadFile = new VoucherTopupUploadFile(contract.EstateId, merchant.MerchantId, fileProfileId, userId);
             voucherTopupUploadFile.AddHeader(dateTime);
 
-            for (Int32 i = 0; i < numberOfLines; i++){
+            for (Int32 i = 1; i <= numberOfLines; i++){
                 Decimal amount = this.GetAmount();
                 String mobileNumber = String.Format($"077777777{i.ToString().PadLeft(2, '0')}");
                 String emailAddress = String.Format($"testrecipient{i.ToString().PadLeft(2, '0')}@testing.com");
@@ -331,14 +350,28 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                 }
 
                 voucherTopupUploadFile.AddLine(amount, recipient, contract.Description.Replace("Contract", ""));
+
+                // Add the value of the sale to the deposit amount
+                Boolean addToDeposit = i switch
+                {
+                    _ when i == numberOfLines => false,
+                    _ => true
+                };
+
+                if (addToDeposit)
+                {
+                    depositAmount += amount;
+                }
             }
 
+            
+
             voucherTopupUploadFile.AddTrailer();
-            return voucherTopupUploadFile;
+            return (depositAmount, voucherTopupUploadFile);
         }
 
         // Not supported product type for file upload
-        return null;
+        return (0,null);
     }
 
     private List<(SaleTransactionRequest request, Decimal amount)> BuildVoucherSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct contractProduct){
@@ -497,9 +530,19 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         String token = await this.GetAuthToken(cancellationToken);
         SerialisedMessage requestSerialisedMessage = request.CreateSerialisedMessage();
+        SerialisedMessage responseSerialisedMessage = null;
 
-        SerialisedMessage responseSerialisedMessage =
-            await this.TransactionProcessorClient.PerformTransaction(token, requestSerialisedMessage, CancellationToken.None);
+        for (int i = 0; i < 3; i++){
+            try
+            {
+                responseSerialisedMessage =
+                    await this.TransactionProcessorClient.PerformTransaction(token, requestSerialisedMessage, CancellationToken.None);
+                break;
+            }
+            catch(TaskCanceledException e){
+                Console.WriteLine(e);
+            }
+        }
 
         SaleTransactionResponse saleTransactionResponse = responseSerialisedMessage.GetSerialisedMessageResponseDTO<SaleTransactionResponse>();
 
@@ -531,7 +574,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         var fileContent = new ByteArrayContent(uploadFile.GetFileContents());
         fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
-        formData.Add(fileContent, "file", $"bulkfile{fileDateTime:yyyy-MM-dd HH:mm:ss}");
+        formData.Add(fileContent, "file", $"bulkfile{fileDateTime:yyyy-MM-dd}");
         formData.Add(new StringContent(uploadFile.EstateId.ToString()), "request.EstateId");
         formData.Add(new StringContent(uploadFile.MerchantId.ToString()), "request.MerchantId");
         formData.Add(new StringContent(uploadFile.FileProfileId.ToString()), "request.FileProfileId");
