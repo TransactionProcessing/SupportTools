@@ -78,8 +78,4 @@ public class BaseJob{
 
         return token.AccessToken;
     }
-
-    protected async Task InitialiseLogging(){
-
-    }
 }

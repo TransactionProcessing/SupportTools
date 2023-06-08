@@ -28,7 +28,6 @@
         #region Methods
 
         public async Task Execute(IJobExecutionContext context){
-            try{
                 Bootstrapper.ConfigureServices(context);
 
                 String clientId = context.MergedJobDataMap.GetString("ClientId");
@@ -48,10 +47,6 @@
 
                 await Jobs.GenerateTransactions(t, estateId, merchantId, requireLogon, context.CancellationToken);
             }
-            catch(Exception e){
-                
-            }
-        }
         #endregion
     }
 }
