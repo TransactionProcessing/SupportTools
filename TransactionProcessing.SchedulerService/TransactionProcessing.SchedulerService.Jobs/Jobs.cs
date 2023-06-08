@@ -15,6 +15,7 @@ using MessagingService.Client;
 using MessagingService.DataTransferObjects;
 using Microsoft.Data.SqlClient;
 using Newtonsoft.Json;
+using Quartz;
 using Shared.Logger;
 
 public static class Jobs{
@@ -39,14 +40,16 @@ public static class Jobs{
         }
     }
 
-    public static async Task GenerateTransactions(ITransactionDataGenerator t, Guid estateId, Guid merchantId, Boolean requireLogon, CancellationToken cancellationToken)
-    {
+    public static async Task GenerateTransactions(ITransactionDataGenerator t, Guid estateId, Guid merchantId, Boolean requireLogon, CancellationToken cancellationToken){
+        MerchantResponse merchant = null;
         // get the merchant
-        try{
-            MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
+        try
+        {
+            merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
         }
         catch(Exception e){
             Logger.LogWarning($"Error getting merchant record [{merchantId}]");
+            throw new JobExecutionException(new Exception($"Error getting merchant record [{merchantId}]"), false);
         }
 
         DateTime transactionDate = DateTime.Now;
