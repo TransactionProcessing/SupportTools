@@ -1,5 +1,8 @@
 ﻿namespace TransactionProcessing.DataGeneration;
 
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Net.Http.Headers;
 using System.Text;
 using EstateManagement.Client;
@@ -68,7 +71,60 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     #region Methods
 
+    private void WriteTrace(String message)
+    {
+        if (TraceGenerated != null){
+            TraceEventArgs args = new(){
+                                           TraceLevel = TraceEventArgs.Level.Trace,
+                                           Message = message
+                                       };
+
+            TraceGenerated.Invoke(args);
+        }
+    }
+
+    private void WriteWarning(String message)
+    {
+        if (TraceGenerated != null)
+        {
+            TraceEventArgs args = new()
+                                  {
+                                      TraceLevel = TraceEventArgs.Level.Warning,
+                                      Message = message
+                                  };
+
+            TraceGenerated.Invoke(args);
+        }
+    }
+    private void WriteError(String message)
+    {
+        if (TraceGenerated != null){
+            TraceEventArgs args = new(){
+                                           TraceLevel = TraceEventArgs.Level.Error,
+                                           Message = message
+                                       };
+
+            TraceGenerated.Invoke(args);
+        }
+    }
+
+    private void WriteError(Exception ex)
+    {
+        if (TraceGenerated != null)
+        {
+            TraceEventArgs args = new()
+                                  {
+                                      TraceLevel = TraceEventArgs.Level.Error,
+                                      Message = ex.ToString()
+                                  };
+
+            TraceGenerated.Invoke(args);
+        }
+    }
+
     public List<DateTime> GenerateDateRange(DateTime startDate, DateTime endDate){
+        
+        this.WriteTrace($"Generating date range between {startDate:dd-MM-yyyy} and {endDate:dd-MM-yyyy}");
         List<DateTime> dateRange = new List<DateTime>();
 
         if (endDate.Subtract(startDate).Days == 0){
@@ -81,20 +137,63 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             }
         }
 
+        this.WriteTrace($"{dateRange.Count} dates generated");
+
         return dateRange;
     }
 
     public async Task<List<ContractResponse>> GetMerchantContracts(MerchantResponse merchant, CancellationToken cancellationToken){
+
+        List<ContractResponse> contracts = new List<ContractResponse>();
+
+        if (merchant == null){
+            this.WriteError("Merchant is null");
+            return contracts;
+        }
+
         String token = await this.GetAuthToken(cancellationToken);
-        return await this.EstateClient.GetMerchantContracts(token, merchant.EstateId, merchant.MerchantId, cancellationToken);
+        
+        try{
+            this.WriteTrace($"About to get contracts for Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
+            contracts = await this.EstateClient.GetMerchantContracts(token, merchant.EstateId, merchant.MerchantId, cancellationToken);
+            this.WriteTrace($"{contracts.Count} contracts returned for Merchant");
+        }
+        catch(Exception ex){
+            this.WriteError("Error getting merchant contracts");
+            this.WriteError(ex);
+        }
+
+        return contracts;
     }
 
     public async Task<List<MerchantResponse>> GetMerchants(Guid estateId, CancellationToken cancellationToken){
+        List<MerchantResponse> merchants = new List<MerchantResponse>();
+
         String token = await this.GetAuthToken(cancellationToken);
-        return await this.EstateClient.GetMerchants(token, estateId, cancellationToken);
+        
+        try
+        {
+            this.WriteTrace($"About to get merchants for Estate Id [{estateId}]");
+            merchants = await this.EstateClient.GetMerchants(token, estateId, cancellationToken);
+            this.WriteTrace($"{merchants.Count} merchants returned for Estate");
+        }
+        catch (Exception ex)
+        {
+            this.WriteError("Error getting merchant contracts");
+            this.WriteError(ex);
+        }
+
+        return merchants;
     }
 
     public async Task PerformMerchantLogon(DateTime dateTime, MerchantResponse merchant, CancellationToken cancellationToken){
+
+        if (merchant == null)
+        {
+            this.WriteError("Merchant is null");
+            return;
+        }
+
         // Build logon message
         String deviceIdentifier = merchant.Devices.Single().Value;
         LogonTransactionRequest logonTransactionRequest = new LogonTransactionRequest
@@ -107,11 +206,37 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                               TransactionType = "Logon"
                                                           };
 
-        await this.SendLogonTransaction(merchant, logonTransactionRequest, cancellationToken);
+        try{
+
+            this.WriteTrace($"About to send Logon Transaction for Merchant [{merchant.MerchantName}]");
+
+            await this.SendLogonTransaction(merchant, logonTransactionRequest, cancellationToken);
+
+            this.WriteTrace($"Logon Transaction for Merchant [{merchant.MerchantName}] sent");
+
+        }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error sending logon transaction for Merchant {merchant.MerchantId} Estate [{merchant.EstateId}]");
+            this.WriteError(ex);
+        }
     }
 
     public async Task PerformSettlement(DateTime dateTime, Guid estateId, CancellationToken cancellationToken){
-        await this.SendProcessSettlementRequest(dateTime, estateId, cancellationToken);
+        try
+        {
+            this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
+
+            await this.SendProcessSettlementRequest(dateTime, estateId, cancellationToken);
+
+            this.WriteTrace($"Process Settlement Request sent for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
+
+        }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error sending Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
+            this.WriteError(ex);
+        }
     }
 
     public async Task SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, CancellationToken cancellationToken){
@@ -120,7 +245,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         Decimal depositAmount = 0;
         (Int32 accountNumber, String accountName, Decimal balance) billDetails = default;
         foreach (ContractProduct contractProduct in contract.Products){
-            Console.WriteLine($"product [{contractProduct.DisplayText}]");
+            this.WriteTrace($"product [{contractProduct.DisplayText}]");
 
             List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
             // Get a number of sales to be sent
@@ -177,7 +302,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             return;
         }
         if (this.RunningMode == RunningMode.WhatIf){
-            Console.WriteLine($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.Item2.GetNumberOfLines()}]");
+            this.WriteTrace($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.Item2.GetNumberOfLines()}]");
             return;
         }
 
@@ -186,37 +311,67 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         // Send the deposit
         await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
-
-
+        
         await this.UploadFile(uploadFile.Item2, Guid.Empty, dateTime, cancellationToken);
     }
 
     public async Task<MerchantResponse> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken){
+        MerchantResponse merchant = new MerchantResponse();
         String token = await this.GetAuthToken(cancellationToken);
-        return await this.EstateClient.GetMerchant(token, estateId, merchantId, cancellationToken);
+
+        try
+        {
+            this.WriteTrace($"About to get Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
+            merchant = await this.EstateClient.GetMerchant(token, estateId, merchantId, cancellationToken);
+            this.WriteTrace($"Merchant retrieved successfully");
+        }
+        catch (Exception ex)
+        {
+            this.WriteError("Error getting merchant");
+            this.WriteError(ex);
+        }
+
+        return merchant;
+
     }
 
     public async Task GenerateMerchantStatement(Guid estateId, Guid merchantId, DateTime statementDateTime, CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.EstateManagementApi}/api/estates/{estateId}/merchants/{merchantId}/statements");
-        var body = new
-                   {
-                       merchant_statement_date = statementDateTime,
-                   };
-        request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
-
-        if (this.RunningMode == RunningMode.WhatIf)
+        try
         {
-            Console.WriteLine($"Merchant Statement Generated for merchant [{merchantId}] Statement Date [{body.merchant_statement_date}]");
-        }
-        String token = await this.GetAuthToken(cancellationToken);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            this.WriteTrace($"About to send Generate Merchant Statement Request for Estate [{estateId}] and Merchant [{merchantId}] StatementDate [{statementDateTime:dd-MM-yyyy}]");
 
-        using (HttpClient client = new HttpClient())
-        {
-            await client.SendAsync(request, cancellationToken);
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.EstateManagementApi}/api/estates/{estateId}/merchants/{merchantId}/statements");
+            var body = new
+                       {
+                           merchant_statement_date = statementDateTime,
+                       };
+            request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+
+            if (this.RunningMode == RunningMode.WhatIf)
+            {
+                this.WriteTrace($"Merchant Statement Generated for merchant [{merchantId}] Statement Date [{body.merchant_statement_date}]");
+            }
+            String token = await this.GetAuthToken(cancellationToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            using (HttpClient client = new HttpClient())
+            {
+                await client.SendAsync(request, cancellationToken);
+            }
+
+            this.WriteTrace($"Generate Merchant Statement Request sent for Estate [{estateId}] and Merchant [{merchantId}] StatementDate [{statementDateTime:dd-MM-yyyy}]");
+
         }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error sending Generate Merchant Statement Request for Date [{statementDateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantId}]");
+            this.WriteError(ex);
+        }
+
     }
+
+    public event TraceHandler? TraceGenerated;
 
     private List<(SaleTransactionRequest request, Decimal amount)> BuildBillPaymentSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct product, (Int32 accountNumber, String accountName, Decimal balance) billDetails){
         List<(SaleTransactionRequest request, Decimal amount)> requests = new List<(SaleTransactionRequest request, Decimal amount)>();
@@ -418,7 +573,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
 
             if (this.RunningMode == RunningMode.WhatIf){
-                Console.WriteLine($"Bill Created Account [{body.account_number}] Balance [{body.amount}]");
+                this.WriteTrace($"Bill Created Account [{body.account_number}] Balance [{body.amount}]");
                 return (body.account_number, body.account_name, body.amount);
             }
 
@@ -455,15 +610,22 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     private async Task<String> GetAuthToken(CancellationToken cancellationToken){
+        
+        this.WriteTrace($"About to get auth token");
+        
         if (this.TokenResponse == null){
+            this.WriteTrace($"TokenResponse was null");
             TokenResponse token = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
             this.TokenResponse = token;
         }
 
         if (this.TokenResponse.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2)){
+            this.WriteTrace($"TokenResponse was expired");
             TokenResponse token = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
             this.TokenResponse = token;
         }
+
+        this.WriteTrace($"Auth token retrieved");
 
         return this.TokenResponse.AccessToken;
     }
@@ -506,7 +668,6 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         return dateTime.AddHours(hours).AddMinutes(minutes).AddSeconds(seconds);
     }
-
     private Int32 GetTransactionNumber(){
         this.TransactionNumber++;
         return this.TransactionNumber;
@@ -514,17 +675,26 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private async Task SendMerchantDepositRequest(MerchantResponse merchant, MakeMerchantDepositRequest request, CancellationToken cancellationToken){
         if (this.RunningMode == RunningMode.WhatIf){
-            Console.WriteLine($"Make Deposit [{request.Amount}] for Merchant [{merchant.MerchantName}]");
+            this.WriteTrace($"Make Deposit [{request.Amount}] for Merchant [{merchant.MerchantName}]");
             return;
         }
         String token = await this.GetAuthToken(cancellationToken);
-        MakeMerchantDepositResponse response = await this.EstateClient.MakeMerchantDeposit(token, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
-        Console.WriteLine($"Deposit [{request.Amount}] made for Merchant [{merchant.MerchantName}]");
+        try{
+
+            this.WriteTrace($"About to make Deposit [{request.Amount}] for Merchant [{merchant.MerchantName}]");
+            MakeMerchantDepositResponse response = await this.EstateClient.MakeMerchantDeposit(token, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
+            this.WriteTrace($"Deposit [{request.Amount}] made for Merchant [{merchant.MerchantName}]");
+        }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error making merchant deposit for merchant [{merchant.MerchantName}]");
+            this.WriteError(ex);
+        }
     }
 
     private async Task SendSaleTransaction(MerchantResponse merchant, SaleTransactionRequest request, CancellationToken cancellationToken){
         if (this.RunningMode == RunningMode.WhatIf){
-            Console.WriteLine($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorIdentifier} - {request.GetAmount()}");
+            this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorIdentifier} - {request.GetAmount()}");
             return;
         }
 
@@ -532,6 +702,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         SerialisedMessage requestSerialisedMessage = request.CreateSerialisedMessage();
         SerialisedMessage responseSerialisedMessage = null;
 
+        this.WriteTrace($"About to Send sale for Merchant [{merchant.MerchantName}]");
         for (int i = 0; i < 3; i++){
             try
             {
@@ -540,20 +711,20 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                 break;
             }
             catch(TaskCanceledException e){
-                Console.WriteLine(e);
+                this.WriteError(e);
             }
         }
 
         SaleTransactionResponse saleTransactionResponse = responseSerialisedMessage.GetSerialisedMessageResponseDTO<SaleTransactionResponse>();
 
-        Console.WriteLine($"Sale Transaction for Merchant [{merchant.MerchantName}] sent");
+        this.WriteTrace($"Sale Transaction for Merchant [{merchant.MerchantName}] sent");
     }
 
     private async Task SendLogonTransaction(MerchantResponse merchant, LogonTransactionRequest request, CancellationToken cancellationToken)
     {
         if (this.RunningMode == RunningMode.WhatIf)
         {
-            Console.WriteLine($"Send Logon Transaction for Merchant [{merchant.MerchantName}]");
+            this.WriteTrace($"Send Logon Transaction for Merchant [{merchant.MerchantName}]");
             return;
         }
 
@@ -564,8 +735,6 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             await this.TransactionProcessorClient.PerformTransaction(token, requestSerialisedMessage, CancellationToken.None);
 
         SaleTransactionResponse saleTransactionResponse = responseSerialisedMessage.GetSerialisedMessageResponseDTO<SaleTransactionResponse>();
-
-        Console.WriteLine($"Logon Transaction for Merchant [{merchant.MerchantName}] sent");
     }
 
     private async Task UploadFile(UploadFile uploadFile, Guid userId, DateTime fileDateTime, CancellationToken cancellationToken){
@@ -587,9 +756,21 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
         HttpResponseMessage response = null;
+        
+        try
+        {
 
-        using(HttpClient client = new HttpClient()){
-            response = await client.SendAsync(request, cancellationToken);
+            this.WriteTrace($"About to upload file for Merchant [{uploadFile.MerchantId}]");
+            using (HttpClient client = new HttpClient())
+            {
+                response = await client.SendAsync(request, cancellationToken);
+            }
+            this.WriteTrace($"File uploaded for Merchant [{uploadFile.MerchantId}]");
+        }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error uploading file for merchant [{uploadFile.MerchantId}]");
+            this.WriteError(ex);
         }
     }
 
@@ -597,7 +778,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     {
         if (this.RunningMode == RunningMode.WhatIf)
         {
-            Console.WriteLine($"Sending Settlement for Date [{dateTime.Date}] Estate [{estateId}]");
+            this.WriteTrace($"Sending Settlement for Date [{dateTime.Date}] Estate [{estateId}]");
             return;
         }
 

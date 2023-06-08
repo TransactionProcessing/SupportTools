@@ -82,6 +82,10 @@ namespace TransactionDataGenerator{
                                                                        clientSecret,
                                                                        RunningMode.Live);
 
+            g.TraceGenerated += arguments => {
+                                    Console.WriteLine($"{arguments.TraceLevel}|{arguments.Message}");
+                                };
+
             await Program.GenerateTransactions(g, estateId, cancellationToken);
             //await Program.GenerateStatements(g, estateId, cancellationToken);
 
@@ -97,8 +101,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2023, 6, 6); //27/7
-            DateTime endDate = new DateTime(2023, 6, 7); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2023, 6, 8); //27/7
+            DateTime endDate = new DateTime(2023, 6, 8); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 

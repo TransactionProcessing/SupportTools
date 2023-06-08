@@ -15,5 +15,26 @@ public interface ITransactionDataGenerator{
     Task<MerchantResponse> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken);
     Task GenerateMerchantStatement(Guid estateId, Guid merchantId, DateTime statementDateTime, CancellationToken cancellationToken);
 
+    event TraceHandler TraceGenerated;
+    
+    #endregion
+}
+
+public delegate void TraceHandler(TraceEventArgs traceArguments);
+
+public class TraceEventArgs : EventArgs
+{
+    public enum  Level{
+        Trace,
+        Warning,
+        Error
+    }
+
+    #region Properties
+    
+    public String Message { get; set; }
+
+    public Level TraceLevel { get; set; }
+
     #endregion
 }
