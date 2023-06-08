@@ -12,6 +12,7 @@
     <PackageReference Include="Quartz.Serialization.Json" Version="3.6.2" />
     <PackageReference Include="Shared" Version="1.5.1" />
     <PackageReference Include="SilkierQuartz" Version="5.0.356" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.1.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="7.0.0" />
   </ItemGroup>
 

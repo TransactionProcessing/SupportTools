@@ -3,6 +3,7 @@ namespace TransactionProcessing.SchedulerService
     using System;
     using System.Collections.Generic;
     using System.Configuration;
+    using System.IO;
     using System.Linq;
     using System.Reflection;
     using System.Threading;
@@ -13,10 +14,15 @@ namespace TransactionProcessing.SchedulerService
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
+    using NLog.Extensions.Logging;
     using Quartz;
     using Quartz.Impl;
+    using Shared.Logger;
     using SilkierQuartz;
     using ConfigurationManager = System.Configuration.ConfigurationManager;
+    using ILogger = Microsoft.Extensions.Logging.ILogger;
+    using SetupBuilderExtensions = NLog.SetupBuilderExtensions;
 
     /// <summary>
     /// 
@@ -74,13 +80,25 @@ namespace TransactionProcessing.SchedulerService
         }
 
         public void Configure(IApplicationBuilder app,
-                              IWebHostEnvironment env){
+                              IWebHostEnvironment env, ILoggerFactory loggerFactory)
+        {
+
+            String nlogConfigFilename = "nlog.config";
+
             if (env.IsDevelopment()){
                 app.UseDeveloperExceptionPage();
             }
             else{
                 app.UseExceptionHandler("/Error");
             }
+
+            
+            loggerFactory.ConfigureNLog(Path.Combine(env.ContentRootPath, nlogConfigFilename));
+            loggerFactory.AddNLog();
+            
+            ILogger logger = loggerFactory.CreateLogger("EstateManagement");
+
+            Logger.Initialise(logger);
 
             app.UseStaticFiles();
             app.UseRouting();

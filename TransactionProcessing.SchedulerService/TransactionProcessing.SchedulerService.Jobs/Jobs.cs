@@ -15,6 +15,7 @@ using MessagingService.Client;
 using MessagingService.DataTransferObjects;
 using Microsoft.Data.SqlClient;
 using Newtonsoft.Json;
+using Shared.Logger;
 
 public static class Jobs{
     public static async Task GenerateMerchantStatements(ITransactionDataGenerator t, Guid estateId, CancellationToken cancellationToken){
@@ -27,7 +28,7 @@ public static class Jobs{
 
     public static async Task GenerateFileUploads(ITransactionDataGenerator t, Guid estateId, Guid merchantId, CancellationToken cancellationToken)
     {
-        MerchantResponse merchant = await t.GetMerchant( estateId, merchantId, cancellationToken);
+        MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
 
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
         DateTime fileDate = DateTime.Now;
@@ -41,7 +42,12 @@ public static class Jobs{
     public static async Task GenerateTransactions(ITransactionDataGenerator t, Guid estateId, Guid merchantId, Boolean requireLogon, CancellationToken cancellationToken)
     {
         // get the merchant
-        MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
+        try{
+            MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
+        }
+        catch(Exception e){
+            Logger.LogWarning($"Error getting merchant record [{merchantId}]");
+        }
 
         DateTime transactionDate = DateTime.Now;
 
@@ -121,6 +127,7 @@ public static class Jobs{
         htmlBuilder.AppendLine("<head>");
         htmlBuilder.AppendLine("<style>");
         htmlBuilder.AppendLine("table, th, td { border: 1px solid black; }");
+        htmlBuilder.AppendLine("</style>");
         htmlBuilder.AppendLine("</style>");
         htmlBuilder.AppendLine("</head>");
 

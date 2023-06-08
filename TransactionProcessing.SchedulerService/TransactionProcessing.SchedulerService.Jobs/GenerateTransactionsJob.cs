@@ -15,6 +15,7 @@
     using Quartz;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
+    using Shared.Logger;
     using TransactionProcessor.Client;
     using TransactionProcessor.DataTransferObjects;
 
@@ -36,12 +37,19 @@
                 Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
                 Boolean requireLogon = context.MergedJobDataMap.GetBooleanValueFromString("requireLogon");
 
+                Logger.LogInformation($"Running Job {context.JobDetail.Description}");
+                Logger.LogInformation($"Client Id: [{clientId}]");
+                Logger.LogInformation($"Client Secret: [{clientSecret}]");
+                Logger.LogInformation($"Estate Id: [{estateId}]");
+                Logger.LogInformation($"Merchant Id: [{merchantId}]");
+                Logger.LogInformation($"Require Logon: [{requireLogon}]");
+
                 ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
 
                 await Jobs.GenerateTransactions(t, estateId, merchantId, requireLogon, context.CancellationToken);
             }
             catch(Exception e){
-                // TODO: Log the error
+                
             }
         }
         #endregion
