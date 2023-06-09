@@ -120,7 +120,7 @@ namespace TransactionDataGenerator{
                     foreach (ContractResponse contract in contracts)
                     {
                        // Generate and send some sales
-                       await g.SendSales(dateTime, merchant, contract, cancellationToken);
+                       await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
 
                         await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
 

@@ -244,7 +244,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
     }
 
-    public async Task<Boolean> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, CancellationToken cancellationToken){
+    public async Task<Boolean> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfSales, CancellationToken cancellationToken){
         List<SaleTransactionRequest> salesToSend = new List<SaleTransactionRequest>();
 
         Decimal depositAmount = 0;
@@ -254,7 +254,9 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
             List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
             // Get a number of sales to be sent
-            Int32 numberOfSales = this.r.Next(5, 15);
+            if (numberOfSales == 0){
+                numberOfSales = this.r.Next(5, 15);
+            }
             for (Int32 i = 1; i <= numberOfSales; i++){
                 ProductType productType = this.GetProductType(contract.OperatorName);
 
