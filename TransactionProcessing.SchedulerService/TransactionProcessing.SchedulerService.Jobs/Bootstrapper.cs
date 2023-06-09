@@ -1,17 +1,14 @@
 ﻿namespace TransactionProcessing.SchedulerService.Jobs;
 
 using System;
+using System.Diagnostics.Eventing.Reader;
 using System.Net.Http;
-using System.Threading.Tasks;
-using System.Threading;
-using DataGeneration;
 using EstateManagement.Client;
 using EstateManagement.DataTransferObjects.Responses;
 using MessagingService.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using SecurityService.Client;
-using SecurityService.DataTransferObjects.Responses;
 using TransactionProcessor.Client;
 
 public static class Bootstrapper{
@@ -49,33 +46,5 @@ public static class Bootstrapper{
     public static T GetService<T>()
     {
         return Bootstrapper.ServiceProvider.GetService<T>();
-    }
-}
-
-public class BaseJob{
-    protected ITransactionDataGenerator CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode){
-        ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
-        IEstateClient estateClient = Bootstrapper.GetService<IEstateClient>();
-        TransactionProcessorClient transactionProcessorClient = Bootstrapper.GetService<TransactionProcessorClient>();
-        Func<String, String> baseAddressFunc = Bootstrapper.GetService<Func<String, String>>();
-
-        ITransactionDataGenerator g = new TransactionDataGenerator(securityServiceClient,
-                                                                   estateClient,
-                                                                   transactionProcessorClient,
-                                                                   baseAddressFunc("EstateManagementApi"),
-                                                                   baseAddressFunc("FileProcessorApi"),
-                                                                   baseAddressFunc("TestHostApi"),
-                                                                   clientId,
-                                                                   clientSecret,
-                                                                   runningMode);
-        return g;
-    }
-
-    protected async Task<String> GetToken(String clientId, String clientSecret, CancellationToken cancellationToken)
-    {
-        ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
-        TokenResponse token = await securityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
-
-        return token.AccessToken;
     }
 }

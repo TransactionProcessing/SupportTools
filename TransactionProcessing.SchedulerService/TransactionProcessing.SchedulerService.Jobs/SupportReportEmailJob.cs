@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using MessagingService.Client;
 using Quartz;
+using Shared.Logger;
 
 public class SupportReportEmailJob : BaseJob, IJob
 {
@@ -19,6 +20,10 @@ public class SupportReportEmailJob : BaseJob, IJob
         String databaseConnectionString = context.MergedJobDataMap.GetString("DatabaseConnectionString");
         String estateIds = context.MergedJobDataMap.GetString("EstateIds");
 
+        Logger.LogInformation($"Running Job {context.JobDetail.Description}");
+        Logger.LogInformation($"Client Id: [{clientId}]");
+        Logger.LogInformation($"Estate Id: [{estateIds}]");
+        
         String token = await this.GetToken(clientId, clientSecret, context.CancellationToken);
 
         IMessagingServiceClient messagingServiceClient =  Bootstrapper.GetService<IMessagingServiceClient>();

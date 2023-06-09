@@ -6,7 +6,7 @@
     using DataGeneration;
     using EstateManagement.DataTransferObjects.Responses;
     using Quartz;
-    using Quartz.Logging;
+    using Shared.Logger;
 
     [DisallowConcurrentExecution]
     public class GenerateFileUploadsJob : BaseJob, IJob
@@ -21,13 +21,15 @@
             Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
             Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
 
-            ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
+            Logger.LogInformation($"Running Job {context.JobDetail.Description}");
+            Logger.LogInformation($"Client Id: [{clientId}]");
+            Logger.LogInformation($"Estate Id: [{estateId}]");
+            Logger.LogInformation($"Merchant Id: [{merchantId}]");
 
+            ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
+            t.TraceGenerated += TraceGenerated; 
             await Jobs.GenerateFileUploads(t, estateId, merchantId, context.CancellationToken);
         }
-
-        
-
         #endregion
     }
 }
