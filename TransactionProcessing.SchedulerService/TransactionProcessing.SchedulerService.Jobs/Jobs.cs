@@ -30,7 +30,7 @@ public static class Jobs{
         List<String> results = new List<String>();
         foreach (MerchantResponse merchantResponse in merchants)
         {
-            Boolean success = await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now, cancellationToken);
+            Boolean success = await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now.Date, cancellationToken);
             if (success == false){
                 results.Add(merchantResponse.MerchantName);
             }
@@ -51,7 +51,7 @@ public static class Jobs{
         }
 
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
-        DateTime fileDate = DateTime.Now;
+        DateTime fileDate = DateTime.Now.Date;
         List<String> results = new List<String>();
         foreach (ContractResponse contract in contracts)
         {
@@ -78,7 +78,7 @@ public static class Jobs{
             throw new JobExecutionException($"Error getting Merchant Id [{merchantId}] for Estate Id [{estateId}]");
         }
 
-        DateTime transactionDate = DateTime.Now;
+        DateTime transactionDate = DateTime.Now.Date;
 
         // Get the merchants contracts
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
@@ -119,7 +119,7 @@ public static class Jobs{
 
     public static async Task PerformSettlement(ITransactionDataGenerator t, DateTime dateTime, Guid estateId, CancellationToken cancellationToken)
     {
-        Boolean success = await t.PerformSettlement(dateTime, estateId, cancellationToken);
+        Boolean success = await t.PerformSettlement(dateTime.Date, estateId, cancellationToken);
 
         if (success == false){
             throw new JobExecutionException($"Error performing settlement for Estate Id [{estateId}] and date [{dateTime:dd-MM-yyyy}]");
