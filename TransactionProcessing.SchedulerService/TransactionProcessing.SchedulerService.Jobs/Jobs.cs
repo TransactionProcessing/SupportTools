@@ -98,12 +98,14 @@ public static class Jobs{
                 throw new JobExecutionException($"Error performing logon for Merchant [{merchant.MerchantName}]");
             }
         }
-
+        Random r = new Random();
         List<String> results = new List<String>();
         foreach (ContractResponse contract in contracts)
         {
+
+            Int32 numberOfSales = r.Next(2, 4);
             // Generate and send some sales
-            Boolean success = await t.SendSales(transactionDate, merchant, contract, cancellationToken);
+            Boolean success = await t.SendSales(transactionDate, merchant, contract, numberOfSales, cancellationToken);
 
             if (success == false)
             {
