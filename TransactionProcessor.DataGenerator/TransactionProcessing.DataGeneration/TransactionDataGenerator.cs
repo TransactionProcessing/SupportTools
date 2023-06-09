@@ -9,6 +9,7 @@ using EstateManagement.Client;
 using EstateManagement.DataTransferObjects;
 using EstateManagement.DataTransferObjects.Requests;
 using EstateManagement.DataTransferObjects.Responses;
+using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
@@ -694,12 +695,20 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     private DateTime GetTransactionDateTime(DateTime dateTime){
-        // Generate the time
-        Int32 hours = this.r.Next(0, 23);
-        Int32 minutes = this.r.Next(0, 59);
-        Int32 seconds = this.r.Next(0, 59);
 
-        return dateTime.AddHours(hours).AddMinutes(minutes).AddSeconds(seconds);
+        if (dateTime.Hour != 0 && dateTime.Minute != 0 && dateTime.Second != 0){
+            // Already have a time only change the seconds
+            Int32 seconds = this.r.Next(0, 59);
+            return dateTime.AddSeconds(seconds);
+        }
+        else{
+            // Generate the time
+            Int32 hours = this.r.Next(0, 23);
+            Int32 minutes = this.r.Next(0, 59);
+            Int32 seconds = this.r.Next(0, 59);
+
+            return dateTime.AddHours(hours).AddMinutes(minutes).AddSeconds(seconds);
+        }
     }
     private Int32 GetTransactionNumber(){
         this.TransactionNumber++;
