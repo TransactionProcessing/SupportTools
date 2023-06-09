@@ -10,6 +10,7 @@ namespace TransactionProcessing.SchedulerService.Jobs
     using Quartz;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
+    using Shared.Logger;
     using TransactionProcessing.DataGeneration;
     using TransactionProcessor.Client;
 
@@ -22,8 +23,12 @@ namespace TransactionProcessing.SchedulerService.Jobs
             String clientSecret = context.MergedJobDataMap.GetString("ClientSecret");
             Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
 
-            ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
+            Logger.LogInformation($"Running Job {context.JobDetail.Description}");
+            Logger.LogInformation($"Client Id: [{clientId}]");
+            Logger.LogInformation($"Estate Id: [{estateId}]");
 
+            ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
+            t.TraceGenerated += TraceGenerated;
             await Jobs.PerformSettlement(t, DateTime.Now, estateId, context.CancellationToken);
         }
     }

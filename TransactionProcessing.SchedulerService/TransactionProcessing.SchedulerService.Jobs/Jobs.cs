@@ -14,6 +14,7 @@ using EventStore.Client;
 using MessagingService.Client;
 using MessagingService.DataTransferObjects;
 using Microsoft.Data.SqlClient;
+using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using Quartz;
 using Shared.Logger;
@@ -21,9 +22,22 @@ using Shared.Logger;
 public static class Jobs{
     public static async Task GenerateMerchantStatements(ITransactionDataGenerator t, Guid estateId, CancellationToken cancellationToken){
         List<MerchantResponse> merchants = await t.GetMerchants(estateId, cancellationToken);
+
+        if (merchants.Any() == false){
+            throw new JobExecutionException($"No merchants returned for Estate [{estateId}]");
+        }
+
+        List<String> results = new List<String>();
         foreach (MerchantResponse merchantResponse in merchants)
         {
-            await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now, cancellationToken);
+            Boolean success = await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now, cancellationToken);
+            if (success == false){
+                results.Add(merchantResponse.MerchantName);
+            }
+        }
+
+        if (results.Any()){
+            throw new JobExecutionException($"Error generating statements for merchants [{String.Join(",", results)}]");
         }
     }
 
@@ -31,51 +45,85 @@ public static class Jobs{
     {
         MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
 
+        if (merchant == default)
+        {
+            throw new JobExecutionException($"No merchant returned for Estate Id [{estateId}] Merchant Id [{merchantId}]");
+        }
+
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
         DateTime fileDate = DateTime.Now;
+        List<String> results = new List<String>();
         foreach (ContractResponse contract in contracts)
         {
             // Generate a file and upload
-            await t.SendUploadFile(fileDate, contract, merchant, cancellationToken);
+            Boolean success = await t.SendUploadFile(fileDate, contract, merchant, cancellationToken);
+
+            if (success == false)
+            {
+                results.Add(contract.OperatorName);
+            }
+        }
+
+        if (results.Any())
+        {
+            throw new JobExecutionException($"Error uploading files for merchant [{merchant.MerchantName}] [{String.Join(",", results)}]");
         }
     }
 
     public static async Task GenerateTransactions(ITransactionDataGenerator t, Guid estateId, Guid merchantId, Boolean requireLogon, CancellationToken cancellationToken){
-        MerchantResponse merchant = null;
         // get the merchant
-        try
-        {
-            merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
-        }
-        catch(Exception e){
-            Logger.LogWarning($"Error getting merchant record [{merchantId}]");
-            throw new JobExecutionException(new Exception($"Error getting merchant record [{merchantId}]"), false);
+        MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
+
+        if (merchant == default){
+            throw new JobExecutionException($"Error getting Merchant Id [{merchantId}] for Estate Id [{estateId}]");
         }
 
         DateTime transactionDate = DateTime.Now;
 
-        if (requireLogon)
-        {
-            // Do a logon transaction for the merchant
-            await t.PerformMerchantLogon(transactionDate, merchant, cancellationToken);
-        }
-
         // Get the merchants contracts
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
 
+        if (contracts.Any() == false)
+        {
+            throw new JobExecutionException($"No contracts returned for Merchant [{merchant.MerchantName}]");
+        }
+
+        if (requireLogon)
+        {
+            // Do a logon transaction for the merchant
+            Boolean logonSuccess = await t.PerformMerchantLogon(transactionDate, merchant, cancellationToken);
+
+            if (logonSuccess == false)
+            {
+                throw new JobExecutionException($"Error performing logon for Merchant [{merchant.MerchantName}]");
+            }
+        }
+
+        List<String> results = new List<String>();
         foreach (ContractResponse contract in contracts)
         {
             // Generate and send some sales
-            await t.SendSales(transactionDate, merchant, contract, cancellationToken);
+            Boolean success = await t.SendSales(transactionDate, merchant, contract, cancellationToken);
 
-            // Generate a file and upload
-            await t.SendUploadFile(transactionDate, contract, merchant, cancellationToken);
+            if (success == false)
+            {
+                results.Add(contract.OperatorName);
+            }
+        }
+
+        if (results.Any())
+        {
+            throw new JobExecutionException($"Error sending sales files for merchant [{merchant.MerchantName}] [{String.Join(",", results)}]");
         }
     }
 
     public static async Task PerformSettlement(ITransactionDataGenerator t, DateTime dateTime, Guid estateId, CancellationToken cancellationToken)
     {
-        await t.PerformSettlement(dateTime, estateId, cancellationToken);
+        Boolean success = await t.PerformSettlement(dateTime, estateId, cancellationToken);
+
+        if (success == false){
+            throw new JobExecutionException($"Error performing settlement for Estate Id [{estateId}] and date [{dateTime:dd-MM-yyyy}]");
+        }
     }
 
     public static async Task<List<(String groupName, String streamName, Int64 parkedMessageCount)>> GetParkedQueueInformation(String eventStoreConnectionString, CancellationToken cancellationToken){

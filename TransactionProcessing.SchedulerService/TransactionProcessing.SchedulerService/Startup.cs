@@ -128,8 +128,11 @@ namespace TransactionProcessing.SchedulerService
     
         private void RegisterJobs(IServiceCollection services)
         {
-            Type type = typeof(IJob);
-            IEnumerable<Type> jobs = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes()).Where(p => type.IsAssignableFrom(p) && p.IsInterface == false);
+            Type type = typeof(BaseJob);
+            IEnumerable<Type> jobs = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes())
+                                              .Where(p => type.IsAssignableFrom(p) 
+                                                          && p.IsInterface == false
+                                                          && p.IsAbstract == false);
 
             foreach (Type job in jobs)
             {
