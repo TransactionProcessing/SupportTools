@@ -30,7 +30,7 @@ public static class Jobs{
         List<String> results = new List<String>();
         foreach (MerchantResponse merchantResponse in merchants)
         {
-            Boolean success = await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now.Date, cancellationToken);
+            Boolean success = await t.GenerateMerchantStatement(merchantResponse.EstateId, merchantResponse.MerchantId, DateTime.Now, cancellationToken);
             if (success == false){
                 results.Add(merchantResponse.MerchantName);
             }
@@ -78,7 +78,7 @@ public static class Jobs{
             throw new JobExecutionException($"Error getting Merchant Id [{merchantId}] for Estate Id [{estateId}]");
         }
 
-        DateTime transactionDate = DateTime.Now.Date;
+        DateTime transactionDate = DateTime.Now;
 
         // Get the merchants contracts
         List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
