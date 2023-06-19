@@ -101,42 +101,66 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2023, 6, 8); //27/7
-            DateTime endDate = new DateTime(2023, 6, 8); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2023, 6, 16); //27/7
+            DateTime endDate = new DateTime(2023, 6, 16); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
 
+            Boolean sendLogons = false;
+            Boolean sendSales = true;
+            Boolean sendFiles = false;
+            Boolean sendSettlement = false;
+
             foreach (DateTime dateTime in dateRange){
-                foreach (MerchantResponse merchant in merchants)
-                {
-                    // Send a logon transaction
-                    await g.PerformMerchantLogon(dateTime, merchant, cancellationToken);
+                var d = DateTime.Now;
+                if (sendLogons){
+                    foreach (MerchantResponse merchant in merchants){
 
-                    // Get the merchants contracts
-                    List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
-
-                    foreach (ContractResponse contract in contracts)
-                    {
-                       // Generate and send some sales
-                       await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
-
-                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
-
-                       // Generate a file and upload
-                       await g.SendUploadFile(dateTime, contract, merchant, cancellationToken);
-
-                        await Task.Delay(TimeSpan.FromSeconds(10));
+                        // Send a logon transaction
+                        await g.PerformMerchantLogon(dateTime, merchant, cancellationToken);
                     }
+                }
 
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                if (sendSales){
+                    foreach (MerchantResponse merchant in merchants){
+                        // Get the merchants contracts
+                        List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
+
+                        foreach (ContractResponse contract in contracts){
+                            // Generate and send some sales
+                            await g.SendSales(d, merchant, contract, 0, cancellationToken);
+
+                            //await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                        }
+
+                        //await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    }
+                }
+
+                if (sendFiles){
+                    foreach (MerchantResponse merchant in merchants){
+                        // Get the merchants contracts
+                        List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
+
+                        foreach (ContractResponse contract in contracts){
+                            // Generate a file and upload
+                            await g.SendUploadFile(dateTime, contract, merchant, cancellationToken);
+
+                            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                        }
+
+                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    }
                 }
 
                 // Settlement
-                await g.PerformSettlement(dateTime, estateId, cancellationToken);
-
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                if (sendSettlement){
+                    await g.PerformSettlement(dateTime, estateId, cancellationToken);
+                
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                }
             }
         }
     }
