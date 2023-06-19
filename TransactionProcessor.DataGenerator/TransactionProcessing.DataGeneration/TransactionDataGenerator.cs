@@ -27,8 +27,6 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private readonly String FileProcessorApi;
 
-    private readonly Random r = new Random();
-
     private readonly RunningMode RunningMode;
 
     private readonly ISecurityServiceClient SecurityServiceClient;
@@ -43,6 +41,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private readonly String EstateManagementApi;
 
+    private Random r = new Random();
     #endregion
 
     #region Constructors
@@ -247,7 +246,6 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     public async Task<Boolean> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfSales, CancellationToken cancellationToken){
         List<SaleTransactionRequest> salesToSend = new List<SaleTransactionRequest>();
-
         Decimal depositAmount = 0;
         (Int32 accountNumber, String accountName, Decimal balance) billDetails = default;
         foreach (ContractProduct contractProduct in contract.Products){
@@ -256,14 +254,14 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
             // Get a number of sales to be sent
             if (numberOfSales == 0){
-                numberOfSales = this.r.Next(5, 15);
+                numberOfSales = r.Next(5, 15);
             }
             for (Int32 i = 1; i <= numberOfSales; i++){
                 ProductType productType = this.GetProductType(contract.OperatorName);
 
                 if (productType == ProductType.BillPayment){
                     // Create a bill for this sale
-                    Decimal amount = this.GetAmount(contractProduct);
+                    Decimal amount = GetAmount(r, contractProduct);
                     billDetails = await this.CreateBillPaymentBill(contract.OperatorName, contractProduct, cancellationToken);
                 }
 
@@ -318,7 +316,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     public async Task<Boolean> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, CancellationToken cancellationToken){
-        Int32 numberOfSales = this.r.Next(5, 15);
+        Int32 numberOfSales = r.Next(5, 15);
         (Decimal, UploadFile) uploadFile = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
 
         if (uploadFile.Item2 == null){
@@ -419,7 +417,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                                                  { "PataPawaPostPaidMessageType", "VerifyAccount" }
                                                                                              };
 
-        var transactionDateTime = this.GetTransactionDateTime(dateTime);
+        DateTime transactionDateTime = GetTransactionDateTime(r,dateTime);
 
         SaleTransactionRequest getAccountRequest = new SaleTransactionRequest{
                                                                                  AdditionalTransactionMetadata = getAccountRequestMetaData,
@@ -464,7 +462,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     private List<(SaleTransactionRequest request, Decimal amount)> BuildMobileTopupSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct contractProduct){
-        Decimal amount = this.GetAmount(contractProduct);
+        Decimal amount = GetAmount(r, contractProduct);
 
         Dictionary<String, String> requestMetaData = new Dictionary<String, String>{
                                                                                        { "Amount", amount.ToString() },
@@ -483,7 +481,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                        MerchantId = merchant.MerchantId,
                                                                        EstateId = merchant.EstateId,
                                                                        TransactionType = "Sale",
-                                                                       TransactionDateTime = this.GetTransactionDateTime(dateTime),
+                                                                       TransactionDateTime = GetTransactionDateTime(r, dateTime),
                                                                        OperatorIdentifier = contract.OperatorName,
                                                                        ProductId = contractProduct.ProductId
                                                                    };
@@ -504,7 +502,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             mobileTopupUploadFile.AddHeader(dateTime);
 
             for (Int32 i = 1; i <= numberOfLines; i++){
-                Decimal amount = this.GetAmount();
+                Decimal amount = GetAmount(r);
                 String mobileNumber = String.Format($"077777777{i.ToString().PadLeft(2, '0')}");
                 mobileTopupUploadFile.AddLine(amount, mobileNumber);
                 
@@ -530,7 +528,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             voucherTopupUploadFile.AddHeader(dateTime);
 
             for (Int32 i = 1; i <= numberOfLines; i++){
-                Decimal amount = this.GetAmount();
+                Decimal amount = GetAmount(r);
                 String mobileNumber = String.Format($"077777777{i.ToString().PadLeft(2, '0')}");
                 String emailAddress = String.Format($"testrecipient{i.ToString().PadLeft(2, '0')}@testing.com");
                 String recipient = mobileNumber;
@@ -564,7 +562,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     private List<(SaleTransactionRequest request, Decimal amount)> BuildVoucherSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct contractProduct){
-        Decimal amount = this.GetAmount(contractProduct);
+        Decimal amount = GetAmount(r, contractProduct);
 
         Dictionary<String, String> requestMetaData = new Dictionary<String, String>{
                                                                                        { "Amount", amount.ToString() },
@@ -583,7 +581,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                        MerchantId = merchant.MerchantId,
                                                                        EstateId = merchant.EstateId,
                                                                        TransactionType = "Sale",
-                                                                       TransactionDateTime = this.GetTransactionDateTime(dateTime),
+                                                                       TransactionDateTime = GetTransactionDateTime(r, dateTime),
                                                                        OperatorIdentifier = contract.OperatorName,
                                                                        ProductId = contractProduct.ProductId
                                                                    };
@@ -594,8 +592,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private async Task<(Int32 accountNumber, String accountName, Decimal balance)> CreateBillPaymentBill(String contractOperatorName, ContractProduct contractProduct, CancellationToken cancellationToken){
         if (contractOperatorName == "PataPawa PostPay"){
-            Int32 accountNumber = this.r.Next(1, 100000);
-            Decimal amount = this.GetAmount(contractProduct);
+            Int32 accountNumber = r.Next(1, 100000);
+            Decimal amount = GetAmount(r, contractProduct);
 
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.TestHostApi}/api/developer/patapawapostpay/createbill");
             var body = new{
@@ -632,14 +630,11 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return request;
     }
 
-    private Decimal GetAmount(ContractProduct product = null){
-        if (product == null){
-            return this.r.Next(9, 250);
-        }
-
-        return product.Value.HasValue switch{
-            true => product.Value.Value,
-            _ => this.r.Next(9, 250)
+    public static Decimal GetAmount(Random r, ContractProduct product = null){
+        return product switch{
+            null => r.Next(9, 250),
+            _ when product.Value.HasValue == false => r.Next(9, 250),
+            _ => product.Value.Value
         };
     }
 
@@ -694,18 +689,18 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return productType;
     }
 
-    private DateTime GetTransactionDateTime(DateTime dateTime){
+    public static DateTime GetTransactionDateTime(Random r, DateTime dateTime){
 
-        if (dateTime.Hour != 0 && dateTime.Minute != 0 && dateTime.Second != 0){
+        if (dateTime.Hour != 0 && dateTime.Minute != 0){
             // Already have a time only change the seconds
-            Int32 seconds = this.r.Next(0, 59);
-            return dateTime.AddSeconds(seconds);
+            Int32 seconds = r.Next(0, 59);
+            return new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, seconds);
         }
         else{
             // Generate the time
-            Int32 hours = this.r.Next(0, 23);
-            Int32 minutes = this.r.Next(0, 59);
-            Int32 seconds = this.r.Next(0, 59);
+            Int32 hours = r.Next(0, 23);
+            Int32 minutes = r.Next(0, 59);
+            Int32 seconds = r.Next(0, 59);
 
             return dateTime.AddHours(hours).AddMinutes(minutes).AddSeconds(seconds);
         }
