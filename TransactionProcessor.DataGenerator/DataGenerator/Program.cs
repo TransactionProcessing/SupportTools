@@ -35,7 +35,7 @@ namespace TransactionDataGenerator{
             HttpClient httpClient = new HttpClient(handler);
 
             baseAddressFunc = (apiName) => {
-                                  String ipaddress = "192.168.0.133";
+                                  String ipaddress = "192.168.1.167";
                                   if (apiName == "EstateManagementApi"){
                                       return $"http://{ipaddress}:5000";
                                   }
@@ -101,20 +101,20 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2023, 6, 16); //27/7
-            DateTime endDate = new DateTime(2023, 6, 16); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2023, 6, 19); //27/7
+            DateTime endDate = new DateTime(2023, 6, 19); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
 
             Boolean sendLogons = false;
-            Boolean sendSales = true;
+            Boolean sendSales = false;
             Boolean sendFiles = false;
-            Boolean sendSettlement = false;
+            Boolean sendSettlement = true;
 
             foreach (DateTime dateTime in dateRange){
-                var d = DateTime.Now;
+                var d = DateTime.Now.Date;
                 if (sendLogons){
                     foreach (MerchantResponse merchant in merchants){
 

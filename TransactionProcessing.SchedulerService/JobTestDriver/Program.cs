@@ -2,6 +2,7 @@
 {
     using EstateManagement.Client;
     using MessagingService.Client;
+    using NLog.LayoutRenderers.Wrappers;
     using SecurityService.Client;
     using TransactionProcessing.DataGeneration;
     using TransactionProcessing.SchedulerService.Jobs;
@@ -31,38 +32,39 @@
             //                            messagingServiceClient,
             //                            CancellationToken.None);
 
-            HttpClientHandler handler = new HttpClientHandler
-                                        {
-                                            ServerCertificateCustomValidationCallback = (message,
-                                                                                         cert,
-                                                                                         chain,
-                                                                                         errors) => {
-                                                                                            return true;
-                                                                                        }
-                                        };
-            HttpClient client = new HttpClient(handler);
-            ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate(String s){ return "https://192.168.0.133:5001"; },client);
-            IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.0.133:5000"; }, client);
-            ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "http://192.168.0.133:5002"; }, client);
-            String estateManagementApi = "http://192.168.0.133:5000";
-            String fileProcessorApi = "http://192.168.0.133:5009";
-            String testHostApi = "http://192.168.0.133:9000";
-            String clientId = "serviceClient";
-            String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
+            //HttpClientHandler handler = new HttpClientHandler
+            //                            {
+            //                                ServerCertificateCustomValidationCallback = (message,
+            //                                                                             cert,
+            //                                                                             chain,
+            //                                                                             errors) => {
+            //                                                                                return true;
+            //                                                                            }
+            //                            };
+            //HttpClient client = new HttpClient(handler);
+            //ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate(String s){ return "https://192.168.0.133:5001"; },client);
+            //IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.0.133:5000"; }, client);
+            //ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "http://192.168.0.133:5002"; }, client);
+            //String estateManagementApi = "http://192.168.0.133:5000";
+            //String fileProcessorApi = "http://192.168.0.133:5009";
+            //String testHostApi = "http://192.168.0.133:9000";
+            //String clientId = "serviceClient";
+            //String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
 
-            ITransactionDataGenerator t = new TransactionDataGenerator(securityServiceClient,
-                                                                       estateClient,
-                                                                       transactionProcessorClient,
-                                                                       estateManagementApi,
-                                                                       fileProcessorApi,
-                                                                       testHostApi,
-                                                                       clientId,
-                                                                       clientSecret,
-                                                                       RunningMode.Live);
-            Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
-            Guid merchantId = Guid.Parse("ab1c99fb-1c6c-4694-9a32-b71be5d1da33");
-            await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
-
+            //ITransactionDataGenerator t = new TransactionDataGenerator(securityServiceClient,
+            //                                                           estateClient,
+            //                                                           transactionProcessorClient,
+            //                                                           estateManagementApi,
+            //                                                           fileProcessorApi,
+            //                                                           testHostApi,
+            //                                                           clientId,
+            //                                                           clientSecret,
+            //                                                           RunningMode.Live);
+            //Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+            //Guid merchantId = Guid.Parse("ab1c99fb-1c6c-4694-9a32-b71be5d1da33");
+            //await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
+            var d = TransactionDataGenerator.GetTransactionDateTime(new Random(), DateTime.Now);
+            Console.WriteLine(d);
         }
     }
 }

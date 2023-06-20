@@ -691,7 +691,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     public static DateTime GetTransactionDateTime(Random r, DateTime dateTime){
 
-        if (dateTime.Hour != 0 && dateTime.Minute != 0){
+        if (dateTime.Hour != 0){
             // Already have a time only change the seconds
             Int32 seconds = r.Next(0, 59);
             return new DateTime(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, seconds);
