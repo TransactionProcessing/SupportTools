@@ -598,7 +598,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.TestHostApi}/api/developer/patapawapostpay/createbill");
             var body = new{
                               due_date = DateTime.Now.AddDays(1),
-                              amount = amount * 100,
+                              amount = amount,
                               account_number = accountNumber,
                               account_name = "Test Account 1"
                           };
