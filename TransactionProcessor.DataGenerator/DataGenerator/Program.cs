@@ -146,7 +146,7 @@ namespace TransactionDataGenerator{
 
                         foreach (ContractResponse contract in contracts){
                             // Generate a file and upload
-                            await g.SendUploadFile(dateTime, contract, merchant, cancellationToken);
+                            await g.SendUploadFile(dateTime, contract, merchant, Guid.Empty, cancellationToken);
 
                             await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                         }

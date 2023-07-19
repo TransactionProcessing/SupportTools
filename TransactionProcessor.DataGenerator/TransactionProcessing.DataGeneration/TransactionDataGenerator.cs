@@ -315,7 +315,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return true;
     }
 
-    public async Task<Boolean> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, CancellationToken cancellationToken){
+    public async Task<Boolean> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, Guid userId, CancellationToken cancellationToken){
         Int32 numberOfSales = r.Next(5, 15);
         (Decimal, UploadFile) uploadFile = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
 
@@ -329,7 +329,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         // Build up a deposit (minus the last sale amount)
         MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(uploadFile.Item1, dateTime);
-
+        
         // Send the deposit
         Boolean depositSent = await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
 
@@ -337,7 +337,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             return false;
         }
         
-        Boolean fileSent = await this.UploadFile(uploadFile.Item2, Guid.Empty, dateTime, cancellationToken);
+        Boolean fileSent = await this.UploadFile(uploadFile.Item2, userId, dateTime, cancellationToken);
 
         if (fileSent == false){
             return false;
@@ -354,6 +354,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         {
             this.WriteTrace($"About to get Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
             merchant = await this.EstateClient.GetMerchant(token, estateId, merchantId, cancellationToken);
+            
             this.WriteTrace($"Merchant retrieved successfully");
         }
         catch (Exception ex)
