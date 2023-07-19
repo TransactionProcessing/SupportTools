@@ -19,8 +19,8 @@ namespace TransactionProcessing.SettlementProcessor
                 endDate = DateTime.ParseExact(args[2], "yyyy-MM-dd", null);
             }
 
-            startDate = new DateTime(2022,11,3);
-            endDate = new DateTime(2022,11,7);
+            startDate = new DateTime(2023,7,1);
+            endDate = new DateTime(2023,7,13);
 
             SettlementProcessor processor = new SettlementProcessor();
             processor.LoadConfiguration();

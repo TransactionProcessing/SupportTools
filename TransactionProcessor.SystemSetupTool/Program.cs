@@ -61,12 +61,12 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
 
-            //await Program.SetupIdentityServerFromConfig();
+                //await Program.SetupIdentityServerFromConfig();
 
-            //Setup latest projections
+            ////Setup latest projections
             //await DeployProjections();
 
-            //Setup subcriptions
+            ////Setup subcriptions
             //await SetupSubscriptions();
 
             await Program.SetupEstatesFromConfig();            
@@ -266,7 +266,7 @@ namespace TransactionProcessor.SystemSetupTool
         static async Task CreateEstate(Estate estateToCreate, CancellationToken cancellationToken)
         {
             List<(CreateOperatorRequest, CreateOperatorResponse)> operatorResponses = new List<(CreateOperatorRequest, CreateOperatorResponse)>();
-
+            /*
             // Create the estate
             CreateEstateRequest createEstateRequest = new CreateEstateRequest
                                                       {
@@ -347,11 +347,32 @@ namespace TransactionProcessor.SystemSetupTool
                                                                                    cancellationToken);
                     }
                 }
-            }
+            }*/
+
+            EstateResponse estateResponse = new EstateResponse{
+                                                                  EstateId = Guid.Parse("435613AC-A468-47A3-AC4F-649D89764C22")
+                                                              };
+
+            operatorResponses.Add((null, new CreateOperatorResponse{
+                                                                       OperatorId = Guid.Parse("8420E49E-EC9E-47FC-ADDC-62A2091284B2")
+                                                                   }));
+
+            operatorResponses.Add((null, new CreateOperatorResponse
+                                         {
+                                             OperatorId = Guid.Parse("631189F5-E4FA-4B26-8C8B-99580EE12F68")
+                                         }));
+
+            operatorResponses.Add((null, new CreateOperatorResponse
+                                         {
+                                             OperatorId = Guid.Parse("12E1872B-B9C4-464A-A548-E61DE280AF7D  ")
+                                         }));
 
             // Now create the merchants
             foreach (Merchant merchant in estateToCreate.Merchants)
             {
+                if (merchant.Name != "Test Merchant 4" && merchant.Name != "Test Merchant 5")
+                    continue;
+
                 SettlementSchedule settlementSchedule = Enum.Parse<SettlementSchedule>(merchant.SettlementSchedule);
 
                 CreateMerchantRequest createMerchantRequest = new CreateMerchantRequest

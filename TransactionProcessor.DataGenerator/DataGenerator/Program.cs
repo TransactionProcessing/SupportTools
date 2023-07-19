@@ -101,8 +101,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2023, 6, 19); //27/7
-            DateTime endDate = new DateTime(2023, 6, 19); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2023, 7, 3); //27/7
+            DateTime endDate = new DateTime(2023, 7, 4); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
@@ -114,7 +114,7 @@ namespace TransactionDataGenerator{
             Boolean sendSettlement = true;
 
             foreach (DateTime dateTime in dateRange){
-                var d = DateTime.Now.Date;
+                
                 if (sendLogons){
                     foreach (MerchantResponse merchant in merchants){
 
@@ -130,7 +130,7 @@ namespace TransactionDataGenerator{
 
                         foreach (ContractResponse contract in contracts){
                             // Generate and send some sales
-                            await g.SendSales(d, merchant, contract, 0, cancellationToken);
+                            await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
 
                             //await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
                         }

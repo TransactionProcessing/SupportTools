@@ -36,7 +36,7 @@
           "device": {
             "device_identifier": "testmerchant1device"
           },
-          "createdate":  "2022-08-31"
+          "createdate": "2022-08-31"
         },
         {
           "merchant_id": "AF4D7C7C-9B8D-4E58-A12A-28D3E0B89DF6",
@@ -190,6 +190,58 @@
           },
           "device": {
             "device_identifier": "CB5A26UB14"
+          },
+          "createdate": "2022-08-31"
+        },
+        {
+          "merchant_id": "BF1BFE5E-075C-49D0-A254-B9181899133A",
+          "name": "Test Merchant 4",
+          "settlementschedule": "Weekly",
+          "address": {
+            "address_line_1": "test address line 1",
+            "country": "United Kingdom",
+            "region": "Region",
+            "town": "MyTown"
+          },
+          "contact": {
+            "contact_name": "Test Contact",
+            "email_address": "stuart_ferguson1@outlook.com"
+          },
+          "user": {
+            "email_address": "merchantuser@testmerchant4.co.uk",
+            "password": "123456",
+            "given_name": "Test Merchant 4",
+            "middle_name": "",
+            "family_name": "User"
+          },
+          "device": {
+            "device_identifier": "testmerchant4device"
+          },
+          "createdate": "2022-08-31"
+        },
+        {
+          "merchant_id": "ADC939A8-315D-4019-9080-15259FA92324",
+          "name": "Test Merchant 5",
+          "settlementschedule": "Monthly",
+          "address": {
+            "address_line_1": "test address line 1",
+            "country": "United Kingdom",
+            "region": "Region",
+            "town": "MyTown"
+          },
+          "contact": {
+            "contact_name": "Test Contact",
+            "email_address": "stuart_ferguson1@outlook.com"
+          },
+          "user": {
+            "email_address": "merchantuser@testmerchant5.co.uk",
+            "password": "123456",
+            "given_name": "Test Merchant 5",
+            "middle_name": "",
+            "family_name": "User"
+          },
+          "device": {
+            "device_identifier": "testmerchant5device"
           },
           "createdate": "2022-08-31"
         }
