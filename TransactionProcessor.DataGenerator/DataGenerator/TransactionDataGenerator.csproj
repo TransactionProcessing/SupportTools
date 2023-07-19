@@ -9,7 +9,7 @@
 	  <PackageReference Include="EstateManagement.Client" Version="2023.3.2" />
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
 	  <PackageReference Include="SecurityService.Client" Version="2023.3.1" />
-	  <PackageReference Include="TransactionProcessor.Client" Version="2023.3.1" />
+	  <PackageReference Include="TransactionProcessor.Client" Version="2023.6.4-build59" />
   </ItemGroup>
 
   <ItemGroup>

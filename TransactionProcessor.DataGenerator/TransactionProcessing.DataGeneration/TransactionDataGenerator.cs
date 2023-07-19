@@ -228,11 +228,17 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     public async Task<Boolean> PerformSettlement(DateTime dateTime, Guid estateId, CancellationToken cancellationToken){
         try
         {
-            this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
+            List<MerchantResponse> merchants = await this.GetMerchants(estateId, cancellationToken);
 
-            await this.SendProcessSettlementRequest(dateTime, estateId, cancellationToken);
 
-            this.WriteTrace($"Process Settlement Request sent for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
+            foreach (MerchantResponse merchantResponse in merchants){
+                this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantResponse.MerchantId}]");
+                await this.SendProcessSettlementRequest(dateTime, estateId,merchantResponse.MerchantId, cancellationToken);
+                this.WriteTrace($"Process Settlement Request sent for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantResponse.MerchantId}]");
+            }
+            
+
+            
             return true;
 
         }
@@ -825,7 +831,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
     }
 
-    private async Task SendProcessSettlementRequest(DateTime dateTime, Guid estateId, CancellationToken cancellationToken)
+    private async Task SendProcessSettlementRequest(DateTime dateTime, Guid estateId,Guid merchantId, CancellationToken cancellationToken)
     {
         if (this.RunningMode == RunningMode.WhatIf)
         {
@@ -834,7 +840,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
 
         String token = await this.GetAuthToken(cancellationToken);
-        await this.TransactionProcessorClient.ProcessSettlement(token, dateTime, estateId, cancellationToken);
+        await this.TransactionProcessorClient.ProcessSettlement(token, dateTime, estateId,merchantId, cancellationToken);
     }
 
     #endregion
