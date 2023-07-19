@@ -20,6 +20,7 @@
             String clientSecret = context.MergedJobDataMap.GetString("ClientSecret");
             Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
             Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
+            Guid userId = context.MergedJobDataMap.GetGuidValueFromString("UserId");
 
             Logger.LogInformation($"Running Job {context.JobDetail.Description}");
             Logger.LogInformation($"Client Id: [{clientId}]");
@@ -28,7 +29,7 @@
 
             ITransactionDataGenerator t = CreateTransactionDataGenerator(clientId, clientSecret, RunningMode.Live);
             t.TraceGenerated += TraceGenerated; 
-            await Jobs.GenerateFileUploads(t, estateId, merchantId, context.CancellationToken);
+            await Jobs.GenerateFileUploads(t, estateId, merchantId, userId, context.CancellationToken);
         }
         #endregion
     }
