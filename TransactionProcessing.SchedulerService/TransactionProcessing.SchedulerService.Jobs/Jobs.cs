@@ -41,7 +41,7 @@ public static class Jobs{
         }
     }
 
-    public static async Task GenerateFileUploads(ITransactionDataGenerator t, Guid estateId, Guid merchantId, CancellationToken cancellationToken)
+    public static async Task GenerateFileUploads(ITransactionDataGenerator t, Guid estateId, Guid merchantId, Guid userId, CancellationToken cancellationToken)
     {
         MerchantResponse merchant = await t.GetMerchant(estateId, merchantId, cancellationToken);
 
@@ -56,7 +56,7 @@ public static class Jobs{
         foreach (ContractResponse contract in contracts)
         {
             // Generate a file and upload
-            Boolean success = await t.SendUploadFile(fileDate, contract, merchant, cancellationToken);
+            Boolean success = await t.SendUploadFile(fileDate, contract, merchant,userId, cancellationToken);
 
             if (success == false)
             {
