@@ -5,31 +5,27 @@
     using System.Net.Http;
     using System.Threading;
     using System.Threading.Tasks;
+    using EstateManagement.Client;
     using Microsoft.Extensions.Configuration;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
     using Shared.General;
+    using TransactionProcessing.DataGeneration;
     using TransactionProcessor.Client;
 
     public class SettlementProcessor
     {
         #region Fields
 
-        /// <summary>
-        /// The security service client
-        /// </summary>
         private SecurityServiceClient SecurityServiceClient;
 
-        /// <summary>
-        /// The token response
-        /// </summary>
         private TokenResponse TokenResponse;
 
-        /// <summary>
-        /// The transaction processor client
-        /// </summary>
         private TransactionProcessorClient TransactionProcessorClient;
+        
+        private EstateClient EstateClient;
 
+        private ITransactionDataGenerator TransactionDataGenerator;
         #endregion
 
         #region Properties
@@ -64,21 +60,35 @@
 
             Func<String, String> baseAddressFunc = apiName =>
                                                    {
-                                                       var url = ConfigurationReader.GetBaseServerUri(apiName).AbsoluteUri;
+                                                       String url = ConfigurationReader.GetBaseServerUri(apiName).AbsoluteUri;
                                                        url = url.Remove(url.Length - 1);
                                                        return url;
                                                    };
 
             this.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
             this.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
+            this.EstateClient = new EstateClient(baseAddressFunc, httpClient);
+
+            this.TransactionDataGenerator = new TransactionDataGenerator(this.SecurityServiceClient,
+                                                                         this.EstateClient,
+                                                                         this.TransactionProcessorClient,
+                                                                         baseAddressFunc("EstateManagementApi"),
+                                                                         baseAddressFunc("FileProcessorApi"),
+                                                                         baseAddressFunc("TestHostApi"),
+                                                                         "serviceClient",
+                                                                         "d192cbc46d834d0da90e8a9d50ded543",
+                                                                         RunningMode.Live);
+
         }
 
         public async Task ProcessSettlement(Guid estateId,
                                             DateTime? startDate,
                                             DateTime? endDate)
         {
+
+
             // Get a token
-            await this.GetToken(CancellationToken.None);
+            //await this.GetToken(CancellationToken.None);
             List<DateTime> dates = new List<DateTime>();
             if (startDate.HasValue && endDate.HasValue)
             {
@@ -89,10 +99,17 @@
                 dates.Add(DateTime.Now.Date);
             }
 
-            foreach (DateTime settlementDate in dates)
-            {
-                await this.TransactionProcessorClient.ProcessSettlement(this.TokenResponse.AccessToken, settlementDate, estateId, CancellationToken.None);
-            }
+            //var merchantList = await this.EstateClient.GetMerchants(this.TokenResponse.AccessToken, estateId, CancellationToken.None);
+
+            //foreach (var merchant in merchantList){
+
+                foreach (DateTime settlementDate in dates){
+                //        await this.TransactionProcessorClient.ProcessSettlement(this.TokenResponse.AccessToken, settlementDate, estateId, merchant.MerchantId, CancellationToken.None);
+                await this.TransactionDataGenerator.PerformSettlement(settlementDate, estateId, CancellationToken.None);
+                }
+            //}
+
+            
         }
 
         /// <summary>
@@ -140,6 +157,26 @@
                 this.TokenResponse = token;
             }
         }
+
+
+        //protected static ITransactionDataGenerator CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode)
+        //{
+        //    ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
+        //    IEstateClient estateClient = Bootstrapper.GetService<IEstateClient>();
+        //    ITransactionProcessorClient transactionProcessorClient = Bootstrapper.GetService<ITransactionProcessorClient>();
+        //    Func<String, String> baseAddressFunc = Bootstrapper.GetService<Func<String, String>>();
+
+        //    ITransactionDataGenerator g = new TransactionDataGenerator(securityServiceClient,
+        //                                                               estateClient,
+        //                                                               transactionProcessorClient,
+        //                                                               baseAddressFunc("EstateManagementApi"),
+        //                                                               baseAddressFunc("FileProcessorApi"),
+        //                                                               baseAddressFunc("TestHostApi"),
+        //                                                               clientId,
+        //                                                               clientSecret,
+        //                                                               runningMode);
+        //    return g;
+        //}
 
         #endregion
     }

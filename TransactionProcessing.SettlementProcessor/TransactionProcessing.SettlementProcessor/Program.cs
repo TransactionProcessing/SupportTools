@@ -2,7 +2,11 @@
 
 namespace TransactionProcessing.SettlementProcessor
 {
+    using EstateManagement.Client;
+    using SecurityService.Client;
     using System.Threading.Tasks;
+    using TransactionProcessing.DataGeneration;
+    using TransactionProcessor.Client;
 
     internal class Program
     {
@@ -19,8 +23,12 @@ namespace TransactionProcessing.SettlementProcessor
                 endDate = DateTime.ParseExact(args[2], "yyyy-MM-dd", null);
             }
 
-            startDate = new DateTime(2023,7,1);
-            endDate = new DateTime(2023,7,13);
+            startDate = new DateTime(2023,10,10);
+            endDate = new DateTime(2023,10,10);
+
+            String clientId = "";
+            String clientSecret = "";
+
 
             SettlementProcessor processor = new SettlementProcessor();
             processor.LoadConfiguration();

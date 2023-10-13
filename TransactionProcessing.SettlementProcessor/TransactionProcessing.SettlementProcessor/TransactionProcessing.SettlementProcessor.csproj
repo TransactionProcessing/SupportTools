@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,12 +6,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="EstateManagement.Client" Version="2023.9.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
     <PackageReference Include="Shared" Version="1.5.1" />
-    <PackageReference Include="TransactionProcessor.Client" Version="1.1.13-build29" />
+    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2023.9.2" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2023.8.1" />
   </ItemGroup>
 
   <ItemGroup>
