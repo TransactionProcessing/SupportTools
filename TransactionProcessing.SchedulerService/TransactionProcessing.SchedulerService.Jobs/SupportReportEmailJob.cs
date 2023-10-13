@@ -7,24 +7,18 @@ using MessagingService.Client;
 using Quartz;
 using Shared.Logger;
 
-public class SupportReportEmailJob : BaseJob, IJob
+public class SupportReportEmailJob : BaseJob
 {
     #region Methods
-    public async Task Execute(IJobExecutionContext context)
+    public override async Task ExecuteJob(IJobExecutionContext context)
     {
-        Bootstrapper.ConfigureServices(context);
-
-        String clientId = context.MergedJobDataMap.GetString("ClientId");
-        String clientSecret = context.MergedJobDataMap.GetString("ClientSecret");
         String eventStoreConnectionString = context.MergedJobDataMap.GetString("EventStoreConnectionString");
         String databaseConnectionString = context.MergedJobDataMap.GetString("DatabaseConnectionString");
         String estateIds = context.MergedJobDataMap.GetString("EstateIds");
 
-        Logger.LogInformation($"Running Job {context.JobDetail.Description}");
-        Logger.LogInformation($"Client Id: [{clientId}]");
         Logger.LogInformation($"Estate Id: [{estateIds}]");
         
-        String token = await this.GetToken(clientId, clientSecret, context.CancellationToken);
+        String token = await this.GetToken(this.ClientId, this.ClientSecret, context.CancellationToken);
 
         IMessagingServiceClient messagingServiceClient =  Bootstrapper.GetService<IMessagingServiceClient>();
 
