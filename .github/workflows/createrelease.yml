@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   release:
@@ -46,44 +46,42 @@ jobs:
         sudo sh -c "echo deb https://apt.octopus.com/ stable main > /etc/apt/sources.list.d/octopus.com.list" && \
         sudo apt update && sudo apt install octopuscli
     
-    - name: Pack Files for Octopus Health Checks UI
-      run: >-
-        octo pack
-        --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
-        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
-        --id TransactionProcessor.HealthChecksUI
-        --version ${{ steps.get_version.outputs.VERSION }}
-        --format zip
-        --verbose
-        --logLevel=verbose
+    - name: Create Zip package for Health Checks UI 🐙
+      id: packagehealthui
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: TransactionProcessor.HealthChecksUI
+        version: ${{ steps.get_version.outputs.VERSION }}
+        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
+        files: "**/*"
+        output_folder: /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
 
-    - name: Pack Files for Octopus Scheduler Service
-      run: >-
-        octo pack
-        --outFolder /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
-        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
-        --id TransactionProcessing.SchedulerService
-        --version ${{ steps.get_version.outputs.VERSION }}
-        --format zip
-        --verbose
-        --logLevel=verbose
+    - name: Push a package to Octopus Deploy _Health UI 🐙
+      uses: OctopusDeploy/push-package-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        packages: ${{ steps.packagehealthui.outputs.package_file_path }}
+
+    - name: Create Zip package for Scheduler Service 🐙
+      id: packagescheduler
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: TransactionProcessor.SchedulerService
+        version: ${{ steps.get_version.outputs.VERSION }}
+        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.SchedulerService/publishOutput
+        files: "**/*"
+        output_folder: /home/runner/work/SupportTools/TransactionProcessor.SchedulerService/
+
+    - name: Push a package to Octopus Deploy - Scheduler Service 🐙
+      uses: OctopusDeploy/push-package-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        packages: ${{ steps.packagescheduler.outputs.package_file_path }}
         
-    - name: Push Package to Octopus Health Checks UI
-      run: >-
-        octo push
-        --server ${{ secrets.OCTOPUS_URL }}
-        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --package /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
-        --overwrite-mode IgnoreIfExists
-
-    - name: Push Package to Octopus Scheduler Service
-      run: >-
-        octo push
-        --server ${{ secrets.OCTOPUS_URL }}
-        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --package /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.${{ steps.get_version.outputs.VERSION }}.zip
-        --overwrite-mode IgnoreIfExists
-    
     - name: Get Release
       id: getrelease
       uses: octokit/request-action@v1.x
@@ -98,19 +96,43 @@ jobs:
       with:
           json: ${{ steps.getrelease.outputs.data }}
           releasenote: "body"
-    
-    - name: Create & Deploy Release in Octopus
-      run: >-
-        octo create-release
-        --server ${{ secrets.OCTOPUS_URL }}
-        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --project "Support Tools"
-        --version ${{ steps.get_version.outputs.VERSION }}
-        --channel Default
-        --deployTo Staging
-        --waitfordeployment
-        --deploymenttimeout 00:05:00
-        --releasenotes "${{ steps.buildreleasenotes.outputs.releasenote }}"
+
+    - name: Create a release in Octopus Deploy 🐙
+      uses: OctopusDeploy/create-release-action@v3
+      id: "create_release"
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        project: "Support Tools"
+        package_version: ${{ steps.get_version.outputs.VERSION }}
+        release_notes: ${{ steps.buildreleasenotes.outputs.releasenote }}
+        release_number: ${{ steps.get_version.outputs.VERSION }}
+        ignore_existing: true
+        channel: "Default"
+
+    - name: Deploy a release in Octopus Deploy 🐙
+      uses: OctopusDeploy/deploy-release-action@v3
+      id: "deploy_release"
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        project: 'Support Tools'
+        release_number: ${{steps.create_release.outputs.release_number}}
+        environments: |
+            Staging      
+            
+    - name: Await task in Octopus Deploy 🐙
+      uses: OctopusDeploy/await-task-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        timeout_after: 300
+        polling_interval: 30
+        server_task_id: ${{ fromJson(steps.deploy_release.outputs.server_tasks)[0].serverTaskId }}
+
 
     - name: Build and Publish Nuget Packages
       run: |
