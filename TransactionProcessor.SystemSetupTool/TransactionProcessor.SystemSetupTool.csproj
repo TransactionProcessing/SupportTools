@@ -25,6 +25,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
     <PackageReference Include="Shared" Version="1.5.1" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2023.11.3-build73" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,9 +2,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using EstateManagement.Client;
 using EstateManagement.DataTransferObjects;
 using EstateManagement.DataTransferObjects.Requests;
@@ -13,6 +16,7 @@ using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
+using Shared.Serialisation;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 
@@ -42,6 +46,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     private readonly String EstateManagementApi;
 
     private Random r = new Random();
+
     #endregion
 
     #region Constructors
@@ -71,8 +76,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     #region Methods
 
-    private void WriteTrace(String message)
-    {
+    private void WriteTrace(String message){
         if (TraceGenerated != null){
             TraceEventArgs args = new(){
                                            TraceLevel = TraceEventArgs.Level.Trace,
@@ -83,21 +87,18 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
     }
 
-    private void WriteWarning(String message)
-    {
-        if (TraceGenerated != null)
-        {
-            TraceEventArgs args = new()
-                                  {
-                                      TraceLevel = TraceEventArgs.Level.Warning,
-                                      Message = message
-                                  };
+    private void WriteWarning(String message){
+        if (TraceGenerated != null){
+            TraceEventArgs args = new(){
+                                           TraceLevel = TraceEventArgs.Level.Warning,
+                                           Message = message
+                                       };
 
             TraceGenerated.Invoke(args);
         }
     }
-    private void WriteError(String message)
-    {
+
+    private void WriteError(String message){
         if (TraceGenerated != null){
             TraceEventArgs args = new(){
                                            TraceLevel = TraceEventArgs.Level.Error,
@@ -108,22 +109,19 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
     }
 
-    private void WriteError(Exception ex)
-    {
-        if (TraceGenerated != null)
-        {
-            TraceEventArgs args = new()
-                                  {
-                                      TraceLevel = TraceEventArgs.Level.Error,
-                                      Message = ex.ToString()
-                                  };
+    private void WriteError(Exception ex){
+        if (TraceGenerated != null){
+            TraceEventArgs args = new(){
+                                           TraceLevel = TraceEventArgs.Level.Error,
+                                           Message = ex.ToString()
+                                       };
 
             TraceGenerated.Invoke(args);
         }
     }
 
     public List<DateTime> GenerateDateRange(DateTime startDate, DateTime endDate){
-        
+
         this.WriteTrace($"Generating date range between {startDate:dd-MM-yyyy} and {endDate:dd-MM-yyyy}");
         List<DateTime> dateRange = new List<DateTime>();
 
@@ -152,7 +150,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
 
         String token = await this.GetAuthToken(cancellationToken);
-        
+
         try{
             this.WriteTrace($"About to get contracts for Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
             contracts = await this.EstateClient.GetMerchantContracts(token, merchant.EstateId, merchant.MerchantId, cancellationToken);
@@ -170,15 +168,13 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         List<MerchantResponse> merchants = new List<MerchantResponse>();
 
         String token = await this.GetAuthToken(cancellationToken);
-        
-        try
-        {
+
+        try{
             this.WriteTrace($"About to get merchants for Estate Id [{estateId}]");
             merchants = await this.EstateClient.GetMerchants(token, estateId, cancellationToken);
             this.WriteTrace($"{merchants.Count} merchants returned for Estate");
         }
-        catch (Exception ex)
-        {
+        catch(Exception ex){
             this.WriteError("Error getting merchant contracts");
             this.WriteError(ex);
         }
@@ -188,23 +184,21 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     public async Task<Boolean> PerformMerchantLogon(DateTime dateTime, MerchantResponse merchant, CancellationToken cancellationToken){
 
-        if (merchant == null)
-        {
+        if (merchant == null){
             this.WriteError("Merchant is null");
             return false;
         }
 
         // Build logon message
         String deviceIdentifier = merchant.Devices.Single().Value;
-        LogonTransactionRequest logonTransactionRequest = new LogonTransactionRequest
-                                                          {
-                                                              DeviceIdentifier = deviceIdentifier,
-                                                              EstateId = merchant.EstateId,
-                                                              MerchantId = merchant.MerchantId,
-                                                              TransactionDateTime = dateTime.Date.AddMinutes(1),
-                                                              TransactionNumber = "1",
-                                                              TransactionType = "Logon"
-                                                          };
+        LogonTransactionRequest logonTransactionRequest = new LogonTransactionRequest{
+                                                                                         DeviceIdentifier = deviceIdentifier,
+                                                                                         EstateId = merchant.EstateId,
+                                                                                         MerchantId = merchant.MerchantId,
+                                                                                         TransactionDateTime = dateTime.Date.AddMinutes(1),
+                                                                                         TransactionNumber = "1",
+                                                                                         TransactionType = "Logon"
+                                                                                     };
 
         try{
 
@@ -216,8 +210,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             return true;
 
         }
-        catch (Exception ex)
-        {
+        catch(Exception ex){
             this.WriteError($"Error sending logon transaction for Merchant {merchant.MerchantId} Estate [{merchant.EstateId}]");
             this.WriteError(ex);
         }
@@ -226,24 +219,22 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     public async Task<Boolean> PerformSettlement(DateTime dateTime, Guid estateId, CancellationToken cancellationToken){
-        try
-        {
+        try{
             List<MerchantResponse> merchants = await this.GetMerchants(estateId, cancellationToken);
 
 
             foreach (MerchantResponse merchantResponse in merchants){
                 this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantResponse.MerchantId}]");
-                await this.SendProcessSettlementRequest(dateTime, estateId,merchantResponse.MerchantId, cancellationToken);
+                await this.SendProcessSettlementRequest(dateTime, estateId, merchantResponse.MerchantId, cancellationToken);
                 this.WriteTrace($"Process Settlement Request sent for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantResponse.MerchantId}]");
             }
-            
 
-            
+
+
             return true;
 
         }
-        catch (Exception ex)
-        {
+        catch(Exception ex){
             this.WriteError($"Error sending Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}]");
             this.WriteError(ex);
             return false;
@@ -262,6 +253,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             if (numberOfSales == 0){
                 numberOfSales = r.Next(5, 15);
             }
+
             for (Int32 i = 1; i <= numberOfSales; i++){
                 ProductType productType = this.GetProductType(contract.OperatorName);
 
@@ -294,12 +286,18 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         // Build up a deposit (minus the last sale amount)
         MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(depositAmount, dateTime);
-
+        
         // Send the deposit
         Boolean depositSent = await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
 
         if (depositSent == false){
             return false;
+        }
+
+        List<(Guid, RecordFloatCreditPurchaseRequest)> floatDepositRequests = this.CreateFloatDepositRequests(salesToSend, dateTime);
+        IOrderedEnumerable<(Guid, RecordFloatCreditPurchaseRequest)> orderedFloatDepositRequests = floatDepositRequests.OrderBy(f => f.Item2.PurchaseDateTime);
+        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests){
+            await this.SendFloatDepositRequest(recordFloatCreditPurchaseRequest.Item1, recordFloatCreditPurchaseRequest.Item2, cancellationToken);
         }
 
         Int32 salesSent = 0;
@@ -320,6 +318,73 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         return true;
     }
+
+    private List<(Guid, RecordFloatCreditPurchaseRequest)> CreateFloatDepositRequests(List<SaleTransactionRequest> salesToSend, DateTime dateTime){
+
+        List<(Guid,RecordFloatCreditPurchaseRequest)> floatPurchaseRequests = new List<(Guid,RecordFloatCreditPurchaseRequest)>();
+
+        List<(Guid estateId, Guid contractId, Guid productId, Decimal amount)> sales = new List<(Guid estateId, Guid contractId, Guid produstId, Decimal amount)>();
+        foreach (SaleTransactionRequest saleTransactionRequest in salesToSend){
+            Boolean hasAmount = saleTransactionRequest.AdditionalTransactionMetadata.ContainsKey("Amount");
+            if (hasAmount == false){
+                continue;
+            }
+
+            if (saleTransactionRequest.AdditionalTransactionMetadata.TryGetValue("Amount", out String amount)){
+                Decimal decimalAmount = Decimal.Parse(amount);
+                sales.Add((saleTransactionRequest.EstateId, saleTransactionRequest.ContractId, saleTransactionRequest.ProductId, decimalAmount));
+            }
+        }
+
+        var salesByProductList = sales.GroupBy(s => new{
+                                                           s.estateId,
+                                                           s.contractId,
+                                                           s.productId
+                                                       }).Select(g => new{
+                                                                             g.Key.estateId,
+                                                                             g.Key.contractId,
+                                                                             g.Key.productId,
+                                                                             amount = g.Sum(s => s.amount)
+                                                                         }).ToList();
+
+
+        foreach (var salesByProduct in salesByProductList){
+            Guid floatId = IdGenerationService.GenerateFloatAggregateId(salesByProduct.estateId, salesByProduct.contractId, salesByProduct.productId);
+
+            Decimal costPrice = salesByProduct.amount * 0.85m;
+
+            RecordFloatCreditPurchaseRequest request = new RecordFloatCreditPurchaseRequest{
+                                                                                               FloatId = floatId,
+                                                                                               CreditAmount = salesByProduct.amount,
+                                                                                               CostPrice = costPrice,
+                                                                                               PurchaseDateTime = dateTime
+                                                                                           };
+
+            floatPurchaseRequests.Add((salesByProduct.estateId, request));
+        }
+
+        return floatPurchaseRequests;
+    }
+
+    private List<(Guid, RecordFloatCreditPurchaseRequest)> CreateFloatDepositRequests(UploadFile uploadFile, DateTime dateTime){
+        List<(Guid, RecordFloatCreditPurchaseRequest)> floatPurchaseRequests = new();
+        Guid floatId = IdGenerationService.GenerateFloatAggregateId(uploadFile.EstateId, uploadFile.ContractId, uploadFile.ProductId);
+
+        Decimal costPrice = uploadFile.TotalAmount * 0.85m;
+
+        RecordFloatCreditPurchaseRequest request = new RecordFloatCreditPurchaseRequest{
+                                                                                           FloatId = floatId,
+                                                                                           CreditAmount = uploadFile.TotalAmount,
+                                                                                           CostPrice = costPrice,
+                                                                                           PurchaseDateTime = dateTime
+                                                                                       };
+
+
+        floatPurchaseRequests.Add((uploadFile.EstateId, request));
+
+        return floatPurchaseRequests;
+    }
+
 
     public async Task<Boolean> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, Guid userId, CancellationToken cancellationToken){
         Int32 numberOfSales = r.Next(5, 15);
@@ -342,8 +407,15 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         if (depositSent == false){
             return false;
         }
-        
-        Boolean fileSent = await this.UploadFile(uploadFile.Item2, userId, dateTime, cancellationToken);
+
+        List<(Guid, RecordFloatCreditPurchaseRequest)> floatDepositRequests = this.CreateFloatDepositRequests(uploadFile.Item2, dateTime);
+        IOrderedEnumerable<(Guid, RecordFloatCreditPurchaseRequest)> orderedFloatDepositRequests = floatDepositRequests.OrderBy(f => f.Item2.PurchaseDateTime);
+        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests)
+        {
+            await this.SendFloatDepositRequest(recordFloatCreditPurchaseRequest.Item1, recordFloatCreditPurchaseRequest.Item2, cancellationToken);
+        }
+
+        Boolean fileSent = await this.UploadFile(uploadFile.Item2, uploadFile.Item2.UserId, dateTime, cancellationToken);
 
         if (fileSent == false){
             return false;
@@ -497,15 +569,16 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return requests;
     }
 
-    private async Task<(Decimal, UploadFile)> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken){
+    private async Task<(Decimal,UploadFile)> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken){
         ProductType productType = this.GetProductType(contract.OperatorName);
         Guid fileProfileId = await TransactionDataGenerator.GetFileProfileIdFromOperator(contract.OperatorName, cancellationToken);
+        Guid variableProductId = contract.Products.Single(p => p.Value == null).ProductId;
         String token = await this.GetAuthToken(cancellationToken);
         EstateResponse estate = await this.EstateClient.GetEstate(token, merchant.EstateId, cancellationToken);
         Guid userId = estate.SecurityUsers.First().SecurityUserId;
         Decimal depositAmount = 0;
         if (productType == ProductType.MobileTopup){
-            MobileTopupUploadFile mobileTopupUploadFile = new MobileTopupUploadFile(contract.EstateId, merchant.MerchantId, fileProfileId, userId);
+            MobileTopupUploadFile mobileTopupUploadFile = new MobileTopupUploadFile(contract.EstateId, merchant.MerchantId, contract.ContractId, variableProductId,fileProfileId, userId);
             mobileTopupUploadFile.AddHeader(dateTime);
 
             for (Int32 i = 1; i <= numberOfLines; i++){
@@ -527,11 +600,11 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             }
             
             mobileTopupUploadFile.AddTrailer();
-            return (depositAmount,mobileTopupUploadFile);
+            return (depositAmount, mobileTopupUploadFile);
         }
 
         if (productType == ProductType.Voucher){
-            VoucherTopupUploadFile voucherTopupUploadFile = new VoucherTopupUploadFile(contract.EstateId, merchant.MerchantId, fileProfileId, userId);
+            VoucherTopupUploadFile voucherTopupUploadFile = new VoucherTopupUploadFile(contract.EstateId, merchant.MerchantId, contract.ContractId, variableProductId, fileProfileId, userId);
             voucherTopupUploadFile.AddHeader(dateTime);
 
             for (Int32 i = 1; i <= numberOfLines; i++){
@@ -738,6 +811,30 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         }
     }
 
+    private async Task<Boolean> SendFloatDepositRequest(Guid estateId, RecordFloatCreditPurchaseRequest request, CancellationToken cancellationToken){
+        if (this.RunningMode == RunningMode.WhatIf)
+        {
+            this.WriteTrace($"Send Float Credit Request for {request.CreditAmount}");
+            return true;
+        }
+
+        String token = await this.GetAuthToken(cancellationToken);
+
+        try{
+            this.WriteTrace($"About to Float Credit Request");
+            await this.TransactionProcessorClient.RecordFloatCreditPurchase(token, estateId, request, cancellationToken);
+            this.WriteTrace($"Float Credit Request sent");
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            this.WriteError($"Error Float Credit Request");
+            this.WriteError(ex);
+            return false;
+        }
+    }
+
     private async Task<Boolean> SendSaleTransaction(MerchantResponse merchant, SaleTransactionRequest request, CancellationToken cancellationToken){
         if (this.RunningMode == RunningMode.WhatIf){
             this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorIdentifier} - {request.GetAmount()}");
@@ -844,6 +941,42 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
     }
 
     #endregion
+}
+
+[ExcludeFromCodeCoverage]
+public class IdGenerationService
+{
+    internal delegate Guid GenerateUniqueIdFromObject(Object payload);
+
+    internal delegate Guid GenerateUniqueIdFromString(String payload);
+
+
+    private static readonly JsonSerialiser JsonSerialiser = new(() => new JsonSerializerSettings
+    {
+        Formatting = Formatting.None
+    });
+
+    private static readonly GenerateUniqueIdFromObject GenerateUniqueId =
+        data => IdGenerationService.GenerateGuidFromString(IdGenerationService.JsonSerialiser.Serialise(data));
+
+    private static readonly GenerateUniqueIdFromString GenerateGuidFromString = uniqueKey => {
+        using SHA256 sha256Hash = SHA256.Create();
+        //Generate hash from the key
+        Byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(uniqueKey));
+
+        Byte[] j = bytes.Skip(Math.Max(0, bytes.Count() - 16)).ToArray(); //Take last 16
+
+        //Create our Guid.
+        return new Guid(j);
+    };
+
+    public static Guid GenerateFloatAggregateId(Guid estateId, Guid contractId, Guid productId) =>
+        IdGenerationService.GenerateUniqueId(new
+        {
+            estateId,
+            contractId,
+            productId
+        });
 }
 
 public enum RunningMode

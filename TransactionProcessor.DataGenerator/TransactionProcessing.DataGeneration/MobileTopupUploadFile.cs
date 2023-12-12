@@ -3,7 +3,7 @@
 public class MobileTopupUploadFile : UploadFile{
     #region Constructors
 
-    public MobileTopupUploadFile(Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId) : base(estateId, merchantId, fileProfileId,userId){
+    public MobileTopupUploadFile(Guid estateId, Guid merchantId, Guid contractId, Guid productId, Guid fileProfileId, Guid userId) : base(estateId, merchantId, contractId, productId, fileProfileId,userId){
     }
 
     #endregion
@@ -14,6 +14,7 @@ public class MobileTopupUploadFile : UploadFile{
         this.TotalValue += amount;
         this.FileLines.Add($"D,{mobileNumber},{amount}");
         this.FileLineCount++;
+        this.TotalAmount += amount;
     }
 
     #endregion
