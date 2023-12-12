@@ -15,12 +15,14 @@ public abstract class UploadFile{
 
     #region Constructors
 
-    protected UploadFile(Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId)
+    protected UploadFile(Guid estateId, Guid merchantId, Guid contractId, Guid productId, Guid fileProfileId, Guid userId)
     {
         this.UserId = userId;
         this.FileLines = new List<String>();
         this.EstateId = estateId;
         this.MerchantId = merchantId;
+        this.ContractId = contractId;
+        this.ProductId = productId;
         this.FileProfileId = fileProfileId;
     }
 
@@ -29,9 +31,11 @@ public abstract class UploadFile{
     #region Properties
 
     public Guid EstateId{ get; protected set; }
+    public Guid ContractId { get; protected set; }
+    public Guid ProductId { get; protected set; }
     public Guid FileProfileId{ get; protected set; }
     public Guid MerchantId{ get; protected set; }
-
+    public Decimal TotalAmount { get; protected set; }
     public Guid UserId { get; protected set; }
 
     #endregion

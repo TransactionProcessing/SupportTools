@@ -3,7 +3,7 @@
 public class VoucherTopupUploadFile : UploadFile{
     #region Constructors
 
-    public VoucherTopupUploadFile(Guid estateId, Guid merchantId, Guid fileProfileId, Guid userId) : base(estateId, merchantId, fileProfileId, userId){
+    public VoucherTopupUploadFile(Guid estateId, Guid merchantId, Guid contractId, Guid productId, Guid fileProfileId, Guid userId) : base(estateId, merchantId, contractId, productId,  fileProfileId, userId){
     }
 
     #endregion
@@ -14,6 +14,7 @@ public class VoucherTopupUploadFile : UploadFile{
         this.TotalValue += amount;
         this.FileLines.Add($"D,{issuerName},{recipient},{amount}");
         this.FileLineCount++;
+        this.TotalAmount += amount;
     }
 
     #endregion
