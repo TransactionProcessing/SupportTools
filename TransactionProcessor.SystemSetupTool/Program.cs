@@ -299,6 +299,8 @@ namespace TransactionProcessor.SystemSetupTool
                                                           createEstateUserRequest,
                                                           cancellationToken);
 
+            List<CreateContractResponse> createdContracts = new List<CreateContractResponse>();
+
             // Now do the operators
             foreach (Operator @operator in estateToCreate.Operators)
             {
@@ -322,6 +324,7 @@ namespace TransactionProcessor.SystemSetupTool
                                                                   OperatorId = operatorTuple.Item2.OperatorId
                                                               };
                 CreateContractResponse createContractResponse = await Program.EstateClient.CreateContract(Program.TokenResponse.AccessToken, estateResponse.EstateId, createContractRequest, cancellationToken);
+                createdContracts.Add(createContractResponse);
 
                 foreach (Product contractProduct in contract.Products)
                 {
@@ -426,6 +429,19 @@ namespace TransactionProcessor.SystemSetupTool
                                                                   assignOperatorRequest,
                                                                   cancellationToken);
                 }
+
+                // Now contracts
+                foreach (CreateContractResponse createContractResponse in createdContracts){
+                    AddMerchantContractRequest addMerchantContractRequest = new AddMerchantContractRequest{
+                                                                                                              ContractId = createContractResponse.ContractId
+                                                                                                          };
+                    await Program.EstateClient.AddContractToMerchant(Program.TokenResponse.AccessToken,
+                                                               estateResponse.EstateId,
+                                                               merchantResponse.MerchantId,
+                                                               addMerchantContractRequest,
+                                                               cancellationToken);
+                }
+                
             }
 
             foreach ((AddProductToContractRequest, AddProductToContractResponse) contractProductResponse in contractProductResponses)
