@@ -43,7 +43,7 @@
                                         };
             HttpClient client = new HttpClient(handler);
             ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate(String s){ return "https://192.168.1.167:5001"; },client); IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.1.167:5000"; }, client);
-            ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eo2qbmq0e4zwta5.m.pipedream.net"; }, client);
+            ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
             String estateManagementApi = "http://192.168.1.167:5000";
             String fileProcessorApi = "http://192.168.1.167:5009";
             String testHostApi = "http://192.168.1.167:9000";
@@ -61,7 +61,7 @@
                                                                        RunningMode.Live);
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
             Guid merchantId = Guid.Parse("ab1c99fb-1c6c-4694-9a32-b71be5d1da33");
-            //await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
+            await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
             //var d = TransactionDataGenerator.GetTransactionDateTime(new Random(), DateTime.Now);
             //Console.WriteLine(d);
             await Jobs.PerformSettlement(t, DateTime.Now,estateId, CancellationToken.None);
