@@ -26,6 +26,12 @@
             "contact_name": "Test Contact",
             "email_address": "stuart_ferguson1@outlook.com"
           },
+          "operators": [
+            "Safaricom",
+            "Voucher",
+            "PataPawa PostPay",
+            "PataPawa PrePay"
+          ],
           "user": {
             "email_address": "merchantuser@testmerchant1.co.uk",
             "password": "123456",
@@ -55,7 +61,8 @@
           "operators": [
             "Safaricom",
             "Voucher",
-            "PataPawa PostPay"
+            "PataPawa PostPay",
+            "PataPawa PrePay"
           ],
           "user": {
             "email_address": "merchantuser@testmerchant2.co.uk",
@@ -86,7 +93,8 @@
           "operators": [
             "Safaricom",
             "Voucher",
-            "PataPawa PostPay"
+            "PataPawa PostPay",
+            "PataPawa PrePay"
           ],
           "user": {
             "email_address": "merchantuser@testmerchant3.co.uk",
@@ -117,7 +125,8 @@
           "operators": [
             "Safaricom",
             "Voucher",
-            "PataPawa PostPay"
+            "PataPawa PostPay",
+            "PataPawa PrePay"
           ],
           "user": {
             "email_address": "merchantuser@v28emulatormerchant.co.uk",
@@ -148,7 +157,8 @@
           "operators": [
             "Safaricom",
             "Voucher",
-            "PataPawa PostPay"
+            "PataPawa PostPay",
+            "PataPawa PrePay"
           ],
           "user": {
             "email_address": "merchantuser@s7merchant.co.uk",
@@ -179,7 +189,8 @@
           "operators": [
             "Safaricom",
             "Voucher",
-            "PataPawa PostPay"
+            "PataPawa PostPay",
+            "PataPawa PrePay"
           ],
           "user": {
             "email_address": "merchantuser@xperiamerchant.co.uk",
@@ -207,6 +218,12 @@
             "contact_name": "Test Contact",
             "email_address": "stuart_ferguson1@outlook.com"
           },
+          "operators": [
+            "Safaricom",
+            "Voucher",
+            "PataPawa PostPay",
+            "PataPawa PrePay"
+          ],
           "user": {
             "email_address": "merchantuser@testmerchant4.co.uk",
             "password": "123456",
@@ -233,6 +250,12 @@
             "contact_name": "Test Contact",
             "email_address": "stuart_ferguson1@outlook.com"
           },
+          "operators": [
+            "Safaricom",
+            "Voucher",
+            "PataPawa PostPay",
+            "PataPawa PrePay"
+          ],
           "user": {
             "email_address": "merchantuser@testmerchant5.co.uk",
             "password": "123456",
@@ -259,6 +282,11 @@
         },
         {
           "name": "PataPawa PostPay",
+          "require_custom_merchant_number": false,
+          "require_custom_terminal_number": false
+        },
+        {
+          "name": "PataPawa PrePay",
           "require_custom_merchant_number": false,
           "require_custom_terminal_number": false
         }
@@ -348,6 +376,25 @@
             {
               "display_text": "Bill Pay (Post)",
               "product_name": "Post Pay Bill Pay",
+              "value": null,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.95,
+                  "fee_type": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "operator_name": "PataPawa PrePay",
+          "description": "PataPawa prePay Contract",
+          "products": [
+            {
+              "display_text": "Bill Pay (Pre)",
+              "product_name": "Pre Pay Bill Pay",
               "value": null,
               "transaction_fees": [
                 {
