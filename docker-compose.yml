@@ -37,10 +37,10 @@ services:
     environment: 
       - ServiceOptions:PublicOrigin=https://securityservice:5001
       - ServiceOptions:IssuerUrl=https://securityservice:5001
-      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore
-      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration
-      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore;Encrypt=false
+      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration;Encrypt=false
+      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
       - urls=https://*:5001
     restart: on-failure:5
     depends_on:
@@ -59,32 +59,32 @@ services:
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5000
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
     depends_on:
       - sqlserver
       - eventstore
       - securityservice
       
-  estatereporting: 
-    image: stuartferguson/estatereporting 
-    container_name: estatereporting
-    volumes:
-      - F:\home\txnproc\docker\trace:/home/txnproc/trace
-    ports: 
-      - "5005:5005"
-    environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
-      - EventStoreSettings:Insecure=true
-      - AppSettings:SecurityService=https://securityservice:5001
-      - SecurityConfiguration:Authority=https://securityservice:5001
-      - urls=http://*:5005
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
-    depends_on:
-      - sqlserver
-      - eventstore
-      - securityservice
+  #estatereporting: 
+  #  image: stuartferguson/estatereportingapi 
+  #  container_name: estatereporting
+  #  volumes:
+  #    - F:\home\txnproc\docker\trace:/home/txnproc/trace
+  #  ports: 
+  #    - "5005:5005"
+  #  environment:
+  #    - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+  #    - EventStoreSettings:Insecure=true
+  #    - AppSettings:SecurityService=https://securityservice:5001
+  #    - SecurityConfiguration:Authority=https://securityservice:5001
+  #    - urls=http://*:5005
+  #    - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
+  #    - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
+  #  depends_on:
+  #    - sqlserver
+  #    - eventstore
+  #    - securityservice
 
   messagingservice: 
     image: stuartferguson/messagingservice   
@@ -123,11 +123,12 @@ services:
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
+      - OperatorConfiguration:PataPawaPostPay:Url=http://testhosts:9000/PataPawaPostPayService/basichttp
+      - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
     depends_on:
       - eventstore
       - securityservice
       - estatemanagement
-      - vouchermanagement
       - testhosts
 
   transactionprocessoracl:
@@ -148,55 +149,14 @@ services:
       - securityservice
       - transactionprocessor
 
-  vouchermanagement:
-    image: stuartferguson/vouchermanagement
-    container_name: vouchermanagement
-    volumes:
-      - F:\home\txnproc\docker\trace:/home/txnproc/trace
-    ports:
-      - "5007:5007"
-    environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
-      - EventStoreSettings:Insecure=true
-      - AppSettings:SecurityService=https://securityservice:5001
-      - SecurityConfiguration:Authority=https://securityservice:5001
-      - urls=http://*:5007
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
-      - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - AppSettings:EstateManagementApi=http://estatemanagement:5000
-    depends_on:
-      - sqlserver
-      - eventstore
-      - securityservice
-      - estatemanagement
-
-  vouchermanagementacl:
-    image: stuartferguson/vouchermanagementacl
-    container_name: vouchermanagementacl
-    volumes:
-      - F:\home\txnproc\docker\trace:/home/txnproc/trace
-    ports:
-      - "5008:5008"
-    environment:
-      - AppSettings:SecurityService=https://securityservice:5001
-      - SecurityConfiguration:Authority=https://securityservice:5001
-      - urls=http://*:5008
-      - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - AppSettings:VoucherManagementApi=http://vouchermanagement:5007     
-    depends_on:
-      - securityservice
-      - vouchermanagement
-
   testhosts:
     image: stuartferguson/testhosts    
     container_name: testhosts
     volumes:
       - F:\home\txnproc\docker\trace:/home/txnproc/trace
     environment:
-    - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel
+      - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel;Encrypt=false
+      - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PataPawaReadModel;Encrypt=false
     ports: 
       - "9000:9000"
     restart: on-failure:5
@@ -221,8 +181,8 @@ services:
       - AppSettings:EstateManagementApi=http://estateManamgement:5000
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123! | 
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
       - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
       - AppSettings:FileProfiles:0:ListeningDirectory=/home/txnproc/bulkfiles/safaricom
       - AppSettings:FileProfiles:1:ListeningDirectory=/home/txnproc/bulkfiles/voucher

@@ -245,6 +245,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         List<SaleTransactionRequest> salesToSend = new List<SaleTransactionRequest>();
         Decimal depositAmount = 0;
         (Int32 accountNumber, String accountName, Decimal balance) billDetails = default;
+        (Int32 meterNumber, String customerName, Decimal amount) meterDetails = default;
+
         foreach (ContractProduct contractProduct in contract.Products){
             this.WriteTrace($"product [{contractProduct.DisplayText}]");
 
@@ -255,19 +257,25 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             }
 
             for (Int32 i = 1; i <= numberOfSales; i++){
-                ProductType productType = this.GetProductType(contract.OperatorName);
+                ProductSubType productSubType = this.GetProductSubType(contract.OperatorName);
 
-                if (productType == ProductType.BillPayment){
+                if (productSubType == ProductSubType.BillPaymentPostPay){
                     // Create a bill for this sale
-                    Decimal amount = GetAmount(r, contractProduct);
                     billDetails = await this.CreateBillPaymentBill(contract.OperatorName, contractProduct, cancellationToken);
                 }
 
-                saleRequests = productType switch{
-                    ProductType.MobileTopup => this.BuildMobileTopupSaleRequests(dateTime, merchant, contract, contractProduct),
-                    ProductType.Voucher => this.BuildVoucherSaleRequests(dateTime, merchant, contract, contractProduct),
-                    ProductType.BillPayment => this.BuildBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, billDetails),
-                    _ => throw new Exception($"Product Type [{productType}] not yet supported")
+                if (productSubType == ProductSubType.BillPaymentPrePay)
+                {
+                    // Create a meter
+                    meterDetails = await this.CreateBillPaymentMeter(contract.OperatorName, contractProduct, cancellationToken);
+                }
+
+                saleRequests = productSubType switch{
+                    ProductSubType.MobileTopup => this.BuildMobileTopupSaleRequests(dateTime, merchant, contract, contractProduct),
+                    ProductSubType.Voucher => this.BuildVoucherSaleRequests(dateTime, merchant, contract, contractProduct),
+                    ProductSubType.BillPaymentPostPay => this.BuildPataPawaPostPayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, billDetails),
+                    ProductSubType.BillPaymentPrePay => this.BuildPataPawaPrePayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, meterDetails),
+                    _ => throw new Exception($"Product Sub Type [{productSubType}] not yet supported")
                 };
 
                 // Add the value of the sale to the deposit amount
@@ -484,7 +492,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     public event TraceHandler? TraceGenerated;
 
-    private List<(SaleTransactionRequest request, Decimal amount)> BuildBillPaymentSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct product, (Int32 accountNumber, String accountName, Decimal balance) billDetails){
+    private List<(SaleTransactionRequest request, Decimal amount)> BuildPataPawaPostPayBillPaymentSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct product, (Int32 accountNumber, String accountName, Decimal balance) billDetails){
         List<(SaleTransactionRequest request, Decimal amount)> requests = new List<(SaleTransactionRequest request, Decimal amount)>();
 
         // Create the requests required
@@ -536,6 +544,64 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                               };
 
         requests.Add((makePaymentRequest, billDetails.balance));
+
+        return requests;
+    }
+
+    private List<(SaleTransactionRequest request, Decimal amount)> BuildPataPawaPrePayBillPaymentSaleRequests(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, ContractProduct product, (Int32 meterNumber, String CustomerName, Decimal amount) meterDetails)
+    {
+        List<(SaleTransactionRequest request, Decimal amount)> requests = new List<(SaleTransactionRequest request, Decimal amount)>();
+
+        // Create the requests required
+        String deviceIdentifier = merchant.Devices.Single().Value;
+
+        // First request is Get Account
+        Dictionary<String, String> getAccountRequestMetaData = new Dictionary<String, String>{
+                                                                                                 { "MeterNumber", meterDetails.meterNumber.ToString() },
+                                                                                                 { "PataPawaPrePayMessageType", "meter" }
+                                                                                             };
+
+        DateTime transactionDateTime = GetTransactionDateTime(r, dateTime);
+
+        SaleTransactionRequest getAccountRequest = new SaleTransactionRequest
+        {
+            AdditionalTransactionMetadata = getAccountRequestMetaData,
+            ContractId = contract.ContractId,
+            CustomerEmailAddress = String.Empty,
+            DeviceIdentifier = deviceIdentifier,
+            MerchantId = merchant.MerchantId,
+            EstateId = merchant.EstateId,
+            TransactionType = "Sale",
+            TransactionDateTime = transactionDateTime,
+            OperatorIdentifier = contract.OperatorName,
+            ProductId = product.ProductId
+        };
+
+        requests.Add((getAccountRequest, 0));
+
+        // Second request is Make Payment
+        Dictionary<String, String> makePaymentRequestMetaData = new Dictionary<String, String>{
+                                                                                                  { "MeterNumber", meterDetails.meterNumber.ToString() },
+                                                                                                  { "CustomerName", meterDetails.CustomerName },
+                                                                                                  { "Amount", meterDetails.amount.ToString() },
+                                                                                                  { "PataPawaPrePayMessageType", "vend" }
+                                                                                              };
+
+        SaleTransactionRequest makePaymentRequest = new SaleTransactionRequest
+        {
+            AdditionalTransactionMetadata = makePaymentRequestMetaData,
+            ContractId = contract.ContractId,
+            CustomerEmailAddress = String.Empty,
+            DeviceIdentifier = deviceIdentifier,
+            MerchantId = merchant.MerchantId,
+            EstateId = merchant.EstateId,
+            TransactionType = "Sale",
+            TransactionDateTime = transactionDateTime.AddSeconds(30),
+            OperatorIdentifier = contract.OperatorName,
+            ProductId = product.ProductId
+        };
+
+        requests.Add((makePaymentRequest, meterDetails.amount));
 
         return requests;
     }
@@ -699,6 +765,39 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return default;
     }
 
+    private async Task<(Int32 meterNumber, String CustomerName, Decimal balance)> CreateBillPaymentMeter(String contractOperatorName, ContractProduct contractProduct, CancellationToken cancellationToken)
+    {
+        if (contractOperatorName == "PataPawa PostPay")
+        {
+            Int32 meterNumber = r.Next(1, 100000);
+            Decimal amount = GetAmount(r, contractProduct);
+
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.TestHostApi}/api/developer/patapawaprepay/createmeter");
+            var body = new
+                       {
+                           due_date = DateTime.Now.AddDays(1),
+                           meter_number = meterNumber,
+                           customer_name = $"Customer {meterNumber}"
+                       };
+            request.Content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+
+            if (this.RunningMode == RunningMode.WhatIf)
+            {
+                this.WriteTrace($"Meter Created Customer [{body.customer_name}] Meter # [{body.meter_number}]");
+                return (body.meter_number, body.customer_name, amount);
+            }
+
+            using (HttpClient client = new HttpClient())
+            {
+                await client.SendAsync(request, cancellationToken);
+            }
+
+            return (body.meter_number, body.customer_name, amount);
+        }
+
+        return default;
+    }
+
     private MakeMerchantDepositRequest CreateMerchantDepositRequest(Decimal depositAmount, DateTime dateTime){
         // TODO: generate a reference
 
@@ -762,7 +861,30 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                 productType = ProductType.Voucher;
                 break;
             case "PataPawa PostPay":
+            case "PataPawa PrePay":
                 productType = ProductType.BillPayment;
+                break;
+        }
+
+        return productType;
+    }
+
+    private ProductSubType GetProductSubType(String operatorName)
+    {
+        ProductSubType productType = ProductSubType.NotSet;
+        switch (operatorName)
+        {
+            case "Safaricom":
+                productType = ProductSubType.MobileTopup;
+                break;
+            case "Voucher":
+                productType = ProductSubType.Voucher;
+                break;
+            case "PataPawa PostPay":
+                productType = ProductSubType.BillPaymentPostPay;
+                break;
+            case "PataPawa PrePay":
+                productType = ProductSubType.BillPaymentPrePay;
                 break;
         }
 
@@ -984,4 +1106,13 @@ public enum RunningMode
     WhatIf,
 
     Live
+}
+
+public enum ProductSubType
+{
+    NotSet,
+    MobileTopup,
+    Voucher,
+    BillPaymentPostPay,
+    BillPaymentPrePay,
 }
