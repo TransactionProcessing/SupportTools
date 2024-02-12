@@ -767,7 +767,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private async Task<(Int32 meterNumber, String CustomerName, Decimal balance)> CreateBillPaymentMeter(String contractOperatorName, ContractProduct contractProduct, CancellationToken cancellationToken)
     {
-        if (contractOperatorName == "PataPawa PostPay")
+        if (contractOperatorName == "PataPawa PrePay")
         {
             Int32 meterNumber = r.Next(1, 100000);
             Decimal amount = GetAmount(r, contractProduct);
