@@ -20,7 +20,6 @@ namespace TransactionProcessor.HealthChecksUI
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using System.Threading;
-    using Newtonsoft.Json;
     using JsonSerializer = System.Text.Json.JsonSerializer;
 
     public class Startup
