@@ -88,27 +88,42 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static async Task SetupSubscriptions()
         {
-            String estateJsonData = null;
-            using (StreamReader sr = new StreamReader("setupconfig.json"))
-            {
-                estateJsonData = await sr.ReadToEndAsync();
-            }
+            //String estateJsonData = null;
+            //using (StreamReader sr = new StreamReader("setupconfig.json"))
+            //{
+            //    estateJsonData = await sr.ReadToEndAsync();
+            //}
 
-            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+            //EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
 
-            
-            foreach (var estate in estateConfiguration.Estates)
-            {
-                
-                // Setup the subscrtipions
-                await PersistentSubscriptionsClient.CreateAsync(estate.Name.Replace(" ", ""), "Estate Management", CreatePersistentSettings());
-                await PersistentSubscriptionsClient.CreateAsync($"FileProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "File Processor", CreatePersistentSettings(2));
-                await Program.PersistentSubscriptionsClient.CreateAsync($"EstateManagementSubscriptionStream_{estate.Name.Replace(" ", "")}", "Estate Management", CreatePersistentSettings());
-                await PersistentSubscriptionsClient.CreateAsync($"TransactionProcessorSubscriptionStream_{estate.Name.Replace(" ", "")}", "Transaction Processor", CreatePersistentSettings(1));
-            }
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-TransactionAggregate", "Transaction Processor", CreatePersistentSettings());
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-SettlementAggregate", "Transaction Processor", CreatePersistentSettings());
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-VoucherAggregate", "Transaction Processor", CreatePersistentSettings());
 
-            await PersistentSubscriptionsClient.CreateAsync($"$et-EstateCreatedEvent", "Transaction Processor - Ordered", CreatePersistentSettings(1));
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-MerchantBalanceArchive", "Transaction Processor - Ordered", CreatePersistentSettings());
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-EstateAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-TransactionAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-VoucherAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
+
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-TransactionAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-SettlementAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-VoucherAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantStatementAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-ContractAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-EstateAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-CallbackMessageAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-ReconciliationAggregate", "Estate Management", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-FileAggregate", "Estate Management", Program.CreatePersistentSettings());
+                                                                               
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-TransactionAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantStatementAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
+                                                                               
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-EstateAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
+                                                                               
+            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-FileAggregate", "File Processor", Program.CreatePersistentSettings());
+
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-EmailAggregate", "Messaging Service", CreatePersistentSettings());
+            await PersistentSubscriptionsClient.CreateAsync($"$ce-SMSAggregate", "Messaging Service", CreatePersistentSettings());
         }
 
         private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) {
@@ -120,9 +135,15 @@ namespace TransactionProcessor.SystemSetupTool
             var currentProjections = await ProjectionClient.ListAllAsync().ToListAsync();
 
             var projectionsToDeploy = Directory.GetFiles("projections/continuous");
-
+            
             foreach (var projection in projectionsToDeploy)
             {
+                if (projection.Contains("EstateManagementSubscriptionStreamBuilder") ||
+                    projection.Contains("FileProcessorSubscriptionStreamBuilder") ||
+                    projection.Contains("TransactionProcessorSubscriptionStreamBuilder")){
+                    continue;
+                }
+
                 FileInfo f = new FileInfo(projection);
                 String name = f.Name.Substring(0, f.Name.Length - (f.Name.Length - f.Name.LastIndexOf(".")));
                 var body = File.ReadAllText(f.FullName);

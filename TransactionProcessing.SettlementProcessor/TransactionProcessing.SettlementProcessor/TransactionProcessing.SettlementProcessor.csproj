@@ -2,18 +2,18 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="2023.9.2" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
-    <PackageReference Include="SecurityService.Client" Version="1.1.2-build23" />
-    <PackageReference Include="Shared" Version="1.5.1" />
-    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2023.9.2" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2023.8.1" />
+    <PackageReference Include="EstateManagement.Client" Version="2024.3.6-build80" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SecurityService.Client" Version="2024.3.2-build59" />
+    <PackageReference Include="Shared" Version="2024.4.2" />
+    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2024.2.7-build53" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2024.3.4-build97" />
   </ItemGroup>
 
   <ItemGroup>
