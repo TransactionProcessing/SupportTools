@@ -30,8 +30,8 @@
         "given_name",
         "middle_name",
         "family_name",
-        "EstateId",
-        "MerchantId"
+        "estateId",
+        "merchantId"
       ]
     },
     {
@@ -54,7 +54,7 @@
       "display_name": "Estate Management REST",
       "description": "API Resource representing Estate Management REST",
       "scopes": [ "estateManagement" ],
-      "user_claims": [ "MerchantId", "EstateId", "role" ]
+      "user_claims": [ "merchantId", "estateId", "role" ]
     },
     {
       "secret": "3241913328414df4b8d031ed8f59d1bb",
@@ -86,23 +86,7 @@
       "display_name": "Transaction Processor ACL REST",
       "description": "API Resource representing Transaction Processor ACL REST",
       "scopes": [ "transactionProcessorACL" ],
-      "user_claims": [ "MerchantId", "EstateId", "role" ]
-    },
-    {
-      "secret": "84b20e9b20544d1cb51fe9dca3518066",
-      "name": "voucherManagement",
-      "display_name": "Voucher Management REST",
-      "description": "API Resource representing Voucher Management REST",
-      "scopes": [ "voucherManagement" ],
-      "user_claims": null
-    },
-    {
-      "secret": "b78c2bca41c04094b3c8a32272f72f2d",
-      "name": "voucherManagementACL",
-      "display_name": "Voucher Management ACL REST",
-      "description": "API Resource representing Voucher Management ACL REST",
-      "scopes": [ "voucherManagementACL" ],
-      "user_claims": [ "ContractId", "EstateId", "role" ]
+      "user_claims": [ "merchantId", "estateId", "role" ]
     },
     {
       "secret": "04f91a4057a041b9a65765dfc4efac7d",
@@ -119,7 +103,7 @@
       "secret": "d192cbc46d834d0da90e8a9d50ded543",
       "client_name": "Service Client",
       "client_description": "Client for use in inter service communications",
-      "allowed_scopes": [ "transactionProcessorACL", "transactionProcessor", "estateManagement", "estateReporting", "messagingService", "voucherManagement", "fileProcessor" ],
+      "allowed_scopes": [ "transactionProcessorACL", "transactionProcessor", "estateManagement", "estateReporting", "messagingService", "fileProcessor" ],
       "allowed_grant_types": [ "client_credentials" ]
     },
     {
@@ -135,12 +119,12 @@
       "client_redirect_uris": [
         "https://localhost:5004/signin-oidc",
         "https://192.168.1.67:5004/signin-oidc",
-        "https://192.168.1.133:5004/signin-oidc"
+        "https://192.168.1.167:5004/signin-oidc"
       ],
       "client_post_logout_redirect_uris": [
         "https://localhost:5004/signout-oidc",
         "https://192.168.1.67:5004/signout-oidc",
-        "https://192.168.1.133:5004/signout-oidc"
+        "https://192.168.1.167:5004/signout-oidc"
       ],
       "require_consent": true,
       "allow_offline_access": true
