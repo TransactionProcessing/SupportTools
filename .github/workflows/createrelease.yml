@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   release:
@@ -14,51 +14,64 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-
+        
     - name: Get the version
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.100
-
     - name: Restore Nuget Packages
-      run: dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source https://api.nuget.org/v3/index.json --source https://www.myget.org/F/transactionprocessing/api/v3/index.json
+      run: |
+        dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
 
     - name: Build Code
-      run: dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+      run: |
+        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
+        dotnet build TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --configuration Release
 
     - name: Publish API
-      run: dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput
-
-    - name: Install Octopus CLI
       run: |
-        sudo apt update && sudo apt install --no-install-recommends gnupg curl ca-certificates apt-transport-https && \
-        curl -sSfL https://apt.octopus.com/public.key | sudo apt-key add - && \
-        sudo sh -c "echo deb https://apt.octopus.com/ stable main > /etc/apt/sources.list.d/octopus.com.list" && \
-        sudo apt update && sudo apt install octopuscli
-    
-    - name: Pack Files for Octopus
-      run: >-
-        octo pack
-        --outFolder /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
-        --basePath /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
-        --id TransactionProcessor.HealthChecksUI
-        --version ${{ steps.get_version.outputs.VERSION }}
-        --format zip
-        --verbose
-        --logLevel=verbose
+        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput -r win-x64 --self-contained
+            
+    - name: Create Zip package for Health Checks UI 🐙
+      id: packagehealthui
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: TransactionProcessor.HealthChecksUI
+        version: ${{ steps.get_version.outputs.VERSION }}
+        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
+        files: "**/*"
+        output_folder: /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
+
+    - name: Push a package to Octopus Deploy - Health Checks UI 🐙
+      uses: OctopusDeploy/push-package-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        packages: ${{ steps.packagehealthui.outputs.package_file_path }}
+
+    - name: Create Zip package for Scheduler Service 🐙
+      id: packagescheduler
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: TransactionProcessing.SchedulerService
+        version: ${{ steps.get_version.outputs.VERSION }}
+        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
+        files: "**/*"
+        output_folder: /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
         
-    - name: Push Package to Octopus
-      run: >-
-        octo push
-        --server ${{ secrets.OCTOPUS_URL }}
-        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --package /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.${{ steps.get_version.outputs.VERSION }}.zip
-        --overwrite-mode IgnoreIfExists
-    
+    - name: Push a package to Octopus Deploy - Scheduler Service 🐙
+      uses: OctopusDeploy/push-package-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        packages: ${{ steps.packagescheduler.outputs.package_file_path }}
+        
     - name: Get Release
       id: getrelease
       uses: octokit/request-action@v1.x
@@ -73,16 +86,45 @@ jobs:
       with:
           json: ${{ steps.getrelease.outputs.data }}
           releasenote: "body"
-    
-    - name: Create & Deploy Release in Octopus
-      run: >-
-        octo create-release
-        --server ${{ secrets.OCTOPUS_URL }}
-        --apiKey ${{ secrets.OCTOPUS_APIKEY }}
-        --project "Support Tools"
-        --version ${{ steps.get_version.outputs.VERSION }}
-        --channel Default
-        --deployTo Development
-        --waitfordeployment
-        --deploymenttimeout 00:05:00
-        --releasenotes "${{ steps.buildreleasenotes.outputs.releasenote }}"
+
+    - name: Create a release in Octopus Deploy 🐙
+      uses: OctopusDeploy/create-release-action@v3
+      id: "create_release"
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        project: "Support Tools"
+        package_version: ${{ steps.get_version.outputs.VERSION }}
+        release_notes: ${{ steps.buildreleasenotes.outputs.releasenote }}
+        release_number: ${{ steps.get_version.outputs.VERSION }}
+        ignore_existing: true
+        channel: "Default"
+
+    - name: Deploy a release in Octopus Deploy 🐙
+      uses: OctopusDeploy/deploy-release-action@v3
+      id: "deploy_release"
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        project: 'Support Tools'
+        release_number: ${{steps.create_release.outputs.release_number}}
+        environments: |
+            Staging      
+            
+    - name: Await task in Octopus Deploy 🐙
+      uses: OctopusDeploy/await-task-action@v3
+      with:
+        api_key: ${{ secrets.OCTOPUS_APIKEY }}
+        server: ${{ secrets.OCTOPUS_URL }}
+        space: ${{ secrets.OCTOPUS_SPACE }}
+        timeout_after: 300
+        polling_interval: 30
+        server_task_id: ${{ fromJson(steps.deploy_release.outputs.server_tasks)[0].serverTaskId }}
+
+
+    - name: Build and Publish Nuget Packages
+      run: |
+        dotnet pack "TransactionProcessor.DataGenerator\TransactionProcessing.DataGeneration\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.get_version.outputs.VERSION }} --output Nugets -c Release            
+        dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.get_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }}       

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,45 +10,55 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="setupconfig.json">
+<Content Include="setupconfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="1.0.15-build77" />
-    <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="21.2.0" />
-    <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="21.2.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SecurityService.Client" Version="1.0.8" />
+    <PackageReference Include="EstateManagement.Client" Version="2024.3.6-build80" />
+    <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.2.1" />
+    <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="23.2.1" />
+    <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SecurityService.Client" Version="2024.3.2-build59" />
+    <PackageReference Include="Shared" Version="2024.4.2" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2024.3.4-build97" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\CallbackHandlerEnricher.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\EstateAggregator.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\EstateManagementSubscriptionStreamBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\FileProcessorSubscriptionStreamBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\MerchantAggregator.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\1.0.11\contentFiles\any\net6.0\projections\continuous\TransactionProcessorSubscriptionStreamBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="C:\Users\stuar\.nuget\packages\eventstoreprojections\2023.12.3\contentFiles\any\net6.0\projections\continuous\MerchantBalanceProjection.js">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="identityserverconfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="projections\continuous\EstateAggregator.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="projections\continuous\FileProcessorSubscriptionStreamBuilder.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="projections\continuous\MerchantAggregator.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="projections\continuous\MerchantBalanceCalculator.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="projections\continuous\TransactionEnricher.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="projections\continuous\TransactionProcessorSubscriptionStreamBuilder.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="projections\continuous\" />
   </ItemGroup>
 
 </Project>

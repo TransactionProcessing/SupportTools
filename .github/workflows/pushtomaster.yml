@@ -1,0 +1,54 @@
+name: Publish Pre-Release Nuget and Docker
+
+on:
+  push:
+    # branches to consider in the event; optional, defaults to all
+    branches:
+      - master
+
+jobs:
+  build:
+    name: "Publish Pre-Release Nugets and Docker"
+    env:
+        ASPNETCORE_ENVIRONMENT: "Production"
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2.3.4 
+      with:
+        fetch-depth: 0
+           
+    - name: Restore Nuget Packages
+      run: |
+        dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+
+    - name: Build Code
+      run: |
+        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
+        dotnet build TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --configuration Release
+
+    - name: 'Get Previous tag'
+      id: get-latest-tag
+      uses: actions-ecosystem/action-get-latest-tag@v1
+      with:
+          semver_only: true
+
+    - name: 'Bump Version'
+      id: bump-semver
+      uses: actions-ecosystem/action-bump-semver@v1
+      with:
+        current_version: ${{ steps.get-latest-tag.outputs.tag }}
+        level: patch
+    
+    - name: Print Version
+      id: next_version
+      run: echo ::set-output name=VERSION::${{ steps.bump-semver.outputs.new_version }}-build$GITHUB_RUN_NUMBER
+        
+    - name: Build and Publish Nuget Packages
+      run: |
+        dotnet pack "TransactionProcessor.DataGenerator\TransactionProcessing.DataGeneration\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.next_version.outputs.VERSION }} --output Nugets -c Release            
+        dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.next_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }}       
