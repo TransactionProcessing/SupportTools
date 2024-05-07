@@ -16,7 +16,14 @@ namespace TransactionProcessor.SystemSetupTool
     using EstateManagement.Client;
     using EstateManagement.DataTransferObjects;
     using EstateManagement.DataTransferObjects.Requests;
-    using EstateManagement.DataTransferObjects.Responses;
+    using EstateManagement.DataTransferObjects.Requests.Contract;
+    using EstateManagement.DataTransferObjects.Requests.Estate;
+    using EstateManagement.DataTransferObjects.Requests.Merchant;
+    using EstateManagement.DataTransferObjects.Requests.Operator;
+    using EstateManagement.DataTransferObjects.Responses.Contract;
+    using EstateManagement.DataTransferObjects.Responses.Estate;
+    using EstateManagement.DataTransferObjects.Responses.Merchant;
+    using EstateManagement.DataTransferObjects.Responses.Operator;
     using identityserverconfig;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Requests;
@@ -25,7 +32,11 @@ namespace TransactionProcessor.SystemSetupTool
     using Microsoft.Extensions.Configuration;
     using Newtonsoft.Json;
     using Shared.General;
+    using AssignOperatorRequest = EstateManagement.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
     using JsonSerializer = System.Text.Json.JsonSerializer;
+    using SettlementSchedule = EstateManagement.DataTransferObjects.Responses.SettlementSchedule;
+    using Microsoft.AspNetCore.Http.HttpResults;
+    using ProductType = EstateManagement.DataTransferObjects.Responses.Contract.ProductType;
 
     class Program
     {
@@ -43,6 +54,8 @@ namespace TransactionProcessor.SystemSetupTool
         
         static async Task Main(string[] args)
         {
+            CancellationToken cancellationToken = new CancellationToken();
+
             IConfigurationBuilder builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
             IConfigurationRoot configurationRoot = builder.Build();
             ConfigurationReader.Initialise(configurationRoot);
@@ -73,74 +86,262 @@ namespace TransactionProcessor.SystemSetupTool
             Boolean isEstateSetup = true;
 
             if (isEstateSetup == false){
-                await Program.SetupIdentityServerFromConfig();
 
-                //Setup latest projections
-                await DeployProjections();
+                IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
+                IdentityServerFunctions identityServerFunctions = new IdentityServerFunctions(Program.SecurityServiceClient, identityServerConfiguration);
+                await identityServerFunctions.CreateConfig(cancellationToken);
 
-                //Setup subcriptions
-                await SetupSubscriptions();
+                EventStoreFunctions eventStoreFunctions = new EventStoreFunctions(Program.ProjectionClient, Program.PersistentSubscriptionsClient);
+                await eventStoreFunctions.SetupEventStore(cancellationToken);
             }
             else{
-                await Program.SetupEstatesFromConfig();
+                EstateConfig estateConfiguration = await GetEstatesConfig(cancellationToken);
+
+                foreach (Estate estate in estateConfiguration.Estates){
+                    EstateSetupFunctions estateSetup = new EstateSetupFunctions(Program.SecurityServiceClient, Program.EstateClient, Program.TransactionProcessorClient, estate);
+                    await estateSetup.SetupEstate(cancellationToken);
+                }
             }
         }
 
-        private static async Task SetupSubscriptions()
+        private static async Task<IdentityServerConfiguration> GetIdentityServerConfig(CancellationToken cancellationToken)
         {
-            //String estateJsonData = null;
-            //using (StreamReader sr = new StreamReader("setupconfig.json"))
-            //{
-            //    estateJsonData = await sr.ReadToEndAsync();
-            //}
+            // Read the identity server config json string
+            String identityServerJsonData = null;
+            using(StreamReader sr = new StreamReader("identityserverconfig.json"))
+            {
+                identityServerJsonData = await sr.ReadToEndAsync(cancellationToken);
+            }
 
-            //EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+            IdentityServerConfiguration identityServerConfiguration = JsonSerializer.Deserialize<IdentityServerConfiguration>(identityServerJsonData);
 
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-TransactionAggregate", "Transaction Processor", CreatePersistentSettings());
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-SettlementAggregate", "Transaction Processor", CreatePersistentSettings());
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-VoucherAggregate", "Transaction Processor", CreatePersistentSettings());
+            return identityServerConfiguration;
+        }
+        
+        private static async Task<EstateConfig> GetEstatesConfig(CancellationToken cancellationToken)
+        {
+            // Read the estate config json string
+            String estateJsonData = null;
+            using(StreamReader sr = new StreamReader("setupconfig.json"))
+            {
+                estateJsonData = await sr.ReadToEndAsync(cancellationToken);
+            }
+            
+            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+            return estateConfiguration;
+        }
+        
+    }
 
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-EstateAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-TransactionAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-VoucherAggregate", "Transaction Processor - Ordered", CreatePersistentSettings(1));
+    public class IdentityServerFunctions{
+        private readonly ISecurityServiceClient SecurityServiceClient;
 
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-TransactionAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-SettlementAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-VoucherAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantStatementAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-ContractAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-EstateAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-CallbackMessageAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-ReconciliationAggregate", "Estate Management", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-FileAggregate", "Estate Management", Program.CreatePersistentSettings());
-                                                                               
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-TransactionAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-MerchantStatementAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
-                                                                               
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-EstateAggregate", "Estate Management - Ordered", Program.CreatePersistentSettings());
-                                                                               
-            await Program.PersistentSubscriptionsClient.CreateAsync("$ce-FileAggregate", "File Processor", Program.CreatePersistentSettings());
+        private readonly IdentityServerConfiguration identityServerConfiguration;
 
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-EmailAggregate", "Messaging Service", CreatePersistentSettings());
-            await PersistentSubscriptionsClient.CreateAsync($"$ce-SMSAggregate", "Messaging Service", CreatePersistentSettings());
+        public IdentityServerFunctions(ISecurityServiceClient securityServiceClient, IdentityServerConfiguration configuration){
+            this.SecurityServiceClient = securityServiceClient;
+            this.identityServerConfiguration = configuration;
         }
 
-        private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) {
-            return new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: retryCount);
+        public async Task CreateConfig(CancellationToken cancellationToken){
+
+            var roles = await this.SecurityServiceClient.GetRoles(cancellationToken);
+
+            foreach (String role in identityServerConfiguration.roles)
+            {
+                if (roles.Any(r => r.RoleName == role))
+                    continue;
+                await this.CreateRole(role, CancellationToken.None);
+            }
+
+            var apiResources = await this.SecurityServiceClient.GetApiResources(cancellationToken);
+
+            foreach (ApiResource apiResource in identityServerConfiguration.apiresources)
+            {
+                if (apiResources.Any(a => a.Name == apiResource.name))
+                    continue;
+                await this.CreateApiResource(apiResource, CancellationToken.None);
+            }
+
+            var identityResources = await this.SecurityServiceClient.GetIdentityResources(cancellationToken);
+            foreach (IdentityResource identityResource in identityServerConfiguration.identityresources)
+            {
+                if (identityResources.Any(i => i.Name == identityResource.name))
+                    continue;
+                await this.CreateIdentityResource(identityResource, CancellationToken.None);
+            }
+
+            var clients = await this.SecurityServiceClient.GetClients(cancellationToken);
+            foreach (Client client in identityServerConfiguration.clients)
+            {
+                if (clients.Any(c => c.ClientId == client.client_id))
+                    continue;
+                await this.CreateClient(client, CancellationToken.None);
+            }
+
+            var apiScopes = await this.SecurityServiceClient.GetApiScopes(cancellationToken);
+
+            foreach (ApiScope apiscope in identityServerConfiguration.apiscopes)
+            {
+                if (apiScopes.Any(a => a.Name== apiscope.name))
+                    continue;
+                await this.CreateApiScope(apiscope, CancellationToken.None);
+            }
         }
 
-        private static async Task DeployProjections()
+        private async Task CreateRole(String role, CancellationToken cancellationToken){
+            
+            CreateRoleRequest createRoleRequest = new CreateRoleRequest
+            {
+                RoleName = role
+            };
+
+            await this.SecurityServiceClient.CreateRole(createRoleRequest, cancellationToken);
+        }
+
+        private async Task CreateApiScope(ApiScope apiscope,
+                                                 CancellationToken cancellationToken)
         {
-            var currentProjections = await ProjectionClient.ListAllAsync().ToListAsync();
+            CreateApiScopeRequest createApiScopeRequest = new CreateApiScopeRequest
+            {
+                Description = apiscope.description,
+                DisplayName = apiscope.display_name,
+                Name = apiscope.name
+            };
+
+            await this.SecurityServiceClient.CreateApiScope(createApiScopeRequest, cancellationToken);
+        }
+
+        private async Task CreateIdentityResource(IdentityResource identityResource,
+                                                         CancellationToken cancellationToken)
+        {
+            CreateIdentityResourceRequest createIdentityResourceRequest = new CreateIdentityResourceRequest
+            {
+                Claims = identityResource.claims,
+                Description = identityResource.description,
+                DisplayName = identityResource.displayName,
+                Emphasize = identityResource.emphasize,
+                Name = identityResource.name,
+                Required = identityResource.required,
+                ShowInDiscoveryDocument = identityResource.showInDiscoveryDocument
+            };
+
+            await this.SecurityServiceClient.CreateIdentityResource(createIdentityResourceRequest, cancellationToken);
+        }
+
+        private async Task CreateClient(Client client, CancellationToken cancellationToken)
+        {
+            CreateClientRequest createClientRequest = new CreateClientRequest
+            {
+                AllowOfflineAccess = client.allow_offline_access.GetValueOrDefault(false),
+                AllowedGrantTypes = client.allowed_grant_types,
+                AllowedScopes = client.allowed_scopes,
+                ClientDescription = client.client_description,
+                ClientId = client.client_id,
+                ClientName = client.client_name,
+                ClientPostLogoutRedirectUris = client.client_post_logout_redirect_uris,
+                ClientRedirectUris = client.client_redirect_uris,
+                RequireConsent = client.require_consent.GetValueOrDefault(false),
+                Secret = client.secret
+            };
+            await this.SecurityServiceClient.CreateClient(createClientRequest, cancellationToken);
+        }
+
+        private async Task CreateApiResource(ApiResource apiResource,
+                                            CancellationToken cancellationToken)
+        {
+            CreateApiResourceRequest createApiResourceRequest = new CreateApiResourceRequest
+            {
+                Secret = apiResource.secret,
+                Description = apiResource.description,
+                DisplayName = apiResource.display_name,
+                Name = apiResource.name,
+                Scopes = apiResource.scopes,
+                UserClaims = apiResource.user_claims
+            };
+
+            await this.SecurityServiceClient.CreateApiResource(createApiResourceRequest, cancellationToken);
+        }
+    }
+
+    public class EventStoreFunctions{
+        private readonly EventStoreProjectionManagementClient ProjectionClient;
+
+        private readonly EventStorePersistentSubscriptionsClient PersistentSubscriptionsClient;
+
+        public EventStoreFunctions(EventStoreProjectionManagementClient projectionClient,EventStorePersistentSubscriptionsClient persistentSubscriptionsClient){
+            this.ProjectionClient = projectionClient;
+            this.PersistentSubscriptionsClient = persistentSubscriptionsClient;
+        }
+
+        private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) => new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: retryCount);
+
+        public async Task SetupEventStore(CancellationToken cancellationToken)
+        {
+            await this.DeployProjections(cancellationToken);
+            await this.SetupSubscriptions(cancellationToken);
+        }
+
+        private async Task SetupSubscriptions(CancellationToken cancellationToken){
+            List<(String streamName, String groupName, Int32 retryCount)> subscriptions = new List<(String streamName, String groupName, Int32 retryCount)>();
+            subscriptions.Add(("$ce-TransactionAggregate", "Transaction Processor", 0));
+            subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor", 0));
+            subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor", 0));
+
+            subscriptions.Add(("$ce-EstateAggregate", "Transaction Processor - Ordered", 1));
+            subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1));
+            subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor - Ordered",1));
+
+            subscriptions.Add(("$ce-TransactionAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-SettlementAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-VoucherAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-ContractAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-EstateAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-MerchantAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-CallbackMessageAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-ReconciliationAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-FileAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-OperatorAggregate", "Estate Management", 0));
+
+            subscriptions.Add(("$ce-TransactionAggregate", "Estate Management - Ordered", 0));
+            subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management - Ordered", 0));
+            subscriptions.Add(("$ce-EstateAggregate", "Estate Management - Ordered", 0));
+            subscriptions.Add(("$ce-FileAggregate", "File Processor", 0));
+            subscriptions.Add(("$ce-EmailAggregate", "Messaging Service", 0));
+            subscriptions.Add(("$ce-SMSAggregate", "Messaging Service", 0));
+
+            foreach ((String streamName, String groupName, Int32 retryCount) subscription in subscriptions){
+                Boolean exists = false;
+                try{
+                    var x = await PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken);
+                    exists = true;
+                }
+                catch(PersistentSubscriptionNotFoundException pex){
+                    exists = false;
+                }
+
+                if (exists == false){
+                    await PersistentSubscriptionsClient.CreateToStreamAsync(subscription.streamName, subscription.groupName, CreatePersistentSettings(subscription.retryCount), cancellationToken: cancellationToken);
+                }
+            }
+            
+            
+            
+            
+        }
+        private async Task DeployProjections(CancellationToken cancellationToken)
+        {
+            var currentProjections = await this.ProjectionClient.ListAllAsync(cancellationToken: cancellationToken).ToListAsync(cancellationToken);
 
             var projectionsToDeploy = Directory.GetFiles("projections/continuous");
-            
+
             foreach (var projection in projectionsToDeploy)
             {
                 if (projection.Contains("EstateManagementSubscriptionStreamBuilder") ||
                     projection.Contains("FileProcessorSubscriptionStreamBuilder") ||
-                    projection.Contains("TransactionProcessorSubscriptionStreamBuilder")){
+                    projection.Contains("TransactionProcessorSubscriptionStreamBuilder"))
+                {
                     continue;
                 }
 
@@ -154,338 +355,440 @@ namespace TransactionProcessor.SystemSetupTool
                 body = body.Substring(x);
 
                 // Is this already deployed (in the master list)
-                if ( currentProjections.Any(p => p.Name == name) == false)
+                if (currentProjections.Any(p => p.Name == name) == false)
                 {
                     // Projection does not exist so create
-                    await ProjectionClient.CreateContinuousAsync(name, body, true);
+                    await ProjectionClient.CreateContinuousAsync(name, body, true, cancellationToken: cancellationToken);
                 }
                 else
                 {
                     // Already exists so we need to update but do not reset
-                    await ProjectionClient.DisableAsync(name);
-                    await ProjectionClient.UpdateAsync(name, body, true);
-                    await ProjectionClient.EnableAsync(name);
+                    await ProjectionClient.DisableAsync(name, cancellationToken: cancellationToken);
+                    await ProjectionClient.UpdateAsync(name, body, true, cancellationToken: cancellationToken);
+                    await ProjectionClient.EnableAsync(name, cancellationToken: cancellationToken);
                 }
             }
         }
+    }
 
-        private static async Task SetupIdentityServerFromConfig()
-        {
-            // Read the identity server config json string
-            String identityServerJsonData = null;
-            using(StreamReader sr = new StreamReader("identityserverconfig.json"))
-            {
-                identityServerJsonData = await sr.ReadToEndAsync();
-            }
+    public class EstateSetupFunctions{
+        private readonly ISecurityServiceClient SecurityServiceClient;
 
-            IdentityServerConfiguration identityServerConfiguration = JsonSerializer.Deserialize<IdentityServerConfiguration>(identityServerJsonData);
+        private readonly IEstateClient EstateClient;
 
-            foreach (String role in identityServerConfiguration.roles)
-            {
-                await Program.CreateRole(role, CancellationToken.None);
-            }
-            foreach (ApiResource apiResource in identityServerConfiguration.apiresources)
-            {
-                await Program.CreateApiResource(apiResource, CancellationToken.None);
-            }
+        private readonly ITransactionProcessorClient TransactionProcessorClient;
 
-            foreach (IdentityResource identityResource in identityServerConfiguration.identityresources)
-            {
-                await Program.CreateIdentityResource(identityResource, CancellationToken.None);
-            }
+        private readonly Estate EstateConfig;
 
-            foreach (Client client in identityServerConfiguration.clients)
-            {
-                await Program.CreateClient(client, CancellationToken.None);
-            }
+        private TokenResponse TokenResponse;
 
-            foreach (ApiScope apiscope in identityServerConfiguration.apiscopes)
-            {
-                await Program.CreateApiScope(apiscope, CancellationToken.None);
-            }
+        private Guid EstateId;
+
+        public EstateSetupFunctions(ISecurityServiceClient securityServiceClient, IEstateClient estateClient,ITransactionProcessorClient transactionProcessorClient, Estate estateConfig){
+            this.SecurityServiceClient = securityServiceClient;
+            this.EstateClient = estateClient;
+            this.TransactionProcessorClient = transactionProcessorClient;
+            this.EstateConfig = estateConfig;
         }
 
-        private static async Task CreateRole(String role,
-                                             CancellationToken cancellationToken)
-        {
-            CreateRoleRequest createRoleRequest = new CreateRoleRequest
-                                                  {
-                                                      RoleName = role
-                                                  };
+        public async Task SetupEstate(CancellationToken cancellationToken){
+            this.TokenResponse = await this.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
 
-            await Program.SecurityServiceClient.CreateRole(createRoleRequest, cancellationToken);
+            this.EstateId = await this.CreateEstate(cancellationToken);
+            await this.CreateEstateUser(cancellationToken);
+            await this.CreateOperators(cancellationToken);
+            await this.CreateContracts(cancellationToken);
+            await this.CreateMerchants(cancellationToken);
+            await this.CreateFloats(cancellationToken);
         }
 
-        private static async Task CreateApiScope(ApiScope apiscope,
-                                                 CancellationToken cancellationToken)
-        {
-            CreateApiScopeRequest createApiScopeRequest = new CreateApiScopeRequest
-                                                          {
-                                                              Description = apiscope.description,
-                                                              DisplayName = apiscope.display_name,
-                                                              Name = apiscope.name
-                                                          };
-
-            await Program.SecurityServiceClient.CreateApiScope(createApiScopeRequest, cancellationToken);
+        private async Task<EstateResponse> GetEstate(Guid estateId, CancellationToken cancellationToken){
+            EstateResponse estateResponse = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken,
+                                                                              Guid.Parse(this.EstateConfig.Id),
+                                                                              cancellationToken);
+            return estateResponse;
         }
 
-        private static async Task CreateIdentityResource(IdentityResource identityResource,
-                                                         CancellationToken cancellationToken)
-        {
-            CreateIdentityResourceRequest createIdentityResourceRequest = new CreateIdentityResourceRequest
-                                                                          {
-                                                                              Claims = identityResource.claims,
-                                                                              Description = identityResource.description,
-                                                                              DisplayName = identityResource.displayName,
-                                                                              Emphasize = identityResource.emphasize,
-                                                                              Name = identityResource.name,
-                                                                              Required = identityResource.required,
-                                                                              ShowInDiscoveryDocument = identityResource.showInDiscoveryDocument
-                                                                          };
+        private async Task<Guid> CreateEstate(CancellationToken cancellationToken){
+            CreateEstateResponse createEstateResponse = null;
+            EstateResponse estateResponse = await this.GetEstate(Guid.Parse(this.EstateConfig.Id),
+                                                                 cancellationToken);
+            if (estateResponse != null){
+                createEstateResponse = new CreateEstateResponse{
+                                                                   EstateId = estateResponse.EstateId
+                                                               };
+            }
+            else{
 
-            await Program.SecurityServiceClient.CreateIdentityResource(createIdentityResourceRequest, cancellationToken);
-        }
+                // Create the estate
+                CreateEstateRequest createEstateRequest = new CreateEstateRequest{
+                                                                                     EstateId = String.IsNullOrEmpty(this.EstateConfig.Id) ? Guid.NewGuid() : Guid.Parse(this.EstateConfig.Id),
+                                                                                     EstateName = this.EstateConfig.Name
+                                                                                 };
 
-        private static async Task SetupEstatesFromConfig()
-        {
-            // Read the estate config json string
-            String estateJsonData = null;
-            using(StreamReader sr = new StreamReader("setupconfig.json"))
-            {
-                estateJsonData = await sr.ReadToEndAsync();
+                createEstateResponse = await this.EstateClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
             }
 
-            Program.TokenResponse = await Program.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
-            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+            return createEstateResponse.EstateId;
+        }
 
-            foreach (var estate in estateConfiguration.Estates){
-                await Program.CreateEstate(estate, CancellationToken.None);
+        private async Task CreateEstateUser(CancellationToken cancellationToken){
+            EstateResponse estate = await this.GetEstate(this.EstateId, cancellationToken);
+
+            SecurityUserResponse existingUser = estate.SecurityUsers.SingleOrDefault(u => u.EmailAddress == this.EstateConfig.User.EmailAddress);
+
+            if (existingUser == null){
+                // Need to create the user
+                // Create Estate user
+                CreateEstateUserRequest createEstateUserRequest = new CreateEstateUserRequest{
+                                                                                                 EmailAddress = this.EstateConfig.User.EmailAddress,
+                                                                                                 FamilyName = this.EstateConfig.User.FamilyName,
+                                                                                                 GivenName = this.EstateConfig.User.GivenName,
+                                                                                                 MiddleName = this.EstateConfig.User.MiddleName,
+                                                                                                 Password = this.EstateConfig.User.Password
+                                                                                             };
+                await this.EstateClient.CreateEstateUser(this.TokenResponse.AccessToken,
+                                                         this.EstateId,
+                                                         createEstateUserRequest,
+                                                         cancellationToken);
             }
+
+
         }
 
-        static async Task CreateClient(Client client, CancellationToken cancellationToken)
-        {
-            CreateClientRequest createClientRequest = new CreateClientRequest
-                                                      {
-                                                          AllowOfflineAccess = client.allow_offline_access.GetValueOrDefault(false),
-                                                          AllowedGrantTypes = client.allowed_grant_types,
-                                                          AllowedScopes = client.allowed_scopes,
-                                                          ClientDescription = client.client_description,
-                                                          ClientId = client.client_id,
-                                                          ClientName = client.client_name,
-                                                          ClientPostLogoutRedirectUris = client.client_post_logout_redirect_uris,
-                                                          ClientRedirectUris = client.client_redirect_uris,
-                                                          RequireConsent = client.require_consent.GetValueOrDefault(false),
-                                                          Secret = client.secret
-                                                      };
-            await Program.SecurityServiceClient.CreateClient(createClientRequest, cancellationToken);
-        }
-
-        static async Task CreateApiResource(ApiResource apiResource,
-                                            CancellationToken cancellationToken)
-        {
-            CreateApiResourceRequest createApiResourceRequest = new CreateApiResourceRequest
-                                                                {
-                                                                    Secret = apiResource.secret,
-                                                                    Description = apiResource.description,
-                                                                    DisplayName = apiResource.display_name,
-                                                                    Name = apiResource.name,
-                                                                    Scopes = apiResource.scopes,
-                                                                    UserClaims = apiResource.user_claims
-                                                                };
-
-            await Program.SecurityServiceClient.CreateApiResource(createApiResourceRequest, cancellationToken);
-        }
-
-        static async Task CreateEstate(Estate estateToCreate, CancellationToken cancellationToken)
-        {
-            List<(CreateOperatorRequest, CreateOperatorResponse)> operatorResponses = new List<(CreateOperatorRequest, CreateOperatorResponse)>();
-            List<(AddProductToContractRequest, AddProductToContractResponse)> contractProductResponses = new List<(AddProductToContractRequest, AddProductToContractResponse)>();
-
-            // Create the estate
-            CreateEstateRequest createEstateRequest = new CreateEstateRequest
-                                                      {
-                                                          EstateId = String.IsNullOrEmpty(estateToCreate.Id) ? Guid.NewGuid() : Guid.Parse(estateToCreate.Id),
-                                                          EstateName = estateToCreate.Name
-                                                      };
-
-            CreateEstateResponse estateResponse = await Program.EstateClient.CreateEstate(Program.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
+        private async Task CreateOperators(CancellationToken cancellationToken){
+            EstateResponse estate = await this.GetEstate(this.EstateId, cancellationToken);
             
-            // Create Estate user
-            CreateEstateUserRequest createEstateUserRequest = new CreateEstateUserRequest
-            {
-                                                                      EmailAddress = estateToCreate.User.EmailAddress,
-                                                                      FamilyName = estateToCreate.User.FamilyName,
-                                                                      GivenName = estateToCreate.User.GivenName,
-                                                                      MiddleName = estateToCreate.User.MiddleName,
-                                                                      Password = estateToCreate.User.Password
-                                                                  };
-            await Program.EstateClient.CreateEstateUser(Program.TokenResponse.AccessToken,
-                                                          estateResponse.EstateId,
-                                                          createEstateUserRequest,
-                                                          cancellationToken);
-
-            List<CreateContractResponse> createdContracts = new List<CreateContractResponse>();
-
             // Now do the operators
-            foreach (Operator @operator in estateToCreate.Operators)
-            {
+            foreach (Operator @operator in this.EstateConfig.Operators){
+                EstateOperatorResponse existingOperator = estate.Operators.SingleOrDefault(o => o.Name == @operator.Name);
+
+                if (existingOperator != null){
+
+                    continue;
+                }
+
                 CreateOperatorRequest createOperatorRequest = new CreateOperatorRequest
                                                               {
+                                                                  OperatorId = Guid.NewGuid(),
+                                                                  EstateId = this.EstateId,
                                                                   Name = @operator.Name,
                                                                   RequireCustomMerchantNumber = @operator.RequireCustomMerchantNumber,
                                                                   RequireCustomTerminalNumber = @operator.RequireCustomMerchantNumber,
                                                               };
-                operatorResponses.Add((createOperatorRequest, await Program.EstateClient.CreateOperator(Program.TokenResponse.AccessToken, estateResponse.EstateId, createOperatorRequest, cancellationToken)));
+                CreateOperatorResponse createOperatorResponse = await this.EstateClient.CreateOperator(this.TokenResponse.AccessToken,
+                                                                                                          createOperatorRequest,
+                                                                                                          cancellationToken);
+                // Now assign this to the estate
+                await this.EstateClient.AssignOperatorToEstate(this.TokenResponse.AccessToken,
+                                                                  this.EstateId,
+                                                                  new AssignOperatorRequest
+                                                                  {
+                                                                      OperatorId = createOperatorResponse.OperatorId
+                                                                  },
+                                                                  cancellationToken);
             }
+        }
+        
+        private async Task CreateContracts(CancellationToken cancellationToken){
+            List<ContractResponse> existingContracts = await this.EstateClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
+            EstateResponse esatate = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
 
-            // Now the contracts
-            foreach (Contract contract in estateToCreate.Contracts)
+            foreach (Contract contract in this.EstateConfig.Contracts)
             {
-                (CreateOperatorRequest, CreateOperatorResponse) operatorTuple = operatorResponses.Single(o => o.Item1.Name == contract.OperatorName);
+                // Is the contact created 
+                ContractResponse existingContract = existingContracts.SingleOrDefault(c => c.Description == contract.Description);
 
-                CreateContractRequest createContractRequest = new CreateContractRequest
-                                                              {
-                                                                  Description = contract.Description,
-                                                                  OperatorId = operatorTuple.Item2.OperatorId
-                                                              };
-                CreateContractResponse createContractResponse = await Program.EstateClient.CreateContract(Program.TokenResponse.AccessToken, estateResponse.EstateId, createContractRequest, cancellationToken);
-                createdContracts.Add(createContractResponse);
+                if (existingContract == null){
 
-                foreach (Product contractProduct in contract.Products)
-                {
-                    AddProductToContractRequest addProductToContractRequest = new AddProductToContractRequest
-                                                                              {
-                                                                                  DisplayText = contractProduct.DisplayText,
-                                                                                  ProductName = contractProduct.ProductName,
-                                                                                  Value = contractProduct.Value
-                                                                              };
+                    var @operator = esatate.Operators.SingleOrDefault(o => o.Name == contract.OperatorName);
+                    
+                    CreateContractRequest createContractRequest = new CreateContractRequest{
+                                                                                               Description = contract.Description,
+                                                                                               OperatorId = @operator.OperatorId
+                                                                                           };
+                    CreateContractResponse createContractResponse = await this.EstateClient.CreateContract(this.TokenResponse.AccessToken, this.EstateId, 
+                                                                                                           createContractRequest, cancellationToken);
+                    //createdContracts.Add(createContractResponse);
 
-                    AddProductToContractResponse addProductToContractResponse = await Program.EstateClient.AddProductToContract(Program.TokenResponse.AccessToken,
-                                                                                                                                 estateResponse.EstateId,
-                                                                                                                                 createContractResponse.ContractId,
-                                                                                                                                 addProductToContractRequest,
-                                                                                                                                 cancellationToken);
-                    contractProductResponses.Add((addProductToContractRequest, addProductToContractResponse));
+                    foreach (Product contractProduct in contract.Products){
+                        AddProductToContractRequest addProductToContractRequest = new AddProductToContractRequest{
+                                                                                                                     DisplayText = contractProduct.DisplayText,
+                                                                                                                     ProductName = contractProduct.ProductName,
+                                                                                                                     Value = contractProduct.Value
+                                                                                                                 };
+
+                        AddProductToContractResponse addProductToContractResponse = await this.EstateClient.AddProductToContract(this.TokenResponse.AccessToken,
+                                                                                                                                    this.EstateId,
+                                                                                                                                    createContractResponse.ContractId,
+                                                                                                                                    addProductToContractRequest,
+                                                                                                                                    cancellationToken);
+                        //contractProductResponses.Add((addProductToContractRequest, addProductToContractResponse));
 
 
-                    foreach (TransactionFee contractProductTransactionFee in contractProduct.TransactionFees)
-                    {
-                        AddTransactionFeeForProductToContractRequest addTransactionFeeForProductToContractRequest = new AddTransactionFeeForProductToContractRequest
+                        foreach (TransactionFee contractProductTransactionFee in contractProduct.TransactionFees){
+                            AddTransactionFeeForProductToContractRequest addTransactionFeeForProductToContractRequest = new AddTransactionFeeForProductToContractRequest{
+                                                                                                                                                                            Description = contractProductTransactionFee.Description,
+                                                                                                                                                                            Value = contractProductTransactionFee.Value,
+                                                                                                                                                                            CalculationType = (CalculationType)contractProductTransactionFee.CalculationType,
+                                                                                                                                                                            FeeType = (FeeType)contractProductTransactionFee.FeeType
+                                                                                                                                                                        };
+
+                            await this.EstateClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken,
+                                                                                             this.EstateId,
+                                                                                             createContractResponse.ContractId,
+                                                                                             addProductToContractResponse.ProductId,
+                                                                                             addTransactionFeeForProductToContractRequest,
+                                                                                             cancellationToken);
+                        }
+                    }
+                }
+                else{
+                    // Now we need to check if all the products are created
+                    foreach (Product contractProduct in contract.Products){
+                        var product = existingContract.Products.SingleOrDefault(p => p.Name == contractProduct.ProductName);
+
+                        if (product == null){
+                            var addContractProductResponse = await this.EstateClient.AddProductToContract(this.TokenResponse.AccessToken,
+                                                                   this.EstateId,
+                                                                   existingContract.ContractId,
+                                                                   new AddProductToContractRequest{
+                                                                                                      ProductName = contractProduct.ProductName,
+                                                                                                      DisplayText = contractProduct.DisplayText,
+                                                                                                      Value = contractProduct.Value,
+                                                                                                      ProductType = Enum.Parse<ProductType>(contractProduct.ProductType.ToString())
+                                                                                                  }, cancellationToken);
+
+                            foreach (var transactionFee in contractProduct.TransactionFees){
+                                await this.EstateClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken,
+                                                                                              this.EstateId, existingContract.ContractId,
+                                                                                              addContractProductResponse.ProductId,
+                                                                                              new AddTransactionFeeForProductToContractRequest{
+                                                                                                                                                  Value = transactionFee.Value,
+                                                                                                                                                  Description = transactionFee.Description,
+                                                                                                                                                  CalculationType = (CalculationType)transactionFee.CalculationType,
+                                                                                                                                                  FeeType = (FeeType)transactionFee.FeeType
+                                                                                                                                              },
+                                                                                              cancellationToken);
+                            }
+                        }
+                        else{
+                            foreach (var transactionFee in contractProduct.TransactionFees)
                             {
-                                Description = contractProductTransactionFee.Description,
-                                Value = contractProductTransactionFee.Value,
-                                CalculationType = (CalculationType)contractProductTransactionFee.CalculationType,
-                                FeeType = (FeeType)contractProductTransactionFee.FeeType
-                            };
-
-                        await Program.EstateClient.AddTransactionFeeForProductToContract(Program.TokenResponse.AccessToken,
-                                                                                   estateResponse.EstateId,
-                                                                                   createContractResponse.ContractId,
-                                                                                   addProductToContractResponse.ProductId,
-                                                                                   addTransactionFeeForProductToContractRequest,
-                                                                                   cancellationToken);
+                                await this.EstateClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken,
+                                                                                              this.EstateId, existingContract.ContractId,
+                                                                                              product.ProductId,
+                                                                                              new AddTransactionFeeForProductToContractRequest
+                                                                                              {
+                                                                                                  Value = transactionFee.Value,
+                                                                                                  Description = transactionFee.Description,
+                                                                                                  CalculationType = (CalculationType)transactionFee.CalculationType,
+                                                                                                  FeeType = (FeeType)transactionFee.FeeType
+                                                                                              },
+                                                                                              cancellationToken);
+                            }
+                        }
                     }
                 }
             }
-            
-            // Now create the merchants
-            foreach (Merchant merchant in estateToCreate.Merchants)
-            {
-                SettlementSchedule settlementSchedule = Enum.Parse<SettlementSchedule>(merchant.SettlementSchedule);
 
-                CreateMerchantRequest createMerchantRequest = new CreateMerchantRequest
-                                                              {
-                                                                  Address = new EstateManagement.DataTransferObjects.Requests.Address
-                                                                            {
-                                                                                AddressLine1 = merchant.Address.AddressLine1,
-                                                                                Country = merchant.Address.Country,
-                                                                                Region = merchant.Address.Region,
-                                                                                Town = merchant.Address.Town,
-                                                                            },
-                                                                  Name = merchant.Name,
-                                                                  Contact = new EstateManagement.DataTransferObjects.Requests.Contact
-                                                                            {
-                                                                                ContactName = merchant.Contact.ContactName,
-                                                                                EmailAddress = merchant.Contact.EmailAddress
-                                                                            },
-                                                                  SettlementSchedule = settlementSchedule,
-                                                                  CreatedDateTime = merchant.CreateDate,
-                                                                  MerchantId = merchant.MerchantId,
-                                                              };
-                CreateMerchantResponse merchantResponse = await Program.EstateClient.CreateMerchant(Program.TokenResponse.AccessToken, estateResponse.EstateId, createMerchantRequest, cancellationToken);
+        }
 
-                // Now add devices
-                AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest
-                                                                    {
-                                                                        DeviceIdentifier = merchant.Device.DeviceIdentifier
-                                                                    };
-                await Program.EstateClient.AddDeviceToMerchant(Program.TokenResponse.AccessToken,
-                                                         estateResponse.EstateId,
-                                                         merchantResponse.MerchantId,
-                                                         addMerchantDeviceRequest,
-                                                         cancellationToken);
+        private async Task CreateMerchants(CancellationToken cancellationToken){
 
-                // Now security user
-                CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest
-                                                                      {
-                                                                          EmailAddress = merchant.User.EmailAddress,
-                                                                          FamilyName = merchant.User.FamilyName,
-                                                                          GivenName = merchant.User.GivenName,
-                                                                          MiddleName = merchant.User.MiddleName,
-                                                                          Password = merchant.User.Password
-                                                                      };
-                await Program.EstateClient.CreateMerchantUser(Program.TokenResponse.AccessToken,
-                                                        estateResponse.EstateId,
-                                                        merchantResponse.MerchantId,
-                                                        createMerchantUserRequest,
-                                                        cancellationToken);
+            var merchants = await this.EstateClient.GetMerchants(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
 
-                foreach ((CreateOperatorRequest, CreateOperatorResponse) @operator in operatorResponses)
-                {
-                    AssignOperatorRequest assignOperatorRequest = new AssignOperatorRequest
-                                                                  {
-                                                                      MerchantNumber = null,
-                                                                      OperatorId = @operator.Item2.OperatorId,
-                                                                      TerminalNumber = null
-                                                                  };
-                    await Program.EstateClient.AssignOperatorToMerchant(Program.TokenResponse.AccessToken,
-                                                                  estateResponse.EstateId,
+            foreach (Merchant merchant in this.EstateConfig.Merchants){
+                var existingMerchant = merchants.SingleOrDefault(m => m.MerchantName == merchant.Name);
+
+                if (existingMerchant == null){
+
+                    EstateManagement.DataTransferObjects.Responses.Merchant.SettlementSchedule settlementSchedule = Enum.Parse<EstateManagement.DataTransferObjects.Responses.Merchant.SettlementSchedule>(merchant.SettlementSchedule);
+
+                    CreateMerchantRequest createMerchantRequest = new CreateMerchantRequest{
+                                                                                               Address = new EstateManagement.DataTransferObjects.Requests.Merchant.Address{
+                                                                                                                                                                               AddressLine1 = merchant.Address.AddressLine1,
+                                                                                                                                                                               Country = merchant.Address.Country,
+                                                                                                                                                                               Region = merchant.Address.Region,
+                                                                                                                                                                               Town = merchant.Address.Town,
+                                                                                                                                                                           },
+                                                                                               Name = merchant.Name,
+                                                                                               Contact = new EstateManagement.DataTransferObjects.Requests.Merchant.Contact{
+                                                                                                                                                                               ContactName = merchant.Contact.ContactName,
+                                                                                                                                                                               EmailAddress = merchant.Contact.EmailAddress
+                                                                                                                                                                           },
+                                                                                               SettlementSchedule = settlementSchedule,
+                                                                                               CreatedDateTime = merchant.CreateDate,
+                                                                                               MerchantId = merchant.MerchantId,
+                                                                                           };
+                    CreateMerchantResponse merchantResponse = await this.EstateClient.CreateMerchant(this.TokenResponse.AccessToken, 
+                                                                                                    this.EstateId, createMerchantRequest, cancellationToken);
+
+                    // Now add devices
+                    AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest{
+                                                                                                        DeviceIdentifier = merchant.Device.DeviceIdentifier
+                                                                                                    };
+                    await this.EstateClient.AddDeviceToMerchant(this.TokenResponse.AccessToken,
+                                                                   this.EstateId,
+                                                                   merchantResponse.MerchantId,
+                                                                   addMerchantDeviceRequest,
+                                                                   cancellationToken);
+
+                    // Now security user
+                    CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest{
+                                                                                                           EmailAddress = merchant.User.EmailAddress,
+                                                                                                           FamilyName = merchant.User.FamilyName,
+                                                                                                           GivenName = merchant.User.GivenName,
+                                                                                                           MiddleName = merchant.User.MiddleName,
+                                                                                                           Password = merchant.User.Password
+                                                                                                       };
+                    await this.EstateClient.CreateMerchantUser(this.TokenResponse.AccessToken,
+                                                                  this.EstateId,
                                                                   merchantResponse.MerchantId,
-                                                                  assignOperatorRequest,
+                                                                  createMerchantUserRequest,
                                                                   cancellationToken);
-                }
 
-                // Now contracts
-                foreach (CreateContractResponse createContractResponse in createdContracts){
-                    AddMerchantContractRequest addMerchantContractRequest = new AddMerchantContractRequest{
-                                                                                                              ContractId = createContractResponse.ContractId
-                                                                                                          };
-                    await Program.EstateClient.AddContractToMerchant(Program.TokenResponse.AccessToken,
-                                                               estateResponse.EstateId,
-                                                               merchantResponse.MerchantId,
-                                                               addMerchantContractRequest,
-                                                               cancellationToken);
+                    var estate = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken,
+                                                                      this.EstateId,
+                                                                      cancellationToken);
+
+                    foreach (var @operator in estate.Operators){
+                        EstateManagement.DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new(){
+                                                                                                                                      OperatorId = @operator.OperatorId,
+                                                                                                                                      MerchantNumber = null,
+                                                                                                                                      TerminalNumber = null
+                                                                                                                                  };
+
+                        await this.EstateClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken,
+                                                                            this.EstateId,
+                                                                            merchantResponse.MerchantId,
+                                                                            assignOperatorRequest,
+                                                                            cancellationToken);
+                    }
+
+                    List<ContractResponse> contracts = await this.EstateClient.GetContracts(this.TokenResponse.AccessToken,
+                                                                                            this.EstateId,
+                                                                                            cancellationToken);
+
+                    // Now contracts
+                    foreach (ContractResponse contractResponse in contracts){
+                        AddMerchantContractRequest addMerchantContractRequest = new(){
+                                                                                         ContractId = contractResponse.ContractId
+                                                                                     };
+                        await this.EstateClient.AddContractToMerchant(this.TokenResponse.AccessToken,
+                                                                         this.EstateId,
+                                                                         merchantResponse.MerchantId,
+                                                                         addMerchantContractRequest,
+                                                                         cancellationToken);
+                    }
                 }
-                
+                else{
+                    // check the merchants device
+                    if (existingMerchant.Devices.ContainsValue(merchant.Device.DeviceIdentifier) == false){
+                        AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest
+                                                                            {
+                                                                                DeviceIdentifier = merchant.Device.DeviceIdentifier
+                                                                            };
+                        await this.EstateClient.AddDeviceToMerchant(this.TokenResponse.AccessToken,
+                                                                    this.EstateId,
+                                                                    existingMerchant.MerchantId,
+                                                                    addMerchantDeviceRequest,
+                                                                    cancellationToken);
+                    }
+                    
+                    // Check the users
+                    var user = await this.SecurityServiceClient.GetUsers(merchant.User.EmailAddress, cancellationToken);
+
+                    if (user == null){
+                        CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest
+                                                                              {
+                                                                                  EmailAddress = merchant.User.EmailAddress,
+                                                                                  FamilyName = merchant.User.FamilyName,
+                                                                                  GivenName = merchant.User.GivenName,
+                                                                                  MiddleName = merchant.User.MiddleName,
+                                                                                  Password = merchant.User.Password
+                                                                              };
+                        await this.EstateClient.CreateMerchantUser(this.TokenResponse.AccessToken,
+                                                                   this.EstateId,
+                                                                   merchant.MerchantId,
+                                                                   createMerchantUserRequest,
+                                                                   cancellationToken);
+                    }
+
+                    var estate = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken,
+                                                                   this.EstateId,
+                                                                   cancellationToken);
+
+                    foreach (var @operator in estate.Operators){
+                        var merchantOperator = existingMerchant.Operators.SingleOrDefault(o => o.Name == @operator.OperatorId.ToString());
+                        if(merchantOperator != null)
+                            continue;
+                        
+                        EstateManagement.DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new()
+                                                                                                                             {
+                                                                                                                                 OperatorId = @operator.OperatorId,
+                                                                                                                                 MerchantNumber = null,
+                                                                                                                                 TerminalNumber = null
+                                                                                                                             };
+
+                        await this.EstateClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken,
+                                                                         this.EstateId,
+                                                                         existingMerchant.MerchantId,
+                                                                         assignOperatorRequest,
+                                                                         cancellationToken);
+                    }
+
+                    List<ContractResponse> contracts = await this.EstateClient.GetContracts(this.TokenResponse.AccessToken,
+                                                                                            this.EstateId,
+                                                                                            cancellationToken);
+
+                    var merchantContracts = await this.EstateClient.GetMerchantContracts(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, cancellationToken);
+                    // Now contracts
+                    foreach (ContractResponse contractResponse in contracts){
+                        if (merchantContracts.SingleOrDefault(c => c.ContractId == contractResponse.ContractId) != null)
+                            continue;
+
+                        AddMerchantContractRequest addMerchantContractRequest = new(){
+                                                                                         ContractId = contractResponse.ContractId
+                                                                                     };
+                        await this.EstateClient.AddContractToMerchant(this.TokenResponse.AccessToken,
+                                                                      this.EstateId,
+                                                                      existingMerchant.MerchantId,
+                                                                      addMerchantContractRequest,
+                                                                      cancellationToken);
+                    }
+
+                }
+            }
+        }
+
+        private async Task CreateFloats(CancellationToken cancellationToken){
+
+            List<ContractResponse> contracts = await this.EstateClient.GetContracts(this.TokenResponse.AccessToken,
+                                                                                    this.EstateId,
+                                                                                    cancellationToken);
+
+            foreach (ContractResponse contractResponse in contracts){
+                foreach (ContractProduct contractProduct in contractResponse.Products){
+                    try{
+
+                        // Create the required floats
+                        CreateFloatForContractProductRequest request = new CreateFloatForContractProductRequest{
+                                                                                                                   ContractId = contractResponse.ContractId,
+                                                                                                                   ProductId = contractProduct.ProductId,
+                                                                                                                   CreateDateTime = DateTime.Now
+                                                                                                               };
+                        await this.TransactionProcessorClient.CreateFloatForContractProduct(this.TokenResponse.AccessToken,
+                                                                                               this.EstateId,
+                                                                                               request,
+                                                                                               cancellationToken);
+                    }
+                    catch(Exception ex){
+                        continue;
+                    }
+                }
             }
 
-            foreach ((AddProductToContractRequest, AddProductToContractResponse) contractProductResponse in contractProductResponses)
-            {
-                // Create the required floats
-                CreateFloatForContractProductRequest request = new CreateFloatForContractProductRequest
-                                                               {
-                                                                   ContractId = contractProductResponse.Item2.ContractId,
-                                                                   ProductId = contractProductResponse.Item2.ProductId,
-                                                                   CreateDateTime = DateTime.Now
-                                                               };
-
-                await Program.TransactionProcessorClient.CreateFloatForContractProduct(Program.TokenResponse.AccessToken,
-                                                                                       estateResponse.EstateId,
-                                                                                       request,
-                                                                                       cancellationToken);
-            }
-            
         }
     }
 }

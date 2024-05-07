@@ -16,5 +16,16 @@
 
         [JsonPropertyName("transaction_fees")]
         public List<TransactionFee> TransactionFees { get; set; }
+
+        [JsonPropertyName("product_type")]
+        public ProductType ProductType { get; set; }
+    }
+
+    public enum ProductType
+    {
+        NotSet,
+        MobileTopup,
+        Voucher,
+        BillPayment,
     }
 }
