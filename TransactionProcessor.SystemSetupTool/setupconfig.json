@@ -47,7 +47,7 @@
         {
           "merchant_id": "AF4D7C7C-9B8D-4E58-A12A-28D3E0B89DF6",
           "name": "Test Merchant 2",
-          "settlementschedule": "Weekly",
+          "settlementschedule": "Monthly",
           "address": {
             "address_line_1": "test address line 1",
             "country": "United Kingdom",
@@ -73,38 +73,6 @@
           },
           "device": {
             "device_identifier": "testmerchant2device"
-          },
-          "createdate": "2022-08-31"
-        },
-        {
-          "merchant_id": "0D20A8B7-DA2E-421A-B591-53A08E694CEF",
-          "name": "Test Merchant 3",
-          "settlementschedule": "Monthly",
-          "address": {
-            "address_line_1": "test address line 1",
-            "country": "United Kingdom",
-            "region": "Region",
-            "town": "MyTown"
-          },
-          "contact": {
-            "contact_name": "Test Contact",
-            "email_address": "stuart_ferguson1@outlook.com"
-          },
-          "operators": [
-            "Safaricom",
-            "Voucher",
-            "PataPawa PostPay",
-            "PataPawa PrePay"
-          ],
-          "user": {
-            "email_address": "merchantuser@testmerchant3.co.uk",
-            "password": "123456",
-            "given_name": "Test Merchant 3",
-            "middle_name": "",
-            "family_name": "User"
-          },
-          "device": {
-            "device_identifier": "testmerchant3device"
           },
           "createdate": "2022-08-31"
         },
@@ -141,38 +109,6 @@
           "createdate": "2022-08-31"
         },
         {
-          "merchant_id": "A5B55C9A-12D6-4DE3-BF51-B111B5C8792C",
-          "name": "S7 Merchant",
-          "settlementschedule": "Immediate",
-          "address": {
-            "address_line_1": "test address line 1",
-            "country": "United Kingdom",
-            "region": "Region",
-            "town": "MyTown"
-          },
-          "contact": {
-            "contact_name": "Test Contact",
-            "email_address": "stuart_ferguson1@outlook.com"
-          },
-          "operators": [
-            "Safaricom",
-            "Voucher",
-            "PataPawa PostPay",
-            "PataPawa PrePay"
-          ],
-          "user": {
-            "email_address": "merchantuser@s7merchant.co.uk",
-            "password": "123456",
-            "given_name": "S7 Merchant",
-            "middle_name": "",
-            "family_name": "User"
-          },
-          "device": {
-            "device_identifier": "ce11160bbd98480601"
-          },
-          "createdate": "2022-08-31"
-        },
-        {
           "merchant_id": "22549CD1-AFDD-44F9-882F-51C3EA71CCC0",
           "name": "Xperia Merchant",
           "settlementschedule": "Immediate",
@@ -201,70 +137,6 @@
           },
           "device": {
             "device_identifier": "CB5A26UB14"
-          },
-          "createdate": "2022-08-31"
-        },
-        {
-          "merchant_id": "BF1BFE5E-075C-49D0-A254-B9181899133A",
-          "name": "Test Merchant 4",
-          "settlementschedule": "Weekly",
-          "address": {
-            "address_line_1": "test address line 1",
-            "country": "United Kingdom",
-            "region": "Region",
-            "town": "MyTown"
-          },
-          "contact": {
-            "contact_name": "Test Contact",
-            "email_address": "stuart_ferguson1@outlook.com"
-          },
-          "operators": [
-            "Safaricom",
-            "Voucher",
-            "PataPawa PostPay",
-            "PataPawa PrePay"
-          ],
-          "user": {
-            "email_address": "merchantuser@testmerchant4.co.uk",
-            "password": "123456",
-            "given_name": "Test Merchant 4",
-            "middle_name": "",
-            "family_name": "User"
-          },
-          "device": {
-            "device_identifier": "testmerchant4device"
-          },
-          "createdate": "2022-08-31"
-        },
-        {
-          "merchant_id": "ADC939A8-315D-4019-9080-15259FA92324",
-          "name": "Test Merchant 5",
-          "settlementschedule": "Monthly",
-          "address": {
-            "address_line_1": "test address line 1",
-            "country": "United Kingdom",
-            "region": "Region",
-            "town": "MyTown"
-          },
-          "contact": {
-            "contact_name": "Test Contact",
-            "email_address": "stuart_ferguson1@outlook.com"
-          },
-          "operators": [
-            "Safaricom",
-            "Voucher",
-            "PataPawa PostPay",
-            "PataPawa PrePay"
-          ],
-          "user": {
-            "email_address": "merchantuser@testmerchant5.co.uk",
-            "password": "123456",
-            "given_name": "Test Merchant 5",
-            "middle_name": "",
-            "family_name": "User"
-          },
-          "device": {
-            "device_identifier": "testmerchant5device"
           },
           "createdate": "2022-08-31"
         }

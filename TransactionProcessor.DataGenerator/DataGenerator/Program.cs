@@ -2,11 +2,13 @@
 
 namespace TransactionDataGenerator{
     using System.Collections.Generic;
+    using System.Linq;
     using System.Net.Http;
     using System.Threading;
     using System.Threading.Tasks;
     using EstateManagement.Client;
-    using EstateManagement.DataTransferObjects.Responses;
+    using EstateManagement.DataTransferObjects.Responses.Contract;
+    using EstateManagement.DataTransferObjects.Responses.Merchant;
     using SecurityService.Client;
     using TransactionProcessing.DataGeneration;
     using TransactionProcessor.Client;
@@ -101,17 +103,17 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2024, 1, 5); //27/7
-            DateTime endDate = new DateTime(2024, 1, 5); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2024, 5, 27); //27/7
+            DateTime endDate = new DateTime(2024, 5,27); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
 
-            Boolean sendLogons = true; 
-            Boolean sendSales = true;
+            Boolean sendLogons = false; 
+            Boolean sendSales = false;
             Boolean sendFiles = false;
-            Boolean sendSettlement = false;
+            Boolean sendSettlement = true;
 
             foreach (DateTime dateTime in dateRange){
                 
@@ -127,9 +129,9 @@ namespace TransactionDataGenerator{
                     foreach (MerchantResponse merchant in merchants){
                         // Get the merchants contracts
                         List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
-
                         foreach (ContractResponse contract in contracts){
                             // Generate and send some sales
+                            
                             await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
 
                             await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
@@ -148,10 +150,10 @@ namespace TransactionDataGenerator{
                             // Generate a file and upload
                             await g.SendUploadFile(dateTime, contract, merchant, Guid.Empty, cancellationToken);
 
-                            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                         }
 
-                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                     }
                 }
 

@@ -34,8 +34,9 @@ namespace TransactionProcessor.SystemSetupTool
     using Shared.General;
     using AssignOperatorRequest = EstateManagement.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
     using JsonSerializer = System.Text.Json.JsonSerializer;
-    using SettlementSchedule = EstateManagement.DataTransferObjects.Responses.SettlementSchedule;
+    using SettlementSchedule = EstateManagement.DataTransferObjects.Responses.Merchant.SettlementSchedule;
     using Microsoft.AspNetCore.Http.HttpResults;
+    using Microsoft.IdentityModel.Tokens;
     using ProductType = EstateManagement.DataTransferObjects.Responses.Contract.ProductType;
 
     class Program
@@ -146,6 +147,8 @@ namespace TransactionProcessor.SystemSetupTool
         public async Task CreateConfig(CancellationToken cancellationToken){
 
             var roles = await this.SecurityServiceClient.GetRoles(cancellationToken);
+            if (roles == null)
+                roles = new List<RoleDetails>();
 
             foreach (String role in identityServerConfiguration.roles)
             {
@@ -155,7 +158,8 @@ namespace TransactionProcessor.SystemSetupTool
             }
 
             var apiResources = await this.SecurityServiceClient.GetApiResources(cancellationToken);
-
+            if (apiResources == null)
+                apiResources = new List<ApiResourceDetails>();
             foreach (ApiResource apiResource in identityServerConfiguration.apiresources)
             {
                 if (apiResources.Any(a => a.Name == apiResource.name))
@@ -164,6 +168,9 @@ namespace TransactionProcessor.SystemSetupTool
             }
 
             var identityResources = await this.SecurityServiceClient.GetIdentityResources(cancellationToken);
+            if (identityResources == null)
+                identityResources = new List<IdentityResourceDetails>();
+
             foreach (IdentityResource identityResource in identityServerConfiguration.identityresources)
             {
                 if (identityResources.Any(i => i.Name == identityResource.name))
@@ -172,6 +179,8 @@ namespace TransactionProcessor.SystemSetupTool
             }
 
             var clients = await this.SecurityServiceClient.GetClients(cancellationToken);
+            if(clients ==null)
+                clients = new List<ClientDetails>();
             foreach (Client client in identityServerConfiguration.clients)
             {
                 if (clients.Any(c => c.ClientId == client.client_id))
@@ -180,7 +189,8 @@ namespace TransactionProcessor.SystemSetupTool
             }
 
             var apiScopes = await this.SecurityServiceClient.GetApiScopes(cancellationToken);
-
+            if(apiScopes == null)
+                apiScopes = new List<ApiScopeDetails>();
             foreach (ApiScope apiscope in identityServerConfiguration.apiscopes)
             {
                 if (apiScopes.Any(a => a.Name== apiscope.name))
@@ -308,6 +318,7 @@ namespace TransactionProcessor.SystemSetupTool
             subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management - Ordered", 0));
             subscriptions.Add(("$ce-EstateAggregate", "Estate Management - Ordered", 0));
             subscriptions.Add(("$ce-FileAggregate", "File Processor", 0));
+            subscriptions.Add(("$ce-FileImportLogAggregate", "File Processor", 0));
             subscriptions.Add(("$ce-EmailAggregate", "Messaging Service", 0));
             subscriptions.Add(("$ce-SMSAggregate", "Messaging Service", 0));
 
@@ -403,10 +414,19 @@ namespace TransactionProcessor.SystemSetupTool
         }
 
         private async Task<EstateResponse> GetEstate(Guid estateId, CancellationToken cancellationToken){
-            EstateResponse estateResponse = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken,
-                                                                              Guid.Parse(this.EstateConfig.Id),
-                                                                              cancellationToken);
-            return estateResponse;
+            try{
+                EstateResponse estateResponse = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken,
+                                                                                  Guid.Parse(this.EstateConfig.Id),
+                                                                                  cancellationToken);
+                return estateResponse;
+            }
+            catch(Exception k){
+                if (k.InnerException != null && k.InnerException is KeyNotFoundException){
+                    return null;
+                }
+
+                throw;
+            }
         }
 
         private async Task<Guid> CreateEstate(CancellationToken cancellationToken){
@@ -471,12 +491,12 @@ namespace TransactionProcessor.SystemSetupTool
                 CreateOperatorRequest createOperatorRequest = new CreateOperatorRequest
                                                               {
                                                                   OperatorId = Guid.NewGuid(),
-                                                                  EstateId = this.EstateId,
                                                                   Name = @operator.Name,
                                                                   RequireCustomMerchantNumber = @operator.RequireCustomMerchantNumber,
                                                                   RequireCustomTerminalNumber = @operator.RequireCustomMerchantNumber,
                                                               };
                 CreateOperatorResponse createOperatorResponse = await this.EstateClient.CreateOperator(this.TokenResponse.AccessToken,
+                                                                                                       this.EstateId,
                                                                                                           createOperatorRequest,
                                                                                                           cancellationToken);
                 // Now assign this to the estate
@@ -489,7 +509,26 @@ namespace TransactionProcessor.SystemSetupTool
                                                                   cancellationToken);
             }
         }
-        
+
+        private async Task<ContractResponse> GetContract(Guid contractId, CancellationToken cancellationToken){
+            try
+            {
+                ContractResponse fullContract = await this.EstateClient.GetContract(this.TokenResponse.AccessToken,
+                                                                                    this.EstateId,
+                                                                                    contractId, cancellationToken);
+                return fullContract;
+            }
+            catch (Exception k)
+            {
+                if (k.InnerException != null && k.InnerException is KeyNotFoundException)
+                {
+                    return null;
+                }
+
+                throw;
+            }
+        }
+
         private async Task CreateContracts(CancellationToken cancellationToken){
             List<ContractResponse> existingContracts = await this.EstateClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
             EstateResponse esatate = await this.EstateClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
@@ -544,6 +583,8 @@ namespace TransactionProcessor.SystemSetupTool
                     }
                 }
                 else{
+                    var fullContract = await this.GetContract(existingContract.ContractId, cancellationToken);
+
                     // Now we need to check if all the products are created
                     foreach (Product contractProduct in contract.Products){
                         var product = existingContract.Products.SingleOrDefault(p => p.Name == contractProduct.ProductName);
@@ -573,19 +614,26 @@ namespace TransactionProcessor.SystemSetupTool
                             }
                         }
                         else{
-                            foreach (var transactionFee in contractProduct.TransactionFees)
-                            {
-                                await this.EstateClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken,
-                                                                                              this.EstateId, existingContract.ContractId,
-                                                                                              product.ProductId,
-                                                                                              new AddTransactionFeeForProductToContractRequest
-                                                                                              {
-                                                                                                  Value = transactionFee.Value,
-                                                                                                  Description = transactionFee.Description,
-                                                                                                  CalculationType = (CalculationType)transactionFee.CalculationType,
-                                                                                                  FeeType = (FeeType)transactionFee.FeeType
-                                                                                              },
-                                                                                              cancellationToken);
+                            var fullProduct = fullContract.Products.Single(p => p.Name == contractProduct.ProductName);
+
+                            foreach (var transactionFee in contractProduct.TransactionFees){
+                                var feeExists = fullProduct.TransactionFees.Any(p => p.CalculationType == (CalculationType)transactionFee.CalculationType &&
+                                                                                     p.FeeType == (FeeType)transactionFee.FeeType &&
+                                                                                     p.Description == transactionFee.Description &&
+                                                                                     p.Value == transactionFee.Value);
+                                if (feeExists == false){
+                                    await this.EstateClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken,
+                                                                                                  this.EstateId,
+                                                                                                  existingContract.ContractId,
+                                                                                                  product.ProductId,
+                                                                                                  new AddTransactionFeeForProductToContractRequest{
+                                                                                                                                                      Value = transactionFee.Value,
+                                                                                                                                                      Description = transactionFee.Description,
+                                                                                                                                                      CalculationType = (CalculationType)transactionFee.CalculationType,
+                                                                                                                                                      FeeType = (FeeType)transactionFee.FeeType
+                                                                                                                                                  },
+                                                                                                  cancellationToken);
+                                }
                             }
                         }
                     }
@@ -594,9 +642,28 @@ namespace TransactionProcessor.SystemSetupTool
 
         }
 
+        private async Task<List<MerchantResponse>> GetMerchants(CancellationToken cancellationToken){
+            
+            try
+            {
+                List<MerchantResponse> merchants = await this.EstateClient.GetMerchants(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
+                return merchants;
+            }
+            catch (Exception k)
+            {
+                if (k.InnerException != null && k.InnerException is KeyNotFoundException)
+                {
+                    return new List<MerchantResponse>();
+                }
+
+                throw;
+            }
+
+        }
+
         private async Task CreateMerchants(CancellationToken cancellationToken){
 
-            var merchants = await this.EstateClient.GetMerchants(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
+            var merchants = await this.GetMerchants(cancellationToken);
 
             foreach (Merchant merchant in this.EstateConfig.Merchants){
                 var existingMerchant = merchants.SingleOrDefault(m => m.MerchantName == merchant.Name);

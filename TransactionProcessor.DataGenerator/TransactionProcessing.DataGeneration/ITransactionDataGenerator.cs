@@ -1,6 +1,7 @@
 ﻿namespace TransactionProcessing.DataGeneration;
 
-using EstateManagement.DataTransferObjects.Responses;
+using EstateManagement.DataTransferObjects.Responses.Merchant;
+using EstateManagement.DataTransferObjects.Responses.Contract;
 
 public interface ITransactionDataGenerator{
     #region Methods

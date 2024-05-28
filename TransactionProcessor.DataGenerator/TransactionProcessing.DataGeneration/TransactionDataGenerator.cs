@@ -9,9 +9,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using EstateManagement.Client;
-using EstateManagement.DataTransferObjects;
-using EstateManagement.DataTransferObjects.Requests;
-using EstateManagement.DataTransferObjects.Responses;
+using EstateManagement.DataTransferObjects.Requests.Merchant;
+using EstateManagement.DataTransferObjects.Responses.Contract;
+using EstateManagement.DataTransferObjects.Responses.Estate;
+using EstateManagement.DataTransferObjects.Responses.Merchant;
 using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using SecurityService.Client;
@@ -515,7 +516,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                                  EstateId = merchant.EstateId,
                                                                                  TransactionType = "Sale",
                                                                                  TransactionDateTime = transactionDateTime,
-                                                                                 OperatorIdentifier = contract.OperatorName,
+                                                                                 OperatorId = contract.OperatorId,
                                                                                  ProductId = product.ProductId
                                                                              };
 
@@ -539,8 +540,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                                   EstateId = merchant.EstateId,
                                                                                   TransactionType = "Sale",
                                                                                   TransactionDateTime = transactionDateTime.AddSeconds(30),
-                                                                                  OperatorIdentifier = contract.OperatorName,
-                                                                                  ProductId = product.ProductId
+            OperatorId = contract.OperatorId,
+            ProductId = product.ProductId
                                                                               };
 
         requests.Add((makePaymentRequest, billDetails.balance));
@@ -573,7 +574,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             EstateId = merchant.EstateId,
             TransactionType = "Sale",
             TransactionDateTime = transactionDateTime,
-            OperatorIdentifier = contract.OperatorName,
+            OperatorId = contract.OperatorId,
             ProductId = product.ProductId
         };
 
@@ -597,7 +598,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             EstateId = merchant.EstateId,
             TransactionType = "Sale",
             TransactionDateTime = transactionDateTime.AddSeconds(30),
-            OperatorIdentifier = contract.OperatorName,
+            OperatorId = contract.OperatorId,
             ProductId = product.ProductId
         };
 
@@ -627,8 +628,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                        EstateId = merchant.EstateId,
                                                                        TransactionType = "Sale",
                                                                        TransactionDateTime = GetTransactionDateTime(r, dateTime),
-                                                                       OperatorIdentifier = contract.OperatorName,
-                                                                       ProductId = contractProduct.ProductId
+            OperatorId = contract.OperatorId,
+            ProductId = contractProduct.ProductId
                                                                    };
         requests.Add((request, amount));
 
@@ -728,8 +729,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
                                                                        EstateId = merchant.EstateId,
                                                                        TransactionType = "Sale",
                                                                        TransactionDateTime = GetTransactionDateTime(r, dateTime),
-                                                                       OperatorIdentifier = contract.OperatorName,
-                                                                       ProductId = contractProduct.ProductId
+            OperatorId = contract.OperatorId,
+            ProductId = contractProduct.ProductId
                                                                    };
         requests.Add((request, amount));
 
@@ -959,7 +960,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
     private async Task<Boolean> SendSaleTransaction(MerchantResponse merchant, SaleTransactionRequest request, CancellationToken cancellationToken){
         if (this.RunningMode == RunningMode.WhatIf){
-            this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorIdentifier} - {request.GetAmount()}");
+            this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorId} - {request.GetAmount()}");
             return true;
         }
 
