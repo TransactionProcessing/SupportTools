@@ -46,8 +46,10 @@ namespace TransactionDataGenerator{
                                       return $"https://{ipaddress}:5001";
                                   }
 
-                                  if (apiName == "TransactionProcessorApi"){
+                                  if (apiName == "TransactionProcessorApi")
+                                  {
                                       return $"http://{ipaddress}:5002";
+                                      //return $"http://127.0.0.1:5002";
                                   }
 
                                   if (apiName == "FileProcessorApi"){
@@ -103,13 +105,13 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2024, 5, 27); //27/7
-            DateTime endDate = new DateTime(2024, 5,27); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2024, 6, 1); //27/7
+            DateTime endDate = new DateTime(2024, 6,27); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
-
+            
             Boolean sendLogons = false; 
             Boolean sendSales = false;
             Boolean sendFiles = false;
@@ -134,7 +136,7 @@ namespace TransactionDataGenerator{
                             
                             await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
 
-                            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                         }
 
                         //await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
@@ -150,10 +152,10 @@ namespace TransactionDataGenerator{
                             // Generate a file and upload
                             await g.SendUploadFile(dateTime, contract, merchant, Guid.Empty, cancellationToken);
 
-                            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                         }
 
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                     }
                 }
 

@@ -84,9 +84,9 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
 
-            Boolean isEstateSetup = true;
+            Boolean isEstateSetup = false;
 
-            if (isEstateSetup == false){
+            if (isEstateSetup == true){
 
                 IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
                 IdentityServerFunctions identityServerFunctions = new IdentityServerFunctions(Program.SecurityServiceClient, identityServerConfiguration);
@@ -123,7 +123,7 @@ namespace TransactionProcessor.SystemSetupTool
         {
             // Read the estate config json string
             String estateJsonData = null;
-            using(StreamReader sr = new StreamReader("setupconfig.json"))
+            using(StreamReader sr = new StreamReader("setupconfig.production.json"))
             {
                 estateJsonData = await sr.ReadToEndAsync(cancellationToken);
             }
@@ -284,7 +284,7 @@ namespace TransactionProcessor.SystemSetupTool
             this.PersistentSubscriptionsClient = persistentSubscriptionsClient;
         }
 
-        private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) => new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: retryCount);
+        private static PersistentSubscriptionSettings CreatePersistentSettings(Int32 retryCount = 0) => new PersistentSubscriptionSettings(resolveLinkTos: true, maxRetryCount: retryCount, startFrom:new StreamPosition(0));
 
         public async Task SetupEventStore(CancellationToken cancellationToken)
         {
@@ -300,7 +300,7 @@ namespace TransactionProcessor.SystemSetupTool
 
             subscriptions.Add(("$ce-EstateAggregate", "Transaction Processor - Ordered", 1));
             subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1));
-            subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor - Ordered",1));
+            subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1));
 
             subscriptions.Add(("$ce-TransactionAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-SettlementAggregate", "Estate Management", 0));
@@ -312,7 +312,9 @@ namespace TransactionProcessor.SystemSetupTool
             subscriptions.Add(("$ce-CallbackMessageAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-ReconciliationAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-FileAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-FileImportLogAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-OperatorAggregate", "Estate Management", 0));
+            subscriptions.Add(("$ce-FloatAggregate", "Estate Management", 0));
 
             subscriptions.Add(("$ce-TransactionAggregate", "Estate Management - Ordered", 0));
             subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management - Ordered", 0));
@@ -325,7 +327,7 @@ namespace TransactionProcessor.SystemSetupTool
             foreach ((String streamName, String groupName, Int32 retryCount) subscription in subscriptions){
                 Boolean exists = false;
                 try{
-                    var x = await PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken);
+                    var x = await PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken, deadline:TimeSpan.FromSeconds(30));
                     exists = true;
                 }
                 catch(PersistentSubscriptionNotFoundException pex){
@@ -333,7 +335,7 @@ namespace TransactionProcessor.SystemSetupTool
                 }
 
                 if (exists == false){
-                    await PersistentSubscriptionsClient.CreateToStreamAsync(subscription.streamName, subscription.groupName, CreatePersistentSettings(subscription.retryCount), cancellationToken: cancellationToken);
+                    await PersistentSubscriptionsClient.CreateToStreamAsync(subscription.streamName, subscription.groupName, CreatePersistentSettings(subscription.retryCount), cancellationToken: cancellationToken, deadline: TimeSpan.FromSeconds(30));
                 }
             }
             

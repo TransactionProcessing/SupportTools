@@ -7,9 +7,13 @@
 
   <ItemGroup>
     <None Remove="setupconfig.json" />
+    <None Remove="setupconfig.production.json" />
   </ItemGroup>
 
   <ItemGroup>
+<Content Include="setupconfig.production.json">
+  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+</Content>
 <Content Include="setupconfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

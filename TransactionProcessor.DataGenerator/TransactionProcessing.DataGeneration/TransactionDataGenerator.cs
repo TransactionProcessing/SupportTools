@@ -305,7 +305,8 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         List<(Guid, RecordFloatCreditPurchaseRequest)> floatDepositRequests = this.CreateFloatDepositRequests(salesToSend, dateTime);
         IOrderedEnumerable<(Guid, RecordFloatCreditPurchaseRequest)> orderedFloatDepositRequests = floatDepositRequests.OrderBy(f => f.Item2.PurchaseDateTime);
-        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests){
+        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests)
+        {
             await this.SendFloatDepositRequest(recordFloatCreditPurchaseRequest.Item1, recordFloatCreditPurchaseRequest.Item2, cancellationToken);
         }
 
