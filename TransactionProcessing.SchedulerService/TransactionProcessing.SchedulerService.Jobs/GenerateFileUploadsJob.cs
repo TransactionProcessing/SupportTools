@@ -12,17 +12,11 @@
         #region Methods
         public override async Task ExecuteJob(IJobExecutionContext context)
         {
-            Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
-            Guid merchantId = context.MergedJobDataMap.GetGuidValueFromString("MerchantId");
-            Guid userId = context.MergedJobDataMap.GetGuidValueFromString("UserId");
+            FileUploadJobConfig configuration = Helpers.LoadJobConfig<FileUploadJobConfig>(context.MergedJobDataMap);
             
-            Logger.LogInformation($"Estate Id: [{estateId}]");
-            Logger.LogInformation($"Merchant Id: [{merchantId}]");
-            Logger.LogInformation($"User Id: [{userId}]");
-
-            ITransactionDataGenerator t = CreateTransactionDataGenerator(this.ClientId, this.ClientSecret, RunningMode.Live);
+            ITransactionDataGenerator t = CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
             t.TraceGenerated += TraceGenerated; 
-            await Jobs.GenerateFileUploads(t, estateId, merchantId, userId, context.CancellationToken);
+            await Jobs.GenerateFileUploads(t, configuration, context.CancellationToken);
         }
         #endregion
     }
