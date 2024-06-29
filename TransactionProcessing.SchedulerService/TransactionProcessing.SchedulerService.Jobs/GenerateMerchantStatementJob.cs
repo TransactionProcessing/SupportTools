@@ -10,12 +10,10 @@ public class GenerateMerchantStatementJob : BaseJob
 {
     public override async Task ExecuteJob(IJobExecutionContext context)
     {
-        Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
+        MerchantStatementJobConfig configuration = Helpers.LoadJobConfig<MerchantStatementJobConfig>(context.MergedJobDataMap);
 
-        Logger.LogInformation($"Estate Id: [{estateId}]");
-        
-        ITransactionDataGenerator t = this.CreateTransactionDataGenerator(this.ClientId, this.ClientSecret, RunningMode.Live);
+        ITransactionDataGenerator t = this.CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
         t.TraceGenerated += TraceGenerated;
-        await Jobs.GenerateMerchantStatements(t, estateId, context.CancellationToken);
+        await Jobs.GenerateMerchantStatements(t, configuration, context.CancellationToken);
     }
 }

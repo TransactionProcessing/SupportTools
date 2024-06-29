@@ -11,13 +11,11 @@ namespace TransactionProcessing.SchedulerService.Jobs
     {
         public override async Task ExecuteJob(IJobExecutionContext context)
         {
-            Guid estateId = context.MergedJobDataMap.GetGuidValueFromString("EstateId");
+            SettlementJobConfig configuration = Helpers.LoadJobConfig<SettlementJobConfig>(context.MergedJobDataMap);
 
-            Logger.LogInformation($"Estate Id: [{estateId}]");
-
-            ITransactionDataGenerator t = CreateTransactionDataGenerator(this.ClientId, this.ClientSecret, RunningMode.Live);
+            ITransactionDataGenerator t = CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
             t.TraceGenerated += TraceGenerated;
-            await Jobs.PerformSettlement(t, DateTime.Now, estateId, context.CancellationToken);
+            await Jobs.PerformSettlement(t, DateTime.Now, configuration, context.CancellationToken);
         }
     }
 }
