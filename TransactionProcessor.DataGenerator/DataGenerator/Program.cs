@@ -105,8 +105,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2024, 6, 1); //27/7
-            DateTime endDate = new DateTime(2024, 6,27); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2024, 6, 28); //27/7
+            DateTime endDate = new DateTime(2024, 6,30); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
 

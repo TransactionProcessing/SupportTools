@@ -1,4 +1,6 @@
-﻿namespace TransactionProcessing.SchedulerService.Jobs;
+﻿using Microsoft.IdentityModel.Tokens;
+
+namespace TransactionProcessing.SchedulerService.Jobs;
 
 using System;
 using System.Diagnostics.Eventing.Reader;
@@ -19,7 +21,7 @@ public static class Bootstrapper{
 
     internal static IServiceCollection Services;
 
-    public static void ConfigureServices(IJobExecutionContext jobExecutionContext){
+    public static void ConfigureServices(IJobExecutionContext jobExecutionContext, BaseConfiguration configuration){
         Bootstrapper.Services = new ServiceCollection();
         Bootstrapper.JobExecutionContext = jobExecutionContext;
 
@@ -38,7 +40,18 @@ public static class Bootstrapper{
         Bootstrapper.Services.AddSingleton<IMessagingServiceClient, MessagingServiceClient>();
         Bootstrapper.Services.AddSingleton<IEstateClient, EstateClient>();
         Bootstrapper.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
-        Bootstrapper.Services.AddSingleton<Func<String, String>>(container => serviceName => { return jobExecutionContext.MergedJobDataMap.GetString(serviceName); });
+        Bootstrapper.Services.AddSingleton<Func<String, String>>(container => serviceName =>
+        {
+            return serviceName switch
+            {
+                "SecurityService" => configuration.SecurityService,
+                "EstateManagementApi" => configuration.EstateManagementApi,
+                "FileProcessorApi" => configuration.FileProcessorApi,
+                "TestHostApi" => configuration.TestHostApi,
+                "TransactionProcessorApi" => configuration.TransactionProcessorApi,
+                _ => throw new NotSupportedException($"Service name {serviceName} not supported")
+            };
+        });
             
         Bootstrapper.ServiceProvider = Bootstrapper.Services.BuildServiceProvider();
     }

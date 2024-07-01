@@ -65,7 +65,7 @@ public abstract class BaseJob : IJob{
         Logger.LogInformation($"Running Job Group: [{this.JobGroup}] Name: [{this.JobName}]");
         //this.LogConfiguration();
 
-        Bootstrapper.ConfigureServices(context);
+        Bootstrapper.ConfigureServices(context, this.BaseConfiguration);
 
         await this.ExecuteJob(context);
 
