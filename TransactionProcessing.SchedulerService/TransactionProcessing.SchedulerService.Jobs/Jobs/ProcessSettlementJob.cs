@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
+using TransactionProcessing.SchedulerService.Jobs.Common;
+using TransactionProcessing.SchedulerService.Jobs.Configuration;
 
-namespace TransactionProcessing.SchedulerService.Jobs
+namespace TransactionProcessing.SchedulerService.Jobs.Jobs
 {
     using Quartz;
     using Shared.Logger;

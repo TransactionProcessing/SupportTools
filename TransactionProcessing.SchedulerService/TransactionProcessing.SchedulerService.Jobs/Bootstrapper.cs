@@ -1,4 +1,5 @@
 ﻿using Microsoft.IdentityModel.Tokens;
+using BaseConfiguration = TransactionProcessing.SchedulerService.Jobs.Configuration.BaseConfiguration;
 
 namespace TransactionProcessing.SchedulerService.Jobs;
 

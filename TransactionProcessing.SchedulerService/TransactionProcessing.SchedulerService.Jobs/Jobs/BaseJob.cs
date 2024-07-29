@@ -1,15 +1,17 @@
-﻿namespace TransactionProcessing.SchedulerService.Jobs;
-
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using DataGeneration;
 using EstateManagement.Client;
 using Quartz;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Logger;
+using TransactionProcessing.DataGeneration;
+using TransactionProcessing.SchedulerService.Jobs.Common;
+using TransactionProcessing.SchedulerService.Jobs.Configuration;
 using TransactionProcessor.Client;
+
+namespace TransactionProcessing.SchedulerService.Jobs.Jobs;
 
 public abstract class BaseJob : IJob{
     public String JobName { get; private set; }

@@ -15,7 +15,11 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Quartz" Version="3.10.0" />
-    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2024.5.2" />
+    <PackageReference Include="TransactionProcessing.DataGeneration" Version="2024.7.2-build65" />
     
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Common\" />
   </ItemGroup>
 </Project>
