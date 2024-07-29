@@ -1,7 +1,9 @@
 ﻿using System.Threading.Tasks;
 using Quartz;
+using TransactionProcessing.SchedulerService.Jobs.Common;
+using TransactionProcessing.SchedulerService.Jobs.Configuration;
 
-namespace TransactionProcessing.SchedulerService.Jobs;
+namespace TransactionProcessing.SchedulerService.Jobs.Jobs;
 
 public class ReplayParkedQueuesJob : BaseJob
 {

@@ -1,6 +1,8 @@
 ﻿using Quartz;
 using Quartz.Core;
 using Quartz.Impl;
+using TransactionProcessing.SchedulerService.Jobs.Configuration;
+using TransactionProcessing.SchedulerService.Jobs.Jobs;
 
 namespace JobTestDriver
 {
@@ -14,7 +16,7 @@ namespace JobTestDriver
 
     internal class Program{
         static async Task Main(string[] args){
-            
+
             //List<(String groupName, String streamName, Int64 parkedMessageCount)>? info = await Jobs.GetParkedQueueInformation("esdb://admin:changeit@192.168.0.133:2113?tls=false&tlsVerifyCert=false", CancellationToken.None);
             //foreach ((String groupName, String streamName, Int64 parkedMessageCount) infoItem in info){
             //    Console.WriteLine($"Group: {infoItem.groupName} Stream: {infoItem.streamName} Parked Count: {infoItem.parkedMessageCount}");
@@ -37,39 +39,49 @@ namespace JobTestDriver
             //                            messagingServiceClient,
             //                            CancellationToken.None);
 
-            //HttpClientHandler handler = new HttpClientHandler
-            //                            {
-            //                                ServerCertificateCustomValidationCallback = (message,
-            //                                                                             cert,
-            //                                                                             chain,
-            //                                                                             errors) => {
-            //                                                                                return true;
-            //                                                                            }
-            //                            };
-            //HttpClient client = new HttpClient(handler);
-            //ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate(String s){ return "https://192.168.1.167:5001"; },client); IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.1.167:5000"; }, client);
-            //ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
-            //String estateManagementApi = "http://192.168.1.167:5000";
-            //String fileProcessorApi = "http://192.168.1.167:5009";
-            //String testHostApi = "http://192.168.1.167:9000";
-            //String clientId = "serviceClient";
-            //String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
+            HttpClientHandler handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message,
+                                                             cert,
+                                                             chain,
+                                                             errors) =>
+                {
+                    return true;
+                }
+            };
+            HttpClient client = new HttpClient(handler);
+            ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate (String s) { return "https://192.168.1.167:5001"; }, client); IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.1.167:5000"; }, client);
+            ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
+            String estateManagementApi = "http://192.168.1.167:5000";
+            String fileProcessorApi = "http://192.168.1.167:5009";
+            String testHostApi = "http://192.168.1.167:9000";
+            String clientId = "serviceClient";
+            String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
 
-            //ITransactionDataGenerator t = new TransactionDataGenerator(securityServiceClient,
-            //                                                           estateClient,
-            //                                                           transactionProcessorClient,
-            //                                                           estateManagementApi,
-            //                                                           fileProcessorApi,
-            //                                                           testHostApi,
-            //                                                           clientId,
-            //                                                           clientSecret,
-            //                                                           RunningMode.Live);
-            //Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+            ITransactionDataGenerator t = new TransactionDataGenerator(securityServiceClient,
+                                                                       estateClient,
+                                                                       transactionProcessorClient,
+                                                                       estateManagementApi,
+                                                                       fileProcessorApi,
+                                                                       testHostApi,
+                                                                       clientId,
+                                                                       clientSecret,
+                                                                       RunningMode.WhatIf);
+            Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+
+            MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, estateManagementApi, fileProcessorApi,"","", "", estateId,
+                new List<DepositAmount> { new DepositAmount(Guid.NewGuid(), Guid.NewGuid(), 100) }
+            );
+
+            await Jobs.GenerateFloatCredits(t, c, CancellationToken.None);
             //Guid merchantId = Guid.Parse("ab1c99fb-1c6c-4694-9a32-b71be5d1da33");
             //await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
             ////var d = TransactionDataGenerator.GetTransactionDateTime(new Random(), DateTime.Now);
             ////Console.WriteLine(d);
             //await Jobs.PerformSettlement(t, DateTime.Now,estateId, CancellationToken.None);
+
+
+
         }
     }
 }
