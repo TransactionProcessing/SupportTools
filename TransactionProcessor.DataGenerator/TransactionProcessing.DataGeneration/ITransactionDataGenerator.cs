@@ -7,6 +7,9 @@ public interface ITransactionDataGenerator{
     #region Methods
 
     List<DateTime> GenerateDateRange(DateTime startDate, DateTime endDate);
+
+    Task<List<ContractResponse>> GetEstateContracts(Guid estateId,
+                                                    CancellationToken cancellationToken);
     Task<List<ContractResponse>> GetMerchantContracts(MerchantResponse merchant, CancellationToken cancellationToken);
     Task<List<MerchantResponse>> GetMerchants(Guid estateId, CancellationToken cancellationToken);
     Task<Boolean> PerformMerchantLogon(DateTime dateTime, MerchantResponse merchant, CancellationToken cancellationToken);
@@ -15,6 +18,7 @@ public interface ITransactionDataGenerator{
     Task<Boolean> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, Guid userId, CancellationToken cancellationToken);
     Task<MerchantResponse> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken);
     Task<Boolean> GenerateMerchantStatement(Guid estateId, Guid merchantId, DateTime statementDateTime, CancellationToken cancellationToken);
+    Task<Boolean> MakeFloatDeposit(DateTime dateTime, Guid estateId, Guid contractId, Guid contractProductId, Decimal amount, CancellationToken cancellationToken);
 
     event TraceHandler TraceGenerated;
     

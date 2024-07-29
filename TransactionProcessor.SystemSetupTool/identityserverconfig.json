@@ -111,19 +111,19 @@
       "secret": "d192cbc46d834d0da90e8a9d50ded543",
       "client_name": "Management UI App Client",
       "client_description": "Client for use by management app",
-      "allowed_scopes": [ "fileProcessor", "estateManagement", "openid", "email", "profile" ],
+      "allowed_scopes": [ "fileProcessor", "estateManagement", "transactionProcessor", "openid", "email", "profile" ],
       "allowed_grant_types": [
         "hybrid",
         "password"
       ],
       "client_redirect_uris": [
         "https://localhost:5004/signin-oidc",
-        "https://192.168.1.67:5004/signin-oidc",
+        "https://192.168.1.86:5004/signin-oidc",
         "https://192.168.1.167:5004/signin-oidc"
       ],
       "client_post_logout_redirect_uris": [
         "https://localhost:5004/signout-oidc",
-        "https://192.168.1.67:5004/signout-oidc",
+        "https://192.168.1.86:5004/signout-oidc",
         "https://192.168.1.167:5004/signout-oidc"
       ],
       "require_consent": true,
