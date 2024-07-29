@@ -205,11 +205,11 @@ namespace TransactionDataGenerator{
 
         [Flags]
         enum DataToSend {
-            FloatDeposits,
-            Logons,
-            Sales,
-            Files,
-            Settlement
+            FloatDeposits= 0,
+            Logons = 1,
+            Sales = 2,
+            Files = 4,
+            Settlement = 8
         }
     }
 }

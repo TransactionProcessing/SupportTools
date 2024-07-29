@@ -791,8 +791,9 @@ namespace TransactionProcessor.SystemSetupTool
                                                                    cancellationToken);
 
                     foreach (var @operator in estate.Operators) {
-                        if (existingMerchant.Operators == null)
+                        if (existingMerchant.Operators == null) {
                             existingMerchant.Operators = new List<MerchantOperatorResponse>();
+                        }
 
                         var merchantOperator = existingMerchant.Operators.SingleOrDefault(o => o.Name == @operator.OperatorId.ToString());
                         if(merchantOperator != null)
