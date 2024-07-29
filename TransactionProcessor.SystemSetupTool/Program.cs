@@ -84,9 +84,11 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
             Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
 
-            Boolean isEstateSetup = false;
+            Boolean isEstateSetup = true;
 
-            if (isEstateSetup == true){
+            String configFileName = "setupconfig.json";
+
+            if (isEstateSetup == false){
 
                 IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
                 IdentityServerFunctions identityServerFunctions = new IdentityServerFunctions(Program.SecurityServiceClient, identityServerConfiguration);
@@ -96,7 +98,7 @@ namespace TransactionProcessor.SystemSetupTool
                 await eventStoreFunctions.SetupEventStore(cancellationToken);
             }
             else{
-                EstateConfig estateConfiguration = await GetEstatesConfig(cancellationToken);
+                EstateConfig estateConfiguration = await GetEstatesConfig(configFileName, cancellationToken);
 
                 foreach (Estate estate in estateConfiguration.Estates){
                     EstateSetupFunctions estateSetup = new EstateSetupFunctions(Program.SecurityServiceClient, Program.EstateClient, Program.TransactionProcessorClient, estate);
@@ -119,11 +121,11 @@ namespace TransactionProcessor.SystemSetupTool
             return identityServerConfiguration;
         }
         
-        private static async Task<EstateConfig> GetEstatesConfig(CancellationToken cancellationToken)
+        private static async Task<EstateConfig> GetEstatesConfig(String configFileName, CancellationToken cancellationToken)
         {
             // Read the estate config json string
             String estateJsonData = null;
-            using(StreamReader sr = new StreamReader("setupconfig.production.json"))
+            using(StreamReader sr = new StreamReader(configFileName))
             {
                 estateJsonData = await sr.ReadToEndAsync(cancellationToken);
             }
@@ -297,11 +299,12 @@ namespace TransactionProcessor.SystemSetupTool
             subscriptions.Add(("$ce-TransactionAggregate", "Transaction Processor", 0));
             subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor", 0));
             subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor", 0));
+            subscriptions.Add(("$ce-FloatAggregate", "Transaction Processor", 0));
 
             subscriptions.Add(("$ce-EstateAggregate", "Transaction Processor - Ordered", 1));
             subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1));
             subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1));
-
+            
             subscriptions.Add(("$ce-TransactionAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-SettlementAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-VoucherAggregate", "Estate Management", 0));
@@ -314,7 +317,6 @@ namespace TransactionProcessor.SystemSetupTool
             subscriptions.Add(("$ce-FileAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-FileImportLogAggregate", "Estate Management", 0));
             subscriptions.Add(("$ce-OperatorAggregate", "Estate Management", 0));
-            subscriptions.Add(("$ce-FloatAggregate", "Estate Management", 0));
 
             subscriptions.Add(("$ce-TransactionAggregate", "Estate Management - Ordered", 0));
             subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management - Ordered", 0));
@@ -788,7 +790,11 @@ namespace TransactionProcessor.SystemSetupTool
                                                                    this.EstateId,
                                                                    cancellationToken);
 
-                    foreach (var @operator in estate.Operators){
+                    foreach (var @operator in estate.Operators) {
+                        if (existingMerchant.Operators == null) {
+                            existingMerchant.Operators = new List<MerchantOperatorResponse>();
+                        }
+
                         var merchantOperator = existingMerchant.Operators.SingleOrDefault(o => o.Name == @operator.OperatorId.ToString());
                         if(merchantOperator != null)
                             continue;

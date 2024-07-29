@@ -141,6 +141,25 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         return dateRange;
     }
 
+    public async Task<List<ContractResponse>> GetEstateContracts(Guid estateId, CancellationToken cancellationToken) {
+        String token = await this.GetAuthToken(cancellationToken);
+        List<ContractResponse> contracts = new List<ContractResponse>();
+
+        try
+        {
+            this.WriteTrace($"About to get contracts for Estate Id [{estateId}]");
+            contracts = await this.EstateClient.GetContracts(token, estateId, cancellationToken);
+            this.WriteTrace($"{contracts.Count} contracts returned for Estate");
+        }
+        catch (Exception ex)
+        {
+            this.WriteError("Error getting contracts");
+            this.WriteError(ex);
+        }
+
+        return contracts;
+    }
+
     public async Task<List<ContractResponse>> GetMerchantContracts(MerchantResponse merchant, CancellationToken cancellationToken){
 
         List<ContractResponse> contracts = new List<ContractResponse>();
@@ -303,13 +322,6 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             return false;
         }
 
-        List<(Guid, RecordFloatCreditPurchaseRequest)> floatDepositRequests = this.CreateFloatDepositRequests(salesToSend, dateTime);
-        IOrderedEnumerable<(Guid, RecordFloatCreditPurchaseRequest)> orderedFloatDepositRequests = floatDepositRequests.OrderBy(f => f.Item2.PurchaseDateTime);
-        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests)
-        {
-            await this.SendFloatDepositRequest(recordFloatCreditPurchaseRequest.Item1, recordFloatCreditPurchaseRequest.Item2, cancellationToken);
-        }
-
         Int32 salesSent = 0;
         IOrderedEnumerable<SaleTransactionRequest> orderedSales = salesToSend.OrderBy(s => s.TransactionDateTime);
         // Send the sales to the host
@@ -328,54 +340,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
 
         return true;
     }
-
-    private List<(Guid, RecordFloatCreditPurchaseRequest)> CreateFloatDepositRequests(List<SaleTransactionRequest> salesToSend, DateTime dateTime){
-
-        List<(Guid,RecordFloatCreditPurchaseRequest)> floatPurchaseRequests = new List<(Guid,RecordFloatCreditPurchaseRequest)>();
-
-        List<(Guid estateId, Guid contractId, Guid productId, Decimal amount)> sales = new List<(Guid estateId, Guid contractId, Guid produstId, Decimal amount)>();
-        foreach (SaleTransactionRequest saleTransactionRequest in salesToSend){
-            Boolean hasAmount = saleTransactionRequest.AdditionalTransactionMetadata.ContainsKey("Amount");
-            if (hasAmount == false){
-                continue;
-            }
-
-            if (saleTransactionRequest.AdditionalTransactionMetadata.TryGetValue("Amount", out String amount)){
-                Decimal decimalAmount = Decimal.Parse(amount);
-                sales.Add((saleTransactionRequest.EstateId, saleTransactionRequest.ContractId, saleTransactionRequest.ProductId, decimalAmount));
-            }
-        }
-
-        var salesByProductList = sales.GroupBy(s => new{
-                                                           s.estateId,
-                                                           s.contractId,
-                                                           s.productId
-                                                       }).Select(g => new{
-                                                                             g.Key.estateId,
-                                                                             g.Key.contractId,
-                                                                             g.Key.productId,
-                                                                             amount = g.Sum(s => s.amount)
-                                                                         }).ToList();
-
-
-        foreach (var salesByProduct in salesByProductList){
-            Guid floatId = IdGenerationService.GenerateFloatAggregateId(salesByProduct.estateId, salesByProduct.contractId, salesByProduct.productId);
-
-            Decimal costPrice = salesByProduct.amount * 0.85m;
-
-            RecordFloatCreditPurchaseRequest request = new RecordFloatCreditPurchaseRequest{
-                                                                                               FloatId = floatId,
-                                                                                               CreditAmount = salesByProduct.amount,
-                                                                                               CostPrice = costPrice,
-                                                                                               PurchaseDateTime = dateTime
-                                                                                           };
-
-            floatPurchaseRequests.Add((salesByProduct.estateId, request));
-        }
-
-        return floatPurchaseRequests;
-    }
-
+    
     private List<(Guid, RecordFloatCreditPurchaseRequest)> CreateFloatDepositRequests(UploadFile uploadFile, DateTime dateTime){
         List<(Guid, RecordFloatCreditPurchaseRequest)> floatPurchaseRequests = new();
         Guid floatId = IdGenerationService.GenerateFloatAggregateId(uploadFile.EstateId, uploadFile.ContractId, uploadFile.ProductId);
@@ -417,14 +382,7 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
         if (depositSent == false){
             return false;
         }
-
-        List<(Guid, RecordFloatCreditPurchaseRequest)> floatDepositRequests = this.CreateFloatDepositRequests(uploadFile.Item2, dateTime);
-        IOrderedEnumerable<(Guid, RecordFloatCreditPurchaseRequest)> orderedFloatDepositRequests = floatDepositRequests.OrderBy(f => f.Item2.PurchaseDateTime);
-        foreach ((Guid, RecordFloatCreditPurchaseRequest) recordFloatCreditPurchaseRequest in orderedFloatDepositRequests)
-        {
-            await this.SendFloatDepositRequest(recordFloatCreditPurchaseRequest.Item1, recordFloatCreditPurchaseRequest.Item2, cancellationToken);
-        }
-
+        
         Boolean fileSent = await this.UploadFile(uploadFile.Item2, uploadFile.Item2.UserId, dateTime, cancellationToken);
 
         if (fileSent == false){
@@ -490,6 +448,29 @@ public class TransactionDataGenerator : ITransactionDataGenerator{
             this.WriteError(ex);
             return false;
         }
+    }
+
+    public async Task<Boolean> MakeFloatDeposit(DateTime dateTime,
+                                                Guid estateId,
+                                                Guid contractId,
+                                                Guid productId,
+                                                Decimal amount,
+                                                CancellationToken cancellationToken) {
+
+
+        Guid floatId = IdGenerationService.GenerateFloatAggregateId(estateId, contractId, productId);
+
+        Decimal costPrice = amount * 0.85m;
+
+        RecordFloatCreditPurchaseRequest request = new RecordFloatCreditPurchaseRequest
+        {
+            FloatId = floatId,
+            CreditAmount = amount,
+            CostPrice = costPrice,
+            PurchaseDateTime = dateTime
+        };
+
+        return await this.SendFloatDepositRequest(estateId, request, cancellationToken);
     }
 
     public event TraceHandler? TraceGenerated;
