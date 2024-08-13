@@ -52,13 +52,13 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: healthchecksui
-        path: healthchecksui.zip    
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip    
 
     - name: Upload the artifact (Scheduler Service)
       uses: actions/upload-artifact@v3
       with:
         name: schedulerservice
-        path: schedulerservice.zip    
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
 
     - name: Build and Publish Nuget Packages
       run: |
