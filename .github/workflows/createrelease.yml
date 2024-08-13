@@ -38,12 +38,12 @@ jobs:
             
     - name: Build Release Package (Health Check UI)
       run: |
-         cd /home/runner/work/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/publishOutput
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
          zip -r ../healthchecksui.zip ./*
     
     - name: Build Release Package (Scheduler Service)
       run: |
-         cd /home/runner/work/TransactionProcessor.SchedulerService/TransactionProcessor.SchedulerService/publishOutput
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.SchedulerService/publishOutput
          zip -r ../schedulerservice.zip ./*
 
     - name: Upload the artifact (Health Check UI)    
