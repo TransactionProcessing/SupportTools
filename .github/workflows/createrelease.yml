@@ -43,7 +43,7 @@ jobs:
     
     - name: Build Release Package (Scheduler Service)
       run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.SchedulerService/publishOutput
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
          zip -r ../schedulerservice.zip ./*
 
     - name: Upload the artifact (Health Check UI)    
