@@ -40,11 +40,13 @@ jobs:
       run: |
          cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
          zip -r ../healthchecksui.zip ./*
+         echo "Zip file created at: $(realpath ../healthchecksui.zip)"
     
     - name: Build Release Package (Scheduler Service)
       run: |
          cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
          zip -r ../schedulerservice.zip ./*
+         echo "Zip file created at: $(realpath ../schedulerservice.zip)"
 
     - name: Upload the artifact (Health Check UI)    
       uses: actions/upload-artifact@v3
