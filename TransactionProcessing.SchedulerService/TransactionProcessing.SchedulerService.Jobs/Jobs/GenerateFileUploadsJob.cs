@@ -1,11 +1,12 @@
-﻿using TransactionProcessing.SchedulerService.Jobs.Common;
+﻿using Microsoft.EntityFrameworkCore.Metadata;
+using TransactionProcessing.SchedulerService.DataGenerator;
+using TransactionProcessing.SchedulerService.Jobs.Common;
 using TransactionProcessing.SchedulerService.Jobs.Configuration;
 
 namespace TransactionProcessing.SchedulerService.Jobs.Jobs
 {
     using System;
     using System.Threading.Tasks;
-    using DataGeneration;
     using Quartz;
     using Shared.Logger;
     using TransactionProcessing.SchedulerService.Jobs.Jobs;
@@ -18,9 +19,11 @@ namespace TransactionProcessing.SchedulerService.Jobs.Jobs
         {
             FileUploadJobConfig configuration = Helpers.LoadJobConfig<FileUploadJobConfig>(context.MergedJobDataMap);
 
-            ITransactionDataGenerator t = CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
+            ITransactionDataGeneratorService t = CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
             t.TraceGenerated += TraceGenerated;
-            await Jobs.GenerateFileUploads(t, configuration, context.CancellationToken);
+            var result = await Jobs.GenerateFileUploads(t, configuration, context.CancellationToken);
+            if (result.IsFailed)
+                throw new JobExecutionException(result.Message);
         }
         #endregion
     }

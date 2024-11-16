@@ -12,6 +12,7 @@ using MessagingService.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using SecurityService.Client;
+using Shared.General;
 using TransactionProcessor.Client;
 
 public static class Bootstrapper{
@@ -39,7 +40,7 @@ public static class Bootstrapper{
         Bootstrapper.Services.AddSingleton(httpClient);
         Bootstrapper.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
         Bootstrapper.Services.AddSingleton<IMessagingServiceClient, MessagingServiceClient>();
-        Bootstrapper.Services.AddSingleton<IEstateClient, EstateClient>();
+        
         Bootstrapper.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
         Bootstrapper.Services.AddSingleton<Func<String, String>>(container => serviceName =>
         {
@@ -53,7 +54,10 @@ public static class Bootstrapper{
                 _ => throw new NotSupportedException($"Service name {serviceName} not supported")
             };
         });
-            
+
+
+        Func<String, String> resolver1() => serviceName => configuration.EstateManagementApi;
+        Bootstrapper.Services.AddSingleton<IEstateClient>(new EstateClient(resolver1(), httpClient, 2));
         Bootstrapper.ServiceProvider = Bootstrapper.Services.BuildServiceProvider();
     }
 
