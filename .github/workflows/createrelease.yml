@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  build:
+  buildlinux:
     name: "Release"
     env:
         ASPNETCORE_ENVIRONMENT: "Production"
@@ -36,95 +36,149 @@ jobs:
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
         dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput -r win-x64 --self-contained
             
-    - name: Create Zip package for Health Checks UI 🐙
-      id: packagehealthui
-      uses: OctopusDeploy/create-zip-package-action@v3
-      with:
-        package_id: TransactionProcessor.HealthChecksUI
-        version: ${{ steps.get_version.outputs.VERSION }}
-        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
-        files: "**/*"
-        output_folder: /home/runner/work/SupportTools/TransactionProcessor.HealthChecksUI/
+    - name: Build Release Package (Health Check UI)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
+         zip -r ../healthchecksui.zip ./*
+         echo "Zip file created at: $(realpath ../healthchecksui.zip)"
+    
+    - name: Build Release Package (Scheduler Service)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
+         zip -r ../schedulerservice.zip ./*
+         echo "Zip file created at: $(realpath ../schedulerservice.zip)"
 
-    - name: Push a package to Octopus Deploy - Health Checks UI 🐙
-      uses: OctopusDeploy/push-package-action@v3
+    - name: Upload the artifact (Health Check UI)    
+      uses: actions/upload-artifact@v3
       with:
-        api_key: ${{ secrets.OCTOPUS_APIKEY }}
-        server: ${{ secrets.OCTOPUS_URL }}
-        space: ${{ secrets.OCTOPUS_SPACE }}
-        packages: ${{ steps.packagehealthui.outputs.package_file_path }}
+        name: healthchecksui
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip    
 
-    - name: Create Zip package for Scheduler Service 🐙
-      id: packagescheduler
-      uses: OctopusDeploy/create-zip-package-action@v3
+    - name: Upload the artifact (Scheduler Service)
+      uses: actions/upload-artifact@v3
       with:
-        package_id: TransactionProcessing.SchedulerService
-        version: ${{ steps.get_version.outputs.VERSION }}
-        base_path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
-        files: "**/*"
-        output_folder: /home/runner/work/SupportTools/TransactionProcessing.SchedulerService/
-        
-    - name: Push a package to Octopus Deploy - Scheduler Service 🐙
-      uses: OctopusDeploy/push-package-action@v3
-      with:
-        api_key: ${{ secrets.OCTOPUS_APIKEY }}
-        server: ${{ secrets.OCTOPUS_URL }}
-        space: ${{ secrets.OCTOPUS_SPACE }}
-        packages: ${{ steps.packagescheduler.outputs.package_file_path }}
-        
-    - name: Get Release
-      id: getrelease
-      uses: octokit/request-action@v1.x
-      with:
-          route: GET /repos/StuartFerguson/SupportTools/releases/tags/${{ steps.get_version.outputs.VERSION }}
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Build Release Notes
-      id: buildreleasenotes
-      uses: gr2m/get-json-paths-action@v1.x
-      with:
-          json: ${{ steps.getrelease.outputs.data }}
-          releasenote: "body"
-
-    - name: Create a release in Octopus Deploy 🐙
-      uses: OctopusDeploy/create-release-action@v3
-      id: "create_release"
-      with:
-        api_key: ${{ secrets.OCTOPUS_APIKEY }}
-        server: ${{ secrets.OCTOPUS_URL }}
-        space: ${{ secrets.OCTOPUS_SPACE }}
-        project: "Support Tools"
-        package_version: ${{ steps.get_version.outputs.VERSION }}
-        release_notes: ${{ steps.buildreleasenotes.outputs.releasenote }}
-        release_number: ${{ steps.get_version.outputs.VERSION }}
-        ignore_existing: true
-        channel: "Default"
-
-    - name: Deploy a release in Octopus Deploy 🐙
-      uses: OctopusDeploy/deploy-release-action@v3
-      id: "deploy_release"
-      with:
-        api_key: ${{ secrets.OCTOPUS_APIKEY }}
-        server: ${{ secrets.OCTOPUS_URL }}
-        space: ${{ secrets.OCTOPUS_SPACE }}
-        project: 'Support Tools'
-        release_number: ${{steps.create_release.outputs.release_number}}
-        environments: |
-            Staging      
-            
-    - name: Await task in Octopus Deploy 🐙
-      uses: OctopusDeploy/await-task-action@v3
-      with:
-        api_key: ${{ secrets.OCTOPUS_APIKEY }}
-        server: ${{ secrets.OCTOPUS_URL }}
-        space: ${{ secrets.OCTOPUS_SPACE }}
-        timeout_after: 300
-        polling_interval: 30
-        server_task_id: ${{ fromJson(steps.deploy_release.outputs.server_tasks)[0].serverTaskId }}
-
+        name: schedulerservice
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
 
     - name: Build and Publish Nuget Packages
       run: |
         dotnet pack "TransactionProcessor.DataGenerator\TransactionProcessing.DataGeneration\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.get_version.outputs.VERSION }} --output Nugets -c Release            
-        dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.get_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }}       
+        dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.get_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }} --skip-duplicate
+
+  deploystaging:
+    runs-on: stagingserver
+    needs: buildlinux
+    environment: staging
+    name: "Deploy to Staging"
+    
+    steps:
+      - name: Download the artifact (Health Check UI) 
+        uses: actions/download-artifact@v3
+        with:
+          name: healthchecksui
+
+      - name: Remove existing  Windows service (Health Check UI)
+        run: |
+          $serviceName = "Transaction Processing - Health Checks UI"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Health Check UI)
+        run: |
+          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\supporttools\healthcheckui" -Force
+      
+      - name: Install as a Windows service (Health Check UI)
+        run: |
+          $serviceName = "Transaction Processing - Health Checks UI"
+          $servicePath = "C:\txnproc\transactionprocessing\supporttools\healthcheckui\TransactionProcessor.HealthChecksUI.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description "Transaction Processing - Health Checks UI" -DisplayName "Transaction Processing - Health Checks UI" -StartupType Automatic
+          Start-Service -Name $serviceName
+
+      - name: Download the artifact (Scheduler Service) 
+        uses: actions/download-artifact@v3
+        with:
+          name: schedulerservice
+
+      - name: Remove existing  Windows service (Scheduler Service)
+        run: |
+          $serviceName = "Transaction Processing - Scheduler Service"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Scheduler Service)
+        run: |
+          Expand-Archive -Path schedulerservice.zip -DestinationPath "C:\txnproc\transactionprocessing\supporttools\schedulerservice" -Force
+      
+      - name: Install as a Windows service (Scheduler Service)
+        run: |
+          $serviceName = "Transaction Processing - Scheduler Service"
+          $servicePath = "C:\txnproc\transactionprocessing\supporttools\schedulerservice\TransactionProcessing.SchedulerService.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description "Transaction Processing - Scheduler Service" -DisplayName "Transaction Processing - Scheduler Service" -StartupType Automatic
+          Start-Service -Name $serviceName          
+  
+  deployproduction:
+    runs-on: productionserver
+    needs: [buildlinux, deploystaging]
+    environment: production
+    name: "Deploy to Production"
+    
+    steps:
+      - name: Download the artifact (Health Check UI) 
+        uses: actions/download-artifact@v3
+        with:
+          name: healthchecksui
+
+      - name: Remove existing  Windows service (Health Check UI)
+        run: |
+          $serviceName = "Transaction Processing - Health Checks UI"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Health Check UI)
+        run: |
+          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\supporttools\healthcheckui" -Force
+      
+      - name: Install as a Windows service (Health Check UI)
+        run: |
+          $serviceName = "Transaction Processing - Health Checks UI"
+          $servicePath = "C:\txnproc\transactionprocessing\supporttools\healthcheckui\TransactionProcessor.HealthChecksUI.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description "Transaction Processing - Health Checks UI" -DisplayName "Transaction Processing - Health Checks UI" -StartupType Automatic
+          Start-Service -Name $serviceName
+
+      - name: Download the artifact (Scheduler Service) 
+        uses: actions/download-artifact@v3
+        with:
+          name: schedulerservice
+
+      - name: Remove existing  Windows service (Scheduler Service)
+        run: |
+          $serviceName = "Transaction Processing - Scheduler Service"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Scheduler Service)
+        run: |
+          Expand-Archive -Path schedulerservice.zip -DestinationPath "C:\txnproc\transactionprocessing\supporttools\schedulerservice" -Force
+      
+      - name: Install as a Windows service (Scheduler Service)
+        run: |
+          $serviceName = "Transaction Processing - Scheduler Service"
+          $servicePath = "C:\txnproc\transactionprocessing\supporttools\schedulerservice\TransactionProcessing.SchedulerService.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description "Transaction Processing - Scheduler Service" -DisplayName "Transaction Processing - Scheduler Service" -StartupType Automatic
+          Start-Service -Name $serviceName          
