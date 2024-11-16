@@ -10,7 +10,7 @@ namespace JobTestDriver
     using MessagingService.Client;
     using NLog.LayoutRenderers.Wrappers;
     using SecurityService.Client;
-    using TransactionProcessing.DataGeneration;
+    using TransactionProcessing.SchedulerService.DataGenerator;
     using TransactionProcessing.SchedulerService.Jobs;
     using TransactionProcessor.Client;
 
@@ -58,7 +58,7 @@ namespace JobTestDriver
             String clientId = "serviceClient";
             String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
 
-            ITransactionDataGenerator t = new TransactionDataGenerator(securityServiceClient,
+            ITransactionDataGeneratorService t = new TransactionDataGeneratorService(securityServiceClient,
                                                                        estateClient,
                                                                        transactionProcessorClient,
                                                                        estateManagementApi,

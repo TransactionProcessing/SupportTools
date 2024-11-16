@@ -6,7 +6,7 @@ using Quartz;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Logger;
-using TransactionProcessing.DataGeneration;
+using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessing.SchedulerService.Jobs.Common;
 using TransactionProcessing.SchedulerService.Jobs.Configuration;
 using TransactionProcessor.Client;
@@ -20,13 +20,13 @@ public abstract class BaseJob : IJob{
 
     public BaseConfiguration BaseConfiguration;
 
-    protected ITransactionDataGenerator CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode){
+    protected ITransactionDataGeneratorService CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode){
         ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
         IEstateClient estateClient = Bootstrapper.GetService<IEstateClient>();
         ITransactionProcessorClient transactionProcessorClient = Bootstrapper.GetService<ITransactionProcessorClient>();
         Func<String, String> baseAddressFunc = Bootstrapper.GetService<Func<String, String>>();
 
-        ITransactionDataGenerator g = new TransactionDataGenerator(securityServiceClient,
+        ITransactionDataGeneratorService g = new TransactionDataGeneratorService(securityServiceClient,
                                                                    estateClient,
                                                                    transactionProcessorClient,
                                                                    baseAddressFunc("EstateManagementApi"),
@@ -38,13 +38,13 @@ public abstract class BaseJob : IJob{
         return g;
     }
 
-    protected async Task<String> GetToken(String clientId, String clientSecret, CancellationToken cancellationToken)
-    {
-        ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
-        TokenResponse token = await securityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
+    //protected async Task<String> GetToken(String clientId, String clientSecret, CancellationToken cancellationToken)
+    //{
+    //    ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
+    //    TokenResponse token = await securityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
 
-        return token.AccessToken;
-    }
+    //    return token.AccessToken;
+    //}
 
     protected void TraceGenerated(TraceEventArgs traceArguments)
     {
@@ -73,15 +73,6 @@ public abstract class BaseJob : IJob{
 
         Logger.LogInformation($"Job Group: [{this.JobGroup}] Name: [{this.JobName}] completed");
     }
-
-    //private void LogConfiguration(){
-    //    Logger.LogInformation($"Client Id: [{this.ClientId}]");
-    //    Logger.LogInformation($"EstateManagementApi is: [{this.EstateManagementApi}]");
-    //    Logger.LogInformation($"FileProcessorApi is: [{this.FileProcessorApi}]");
-    //    Logger.LogInformation($"SecurityService is: [{this.SecurityService}]");
-    //    Logger.LogInformation($"TestHostApi is: [{this.TestHostApi}]");
-    //    Logger.LogInformation($"TransactionProcessorApi is: [{this.TransactionProcessorApi}]");
-    //}
 
     private void CacheConfiguration(IJobExecutionContext context){
         this.JobName = context.JobDetail.Key.Name;
