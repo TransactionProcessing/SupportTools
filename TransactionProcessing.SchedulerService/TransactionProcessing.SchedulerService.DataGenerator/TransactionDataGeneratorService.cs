@@ -8,6 +8,7 @@ using EstateManagement.DataTransferObjects.Responses.Merchant;
 using Newtonsoft.Json;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
+using Shared.Results;
 using SimpleResults;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
@@ -63,10 +64,12 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
     public async Task<Result<List<ContractResponse>>> GetEstateContracts(Guid estateId,
                                                                          CancellationToken cancellationToken) {
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to get contracts for Estate Id [{estateId}]");
-        Result<List<ContractResponse>>? result = await this.EstateClient.GetContracts(token, estateId, cancellationToken);
+        Result<List<ContractResponse>>? result = await this.EstateClient.GetContracts(tokenResult.Data, estateId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting contracts");
             this.WriteError(result.Message);
@@ -86,10 +89,12 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Invalid("Merchant is null");
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to get contracts for Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
-        Result<List<ContractResponse>>? result = await this.EstateClient.GetMerchantContracts(token, merchant.EstateId, merchant.MerchantId, cancellationToken);
+        Result<List<ContractResponse>>? result = await this.EstateClient.GetMerchantContracts(tokenResult.Data, merchant.EstateId, merchant.MerchantId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchant contracts");
             this.WriteError(result.Message);
@@ -103,9 +108,11 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
     public async Task<Result<List<MerchantResponse>>> GetMerchants(Guid estateId,
                                                                    CancellationToken cancellationToken) {
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
         this.WriteTrace($"About to get merchants for Estate Id [{estateId}]");
-        Result<List<MerchantResponse>>? result = await this.EstateClient.GetMerchants(token, estateId, cancellationToken);
+        Result<List<MerchantResponse>>? result = await this.EstateClient.GetMerchants(tokenResult.Data, estateId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchants");
             this.WriteError(result.Message);
@@ -274,19 +281,22 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
                                              Guid userId,
                                              CancellationToken cancellationToken) {
         Int32 numberOfSales = this.r.Next(5, 15);
-        (Decimal, UploadFile) uploadFile = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
+        var builtFileResult = await this.BuildUploadFile(dateTime, merchant, contract, numberOfSales, cancellationToken);
 
-        if (uploadFile.Item2 == null) {
-            return Result.Failure();
+        if (builtFileResult.IsFailed) {
+            return ResultHelpers.CreateFailure(builtFileResult);
         }
 
+        Decimal fileValue = builtFileResult.Data.Item1;
+        UploadFile uploadFile = builtFileResult.Data.Item2;
+
         if (this.RunningMode == RunningMode.WhatIf) {
-            this.WriteTrace($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.Item2.GetNumberOfLines()}]");
+            this.WriteTrace($"Send File for Merchant [{merchant.MerchantName}] Contract [{contract.OperatorName}] Lines [{uploadFile.GetNumberOfLines()}]");
             return Result.Success();
         }
 
         // Build up a deposit (minus the last sale amount)
-        MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(uploadFile.Item1, dateTime);
+        MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(fileValue, dateTime);
 
         // Send the deposit
         var result = await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
@@ -296,7 +306,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return result;
         }
 
-        Result fileSendResult = await this.UploadFile(uploadFile.Item2, uploadFile.Item2.UserId, dateTime, cancellationToken);
+        Result fileSendResult = await this.UploadFile(uploadFile, uploadFile.UserId, dateTime, cancellationToken);
 
         if (fileSendResult.IsFailed)
         {
@@ -309,7 +319,9 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
     private async Task<Result> UploadFile(UploadFile uploadFile, Guid userId, DateTime fileDateTime, CancellationToken cancellationToken)
     {
         var formData = new MultipartFormDataContent();
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
 
         var fileContent = new ByteArrayContent(uploadFile.GetFileContents());
         fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
@@ -325,7 +337,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             Content = formData,
         };
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
+        request.Headers.Authorization = new AuthenticationHeaderValue("bearer", tokenResult.Data);
         HttpResponseMessage response = null;
 
         try
@@ -362,13 +374,16 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         }
     }
 
-    private async Task<(Decimal, UploadFile)> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken)
+    private async Task<Result<(Decimal, UploadFile)>> BuildUploadFile(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfLines, CancellationToken cancellationToken)
     {
         ProductType productType = this.GetProductType(contract.OperatorName);
         Guid fileProfileId = await TransactionDataGeneratorService.GetFileProfileIdFromOperator(contract.OperatorName, cancellationToken);
         Guid variableProductId = contract.Products.Single(p => p.Value == null).ProductId;
-        String token = await this.GetAuthToken(cancellationToken);
-        EstateResponse estate = await this.EstateClient.GetEstate(token, merchant.EstateId, cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
+
+        EstateResponse estate = await this.EstateClient.GetEstate(tokenResult.Data, merchant.EstateId, cancellationToken);
         Guid userId = estate.SecurityUsers.First().SecurityUserId;
         Decimal depositAmount = 0;
         if (productType == ProductType.MobileTopup)
@@ -396,7 +411,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             }
 
             mobileTopupUploadFile.AddTrailer();
-            return (depositAmount, mobileTopupUploadFile);
+            return  Result.Success<(Decimal, UploadFile)>((depositAmount, mobileTopupUploadFile));
         }
 
         if (productType == ProductType.Voucher)
@@ -433,11 +448,11 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
 
             voucherTopupUploadFile.AddTrailer();
-            return (depositAmount, voucherTopupUploadFile);
+            return Result.Success<(Decimal, UploadFile)>((depositAmount, voucherTopupUploadFile));
         }
 
         // Not supported product type for file upload
-        return (0, null);
+        return Result.Invalid($"Product Type {productType} not supported");
     }
 
 
@@ -536,10 +551,12 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Success();
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to make Deposit [{request.Amount}] for Merchant [{merchant.MerchantName}]");
-        Result result = await this.EstateClient.MakeMerchantDeposit(token, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
+        Result result = await this.EstateClient.MakeMerchantDeposit(tokenResult.Data, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
         if (result.IsFailed) {
             this.WriteError($"Error making merchant deposit for merchant [{merchant.MerchantName}]");
             this.WriteError(result.Message);
@@ -571,16 +588,20 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Success();
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
-        return await this.TransactionProcessorClient.ProcessSettlement(token, dateTime, estateId, merchantId, cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
+        return await this.TransactionProcessorClient.ProcessSettlement(tokenResult.Data, dateTime, estateId, merchantId, cancellationToken);
     }
 
     public async Task<Result<MerchantResponse>> GetMerchant(Guid estateId,
                                                             Guid merchantId,
                                                             CancellationToken cancellationToken) {
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
         this.WriteTrace($"About to get merchant {merchantId} for Estate Id [{estateId}]");
-        Result<MerchantResponse>? result = await this.EstateClient.GetMerchant(token, estateId, merchantId, cancellationToken);
+        Result<MerchantResponse>? result = await this.EstateClient.GetMerchant(tokenResult.Data, estateId, merchantId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchant");
             this.WriteError(result.Message);
@@ -611,8 +632,10 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             {
                 this.WriteTrace($"Merchant Statement Generated for merchant [{merchantId}] Statement Date [{body.merchant_statement_date}]");
             }
-            String token = await this.GetAuthToken(cancellationToken);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenResult.Data);
 
             using (HttpClient client = new HttpClient())
             {
@@ -654,9 +677,11 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Success();
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
         this.WriteTrace($"About to Float Credit Request");
-        Result? result = await this.TransactionProcessorClient.RecordFloatCreditPurchase(token, estateId, request, cancellationToken);
+        Result? result = await this.TransactionProcessorClient.RecordFloatCreditPurchase(tokenResult.Data, estateId, request, cancellationToken);
         if (result.IsFailed) {
             this.WriteError($"Error Float Credit Request");
             this.WriteError(result.Message);
@@ -676,10 +701,12 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Success();
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
         SerialisedMessage requestSerialisedMessage = request.CreateSerialisedMessage();
 
-        return await this.TransactionProcessorClient.PerformTransaction(token, requestSerialisedMessage, CancellationToken.None);
+        return await this.TransactionProcessorClient.PerformTransaction(tokenResult.Data, requestSerialisedMessage, CancellationToken.None);
     }
 
     private async Task<Result<SerialisedMessage>> SendSaleTransaction(MerchantResponse merchant,
@@ -690,7 +717,9 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return Result.Success();
         }
 
-        String token = await this.GetAuthToken(cancellationToken);
+        Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return ResultHelpers.CreateFailure(tokenResult);
 
         SerialisedMessage requestSerialisedMessage = request.CreateSerialisedMessage();
         SerialisedMessage responseSerialisedMessage = null;
@@ -699,7 +728,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         Result<SerialisedMessage> result = new Result<SerialisedMessage>();
         for (int i = 0; i < 3; i++) {
             try {
-                result = await this.TransactionProcessorClient.PerformTransaction(token, requestSerialisedMessage, CancellationToken.None);
+                result = await this.TransactionProcessorClient.PerformTransaction(tokenResult.Data, requestSerialisedMessage, CancellationToken.None);
                 break;
             }
             catch (TaskCanceledException e) {
@@ -723,24 +752,29 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
     private readonly String ClientSecret;
     private readonly String ClientToken;
 
-    private async Task<String> GetAuthToken(CancellationToken cancellationToken) {
+    private async Task<Result<String>> GetAuthToken(CancellationToken cancellationToken) {
         this.WriteTrace($"About to get auth token");
 
         if (this.TokenResponse == null) {
             this.WriteTrace($"TokenResponse was null");
-            TokenResponse token = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
-            this.TokenResponse = token;
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
+
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            this.TokenResponse = tokenResult.Data;
         }
 
         if (this.TokenResponse.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2)) {
             this.WriteTrace($"TokenResponse was expired");
-            TokenResponse token = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
-            this.TokenResponse = token;
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            this.TokenResponse = tokenResult.Data;
         }
 
         this.WriteTrace($"Auth token retrieved");
 
-        return this.TokenResponse.AccessToken;
+        return Result.Success(this.TokenResponse.AccessToken);
     }
 
     private void WriteMessage(String message,
