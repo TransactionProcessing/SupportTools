@@ -774,7 +774,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
         this.WriteTrace($"Auth token retrieved");
 
-        return Result.Success(this.TokenResponse.AccessToken);
+        return Result.Success<String>(this.TokenResponse.AccessToken);
     }
 
     private void WriteMessage(String message,
