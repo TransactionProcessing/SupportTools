@@ -20,16 +20,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="2024.5.1" />
+    <PackageReference Include="EstateManagement.Client" Version="2024.11.2-build129" />
     <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.2.1" />
     <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="23.2.1" />
     <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="SecurityService.Client" Version="2024.4.2" />
-    <PackageReference Include="Shared" Version="2024.4.3" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2024.5.1" />
+    <PackageReference Include="SecurityService.Client" Version="2024.88.2-build73" />
+    <PackageReference Include="Shared" Version="2024.11.4" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2024.11.2-build121" />
   </ItemGroup>
 
   <ItemGroup>

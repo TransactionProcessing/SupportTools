@@ -101,10 +101,11 @@ services:
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5002
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
-      - AppSettings:VoucherManagementApi=http://vouchermanagement:5007
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
+      - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
+      - OperatorConfiguration:PataPawaPostPay:Url=http://testhosts:9000/PataPawaPostPayService/basichttp
     restart: on-failure
     depends_on:
       - eventstore
