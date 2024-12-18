@@ -1,0 +1,12 @@
+{
+  "StreamConfiguration": [
+    {
+      "StreamName": "$ce-OperatorAggreate",
+      "MaxAgeInDays": 30
+    },
+    {
+      "StreamName": "$ce-MerchantAggreate",
+      "MaxAgeInDays": 30
+    }
+  ]
+}

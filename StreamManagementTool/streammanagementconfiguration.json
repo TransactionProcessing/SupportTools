@@ -1,0 +1,8 @@
+{
+  "StreamConfiguration": [
+    {
+      "StreamName": "$ce-OperatorAggregate",
+      "MaxAgeInDays": 30
+    }
+  ]
+}
