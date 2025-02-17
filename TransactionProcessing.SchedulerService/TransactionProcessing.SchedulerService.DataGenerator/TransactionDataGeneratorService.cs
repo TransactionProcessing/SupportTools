@@ -198,7 +198,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             // Get a number of sales to be sent
             if (numberOfSales == 0)
             {
-                numberOfSales = this.r.Next(5, 15);
+                numberOfSales = this.r.Next(20, 25);
             }
 
             for (Int32 i = 1; i <= numberOfSales; i++)

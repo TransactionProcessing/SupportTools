@@ -1,16 +1,17 @@
 ﻿namespace TransactionProcessor.SystemSetupTool.estateconfig
 {
+    using Newtonsoft.Json;
     using System.Text.Json.Serialization;
 
     public class Operator
     {
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
 
-        [JsonPropertyName("require_custom_merchant_number")]
+        [JsonProperty("require_custom_merchant_number")]
         public bool RequireCustomMerchantNumber { get; set; }
 
-        [JsonPropertyName("require_custom_terminal_number")]
+        [JsonProperty("require_custom_terminal_number")]
         public bool RequireCustomTerminalNumber { get; set; }
     }
 }

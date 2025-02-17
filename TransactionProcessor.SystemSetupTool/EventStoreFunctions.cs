@@ -88,7 +88,10 @@ public class EventStoreFunctions{
         {
             if (projection.Contains("EstateManagementSubscriptionStreamBuilder") ||
                 projection.Contains("FileProcessorSubscriptionStreamBuilder") ||
-                projection.Contains("TransactionProcessorSubscriptionStreamBuilder"))
+                projection.Contains("TransactionProcessorSubscriptionStreamBuilder") ||
+                projection.Contains("EstateAggregator") ||
+                projection.Contains("MerchantAggregator") ||
+                projection.Contains("MerchantBalanceAggregator"))
             {
                 continue;
             }

@@ -14,6 +14,7 @@ using EstateManagement.DataTransferObjects.Responses.Contract;
 using EstateManagement.DataTransferObjects.Responses.Estate;
 using EstateManagement.DataTransferObjects.Responses.Merchant;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Exceptions;
@@ -58,7 +59,7 @@ public class EstateSetupFunctions {
         if (createEstateResult.IsFailed)
             return ResultHelpers.CreateFailure(createEstateResult);
         this.EstateId = createEstateResult.Data;
-
+        
         var createUserResult = await this.CreateEstateUser(cancellationToken);
         if (createUserResult.IsFailed)
             return ResultHelpers.CreateFailure(createUserResult);
@@ -220,7 +221,10 @@ public class EstateSetupFunctions {
 
         // Now we need to check if all the products are created
         foreach (Product contractProduct in contract.Products) {
-            ContractProduct product = existingContract.Products.SingleOrDefault(p => p.Name == contractProduct.ProductName);
+            ContractProduct product = null;
+            if (existingContract.Products != null){
+                product = existingContract.Products.SingleOrDefault(p => p.Name == contractProduct.ProductName);
+            }
 
             if (product == null) {
                 var addContractProductResult = await this.EstateClient.AddProductToContract(this.TokenResponse.AccessToken, this.EstateId, existingContract.ContractId, new AddProductToContractRequest { ProductName = contractProduct.ProductName, DisplayText = contractProduct.DisplayText, Value = contractProduct.Value, ProductType = Enum.Parse<ProductType>(contractProduct.ProductType.ToString()) }, cancellationToken);

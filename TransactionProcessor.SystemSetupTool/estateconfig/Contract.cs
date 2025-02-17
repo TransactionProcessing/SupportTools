@@ -1,17 +1,19 @@
-﻿namespace TransactionProcessor.SystemSetupTool.estateconfig
+﻿using Newtonsoft.Json;
+
+namespace TransactionProcessor.SystemSetupTool.estateconfig
 {
     using System.Collections.Generic;
     using System.Text.Json.Serialization;
 
     public class Contract
     {
-        [JsonPropertyName("operator_name")]
+        [JsonProperty("operator_name")]
         public string OperatorName { get; set; }
 
-        [JsonPropertyName("description")]
+        [JsonProperty("description")]
         public string Description { get; set; }
 
-        [JsonPropertyName("products")]
+        [JsonProperty("products")]
         public List<Product> Products { get; set; }
     }
 }

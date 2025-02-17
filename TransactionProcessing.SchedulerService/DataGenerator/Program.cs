@@ -1,4 +1,5 @@
 ﻿using System;
+using TransactionProcessing.SchedulerService.DataGenerator;
 
 namespace TransactionDataGenerator{
     using System.Collections.Generic;
@@ -10,7 +11,6 @@ namespace TransactionDataGenerator{
     using EstateManagement.DataTransferObjects.Responses.Contract;
     using EstateManagement.DataTransferObjects.Responses.Merchant;
     using SecurityService.Client;
-    using TransactionProcessing.DataGeneration;
     using TransactionProcessor.Client;
 
     /// <summary>
@@ -65,7 +65,7 @@ namespace TransactionDataGenerator{
 
             Program.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
 
-            Program.EstateClient = new EstateClient(baseAddressFunc, httpClient);
+            Program.EstateClient = new EstateClient(baseAddressFunc, httpClient, 2);
 
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
@@ -76,7 +76,7 @@ namespace TransactionDataGenerator{
             CancellationToken cancellationToken = new CancellationToken();
             String clientId = "serviceClient";
             String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
-            ITransactionDataGenerator g = new TransactionDataGenerator(Program.SecurityServiceClient,
+            ITransactionDataGeneratorService g = new TransactionDataGeneratorService(Program.SecurityServiceClient,
                                                                        Program.EstateClient,
                                                                        Program.TransactionProcessorClient,
                                                                        Program.baseAddressFunc("EstateManagementApi"),
@@ -84,7 +84,7 @@ namespace TransactionDataGenerator{
                                                                        Program.baseAddressFunc("TestHostApi"),
                                                                        clientId,
                                                                        clientSecret,
-                                                                       RunningMode.WhatIf);
+                                                                       RunningMode.Live);
 
             g.TraceGenerated += arguments => {
                                     Console.WriteLine($"{arguments.TraceLevel}|{arguments.Message}");
@@ -96,17 +96,17 @@ namespace TransactionDataGenerator{
             Console.WriteLine($"Process Complete");
         }
 
-        private static async Task GenerateStatements(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
+        private static async Task GenerateStatements(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
             foreach (MerchantResponse merchant in merchants){
                 await g.GenerateMerchantStatement(merchant.EstateId, merchant.MerchantId, DateTime.Now.AddMonths(-2), cancellationToken);
             }
         }
 
-        private static async Task GenerateTransactions(ITransactionDataGenerator g, Guid estateId, CancellationToken cancellationToken){
+        private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2024, 7, 1); //27/7
-            DateTime endDate = new DateTime(2024, 7,26); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 1, 1); //27/7
+            DateTime endDate = new DateTime(2025, 1,12); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
             List<ContractResponse> allContracts = await g.GetEstateContracts(estateId, cancellationToken);
@@ -125,10 +125,13 @@ namespace TransactionDataGenerator{
 
 
             // Everything
-            //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files |
-            //                        DataToSend.Settlement;
+            //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files | DataToSend.Settlement;
+            
+            // Everything (No settlement)
+            DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files;
+
             //  Floats
-            DataToSend dataToSend = DataToSend.FloatDeposits;
+            //DataToSend dataToSend = DataToSend.FloatDeposits;
 
             //  Logons and Sales
             //DataToSend dataToSend = DataToSend.Logons | DataToSend.Sales;

@@ -1,10 +1,11 @@
 ﻿namespace TransactionProcessor.SystemSetupTool.estateconfig
 {
+    using Newtonsoft.Json;
     using System.Text.Json.Serialization;
 
     public class Device
     {
-        [JsonPropertyName("device_identifier")]
+        [JsonProperty("device_identifier")]
         public string DeviceIdentifier { get; set; }
     }
 }

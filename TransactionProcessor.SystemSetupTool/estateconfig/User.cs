@@ -1,22 +1,24 @@
-﻿namespace TransactionProcessor.SystemSetupTool.estateconfig
+﻿using Newtonsoft.Json;
+
+namespace TransactionProcessor.SystemSetupTool.estateconfig
 {
     using System.Text.Json.Serialization;
 
     public class User
     {
-        [JsonPropertyName("email_address")]
+        [JsonProperty("email_address")]
         public string EmailAddress { get; set; }
 
-        [JsonPropertyName("password")]
+        [JsonProperty("password")]
         public string Password { get; set; }
 
-        [JsonPropertyName("given_name")]
+        [JsonProperty("given_name")]
         public string GivenName { get; set; }
 
-        [JsonPropertyName("middle_name")]
+        [JsonProperty("middle_name")]
         public string MiddleName { get; set; }
 
-        [JsonPropertyName("family_name")]
+        [JsonProperty("family_name")]
         public string FamilyName { get; set; }
     }
 }

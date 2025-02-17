@@ -7,11 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EstateManagement.Client" Version="2024.8.2-build128" />
-    <PackageReference Include="SecurityService.Client" Version="2024.88.2-build73" />
-    <PackageReference Include="Shared" Version="2024.11.4" />
+    <PackageReference Include="EstateManagement.Client" Version="2025.1.1" />
+    <PackageReference Include="SecurityService.Client" Version="2025.1.1" />
+    <PackageReference Include="Shared" Version="2025.1.1" />
     <PackageReference Include="SimpleResults" Version="3.0.0" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2024.8.2-build119" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2024.12.1" />
   </ItemGroup>
 
 </Project>

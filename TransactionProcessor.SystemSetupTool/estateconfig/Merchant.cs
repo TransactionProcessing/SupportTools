@@ -1,32 +1,34 @@
-﻿namespace TransactionProcessor.SystemSetupTool.estateconfig
+﻿using Newtonsoft.Json;
+
+namespace TransactionProcessor.SystemSetupTool.estateconfig
 {
     using System;
     using System.Text.Json.Serialization;
 
     public class Merchant
     {
-        [JsonPropertyName("merchant_id")]
+        [JsonProperty("merchant_id")]
         public Guid MerchantId { get; set; }
 
-        [JsonPropertyName("createdate")]
+        [JsonProperty("createdate")]
         public DateTime CreateDate { get; set; }
 
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public String Name { get; set; }
 
-        [JsonPropertyName("address")]
+        [JsonProperty("address")]
         public Address Address { get; set; }
 
-        [JsonPropertyName("contact")]
+        [JsonProperty("contact")]
         public Contact Contact { get; set; }
 
-        [JsonPropertyName("user")]
+        [JsonProperty("user")]
         public User User { get; set; }
 
-        [JsonPropertyName("device")]
+        [JsonProperty("device")]
         public Device Device { get; set; }
 
-        [JsonPropertyName("settlementschedule")]
+        [JsonProperty("settlementschedule")]
         public String SettlementSchedule { get; set; }
     }
 }

@@ -32,11 +32,12 @@ namespace TransactionProcessor.SystemSetupTool
     using Newtonsoft.Json;
     using Shared.General;
     using AssignOperatorRequest = EstateManagement.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
-    using JsonSerializer = System.Text.Json.JsonSerializer;
     using SettlementSchedule = EstateManagement.DataTransferObjects.Responses.Merchant.SettlementSchedule;
     using Microsoft.AspNetCore.Http.HttpResults;
     using Microsoft.IdentityModel.Tokens;
     using ProductType = EstateManagement.DataTransferObjects.Responses.Contract.ProductType;
+    using System.Collections.Generic;
+    using System.Collections;
 
     class Program
     {
@@ -52,8 +53,8 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static TokenResponse TokenResponse;
         
-        static async Task Main(string[] args)
-        {
+        static async Task Main(string[] args) {
+
             CancellationToken cancellationToken = new CancellationToken();
 
             IConfigurationBuilder builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
@@ -85,13 +86,12 @@ namespace TransactionProcessor.SystemSetupTool
 
             Mode setupMode = Mode.EstateSetup;
 
-            String configFileName = "setupconfig.json";
+            String configFileName = "setupconfig.staging.json";
 
             IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
             IdentityServerFunctions identityServerFunctions = new(Program.SecurityServiceClient, identityServerConfiguration);
             EventStoreFunctions eventStoreFunctions = new(Program.ProjectionClient, Program.PersistentSubscriptionsClient);
-            
-            //Mode.EstateSetup => 
+
             Result result = setupMode switch {
                 Mode.SecuritySetup => await identityServerFunctions.CreateConfig(cancellationToken),
                 Mode.EventStoreSetup => await eventStoreFunctions.SetupEventStore(cancellationToken),
@@ -133,8 +133,8 @@ namespace TransactionProcessor.SystemSetupTool
             {
                 identityServerJsonData = await sr.ReadToEndAsync(cancellationToken);
             }
-
-            IdentityServerConfiguration identityServerConfiguration = JsonSerializer.Deserialize<IdentityServerConfiguration>(identityServerJsonData);
+            
+            IdentityServerConfiguration identityServerConfiguration = JsonConvert.DeserializeObject<IdentityServerConfiguration>(identityServerJsonData);
 
             return identityServerConfiguration;
         }
@@ -148,7 +148,7 @@ namespace TransactionProcessor.SystemSetupTool
                 estateJsonData = await sr.ReadToEndAsync(cancellationToken);
             }
             
-            EstateConfig estateConfiguration = JsonSerializer.Deserialize<EstateConfig>(estateJsonData);
+            EstateConfig estateConfiguration = JsonConvert.DeserializeObject<EstateConfig>(estateJsonData);
             return estateConfiguration;
         }
         
