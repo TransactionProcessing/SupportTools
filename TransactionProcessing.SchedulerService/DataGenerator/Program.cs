@@ -1,5 +1,7 @@
 ﻿using System;
 using TransactionProcessing.SchedulerService.DataGenerator;
+using TransactionProcessor.DataTransferObjects.Responses.Contract;
+using TransactionProcessor.DataTransferObjects.Responses.Merchant;
 
 namespace TransactionDataGenerator{
     using System.Collections.Generic;
@@ -7,9 +9,6 @@ namespace TransactionDataGenerator{
     using System.Net.Http;
     using System.Threading;
     using System.Threading.Tasks;
-    using EstateManagement.Client;
-    using EstateManagement.DataTransferObjects.Responses.Contract;
-    using EstateManagement.DataTransferObjects.Responses.Merchant;
     using SecurityService.Client;
     using TransactionProcessor.Client;
 
@@ -17,8 +16,7 @@ namespace TransactionDataGenerator{
     /// 
     /// </summary>
     class Program{
-        private static EstateClient EstateClient;
-        
+       
         private static SecurityServiceClient SecurityServiceClient;
         
         private static TransactionProcessorClient TransactionProcessorClient;
@@ -38,9 +36,6 @@ namespace TransactionDataGenerator{
 
             baseAddressFunc = (apiName) => {
                                   String ipaddress = "192.168.1.167";
-                                  if (apiName == "EstateManagementApi"){
-                                      return $"http://{ipaddress}:5000";
-                                  }
 
                                   if (apiName == "SecurityService"){
                                       return $"https://{ipaddress}:5001";
@@ -65,8 +60,6 @@ namespace TransactionDataGenerator{
 
             Program.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
 
-            Program.EstateClient = new EstateClient(baseAddressFunc, httpClient, 2);
-
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
 
             // Set an estate
@@ -77,9 +70,8 @@ namespace TransactionDataGenerator{
             String clientId = "serviceClient";
             String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
             ITransactionDataGeneratorService g = new TransactionDataGeneratorService(Program.SecurityServiceClient,
-                                                                       Program.EstateClient,
                                                                        Program.TransactionProcessorClient,
-                                                                       Program.baseAddressFunc("EstateManagementApi"),
+                                                                       Program.baseAddressFunc("TransactionProcessorApi"),
                                                                        Program.baseAddressFunc("FileProcessorApi"),
                                                                        Program.baseAddressFunc("TestHostApi"),
                                                                        clientId,

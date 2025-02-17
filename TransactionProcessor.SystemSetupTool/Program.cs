@@ -13,17 +13,6 @@ namespace TransactionProcessor.SystemSetupTool
     using Client;
     using DataTransferObjects;
     using estateconfig;
-    using EstateManagement.Client;
-    using EstateManagement.DataTransferObjects;
-    using EstateManagement.DataTransferObjects.Requests;
-    using EstateManagement.DataTransferObjects.Requests.Contract;
-    using EstateManagement.DataTransferObjects.Requests.Estate;
-    using EstateManagement.DataTransferObjects.Requests.Merchant;
-    using EstateManagement.DataTransferObjects.Requests.Operator;
-    using EstateManagement.DataTransferObjects.Responses.Contract;
-    using EstateManagement.DataTransferObjects.Responses.Estate;
-    using EstateManagement.DataTransferObjects.Responses.Merchant;
-    using EstateManagement.DataTransferObjects.Responses.Operator;
     using identityserverconfig;
     using SecurityService.Client;
     using SecurityService.DataTransferObjects.Responses;
@@ -31,17 +20,13 @@ namespace TransactionProcessor.SystemSetupTool
     using Microsoft.Extensions.Configuration;
     using Newtonsoft.Json;
     using Shared.General;
-    using AssignOperatorRequest = EstateManagement.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
-    using SettlementSchedule = EstateManagement.DataTransferObjects.Responses.Merchant.SettlementSchedule;
     using Microsoft.AspNetCore.Http.HttpResults;
     using Microsoft.IdentityModel.Tokens;
-    using ProductType = EstateManagement.DataTransferObjects.Responses.Contract.ProductType;
     using System.Collections.Generic;
     using System.Collections;
 
     class Program
     {
-        private static EstateClient EstateClient;
         private static TransactionProcessorClient TransactionProcessorClient;
         private static HttpClient HttpClient;
 
@@ -61,7 +46,6 @@ namespace TransactionProcessor.SystemSetupTool
             IConfigurationRoot configurationRoot = builder.Build();
             ConfigurationReader.Initialise(configurationRoot);
 
-            Func<String, String> estateResolver = s => { return ConfigurationReader.GetValue("EstateManagementUri"); };
             Func<String, String> securityResolver = s => { return ConfigurationReader.GetValue("SecurityServiceUri"); };
             Func<String, String> transactionProcessorResolver = s => { return ConfigurationReader.GetValue("TransactionProcessorApi"); };
             HttpClientHandler handler = new HttpClientHandler
@@ -77,7 +61,6 @@ namespace TransactionProcessor.SystemSetupTool
             HttpClient client = new HttpClient(handler);
             Program.HttpClient = new HttpClient(handler);
 
-            Program.EstateClient = new EstateClient(estateResolver, client,2);
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
             Program.TransactionProcessorClient = new TransactionProcessorClient(transactionProcessorResolver, client);
             EventStoreClientSettings settings = EventStoreClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
@@ -110,7 +93,7 @@ namespace TransactionProcessor.SystemSetupTool
         private static async Task<Result> SetupEstates(String configFileName, CancellationToken cancellationToken) {
             EstateConfig estateConfiguration = await GetEstatesConfig(configFileName, cancellationToken);
             foreach (Estate estate in estateConfiguration.Estates) {
-                EstateSetupFunctions estateSetup = new EstateSetupFunctions(Program.SecurityServiceClient, Program.EstateClient, Program.TransactionProcessorClient, estate);
+                EstateSetupFunctions estateSetup = new EstateSetupFunctions(Program.SecurityServiceClient, Program.TransactionProcessorClient, estate);
                 Result result = await estateSetup.SetupEstate(cancellationToken);
                 if (result.IsFailed)
                     return ResultHelpers.CreateFailure(result);

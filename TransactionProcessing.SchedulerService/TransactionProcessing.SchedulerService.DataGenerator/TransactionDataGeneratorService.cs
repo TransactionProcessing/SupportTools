@@ -1,10 +1,5 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
-using EstateManagement.Client;
-using EstateManagement.DataTransferObjects.Requests.Merchant;
-using EstateManagement.DataTransferObjects.Responses.Contract;
-using EstateManagement.DataTransferObjects.Responses.Estate;
-using EstateManagement.DataTransferObjects.Responses.Merchant;
 using Newtonsoft.Json;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
@@ -12,29 +7,30 @@ using Shared.Results;
 using SimpleResults;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
+using TransactionProcessor.DataTransferObjects.Requests.Merchant;
+using TransactionProcessor.DataTransferObjects.Responses.Contract;
+using TransactionProcessor.DataTransferObjects.Responses.Estate;
+using TransactionProcessor.DataTransferObjects.Responses.Merchant;
 
 namespace TransactionProcessing.SchedulerService.DataGenerator;
 
 public class TransactionDataGeneratorService : ITransactionDataGeneratorService {
     private readonly ISecurityServiceClient SecurityServiceClient;
-    private readonly IEstateClient EstateClient;
     private readonly ITransactionProcessorClient TransactionProcessorClient;
-    private readonly String EstateManagementApi;
+    private readonly String TransactionProcessorApi;
     private readonly String FileProcessorApi;
 
     public TransactionDataGeneratorService(ISecurityServiceClient securityServiceClient,
-                                           IEstateClient estateClient,
                                            ITransactionProcessorClient transactionProcessorClient,
-                                           String estateManagementApi,
+                                           String transactionProcessorApi,
                                            String fileProcessorApi,
                                            String testHostApi,
                                            String clientId,
                                            String clientSecret,
                                            RunningMode runningMode = RunningMode.WhatIf) {
         this.SecurityServiceClient = securityServiceClient;
-        this.EstateClient = estateClient;
         this.TransactionProcessorClient = transactionProcessorClient;
-        this.EstateManagementApi = estateManagementApi;
+        this.TransactionProcessorApi = transactionProcessorApi;
         this.FileProcessorApi = fileProcessorApi;
         this.TestHostApi = testHostApi;
         this.ClientId = clientId;
@@ -69,7 +65,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to get contracts for Estate Id [{estateId}]");
-        Result<List<ContractResponse>>? result = await this.EstateClient.GetContracts(tokenResult.Data, estateId, cancellationToken);
+        Result<List<ContractResponse>>? result = await this.TransactionProcessorClient.GetContracts(tokenResult.Data, estateId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting contracts");
             this.WriteError(result.Message);
@@ -94,7 +90,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to get contracts for Merchant [{merchant.MerchantId}] Estate Id [{merchant.EstateId}]");
-        Result<List<ContractResponse>>? result = await this.EstateClient.GetMerchantContracts(tokenResult.Data, merchant.EstateId, merchant.MerchantId, cancellationToken);
+        Result<List<ContractResponse>>? result = await this.TransactionProcessorClient.GetMerchantContracts(tokenResult.Data, merchant.EstateId, merchant.MerchantId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchant contracts");
             this.WriteError(result.Message);
@@ -112,7 +108,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
         this.WriteTrace($"About to get merchants for Estate Id [{estateId}]");
-        Result<List<MerchantResponse>>? result = await this.EstateClient.GetMerchants(tokenResult.Data, estateId, cancellationToken);
+        Result<List<MerchantResponse>>? result = await this.TransactionProcessorClient.GetMerchants(tokenResult.Data, estateId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchants");
             this.WriteError(result.Message);
@@ -383,7 +379,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
 
-        EstateResponse estate = await this.EstateClient.GetEstate(tokenResult.Data, merchant.EstateId, cancellationToken);
+        EstateResponse estate = await this.TransactionProcessorClient.GetEstate(tokenResult.Data, merchant.EstateId, cancellationToken);
         Guid userId = estate.SecurityUsers.First().SecurityUserId;
         Decimal depositAmount = 0;
         if (productType == ProductType.MobileTopup)
@@ -556,7 +552,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return ResultHelpers.CreateFailure(tokenResult);
 
         this.WriteTrace($"About to make Deposit [{request.Amount}] for Merchant [{merchant.MerchantName}]");
-        Result result = await this.EstateClient.MakeMerchantDeposit(tokenResult.Data, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
+        Result result = await this.TransactionProcessorClient.MakeMerchantDeposit(tokenResult.Data, merchant.EstateId, merchant.MerchantId, request, cancellationToken);
         if (result.IsFailed) {
             this.WriteError($"Error making merchant deposit for merchant [{merchant.MerchantName}]");
             this.WriteError(result.Message);
@@ -601,7 +597,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
         this.WriteTrace($"About to get merchant {merchantId} for Estate Id [{estateId}]");
-        Result<MerchantResponse>? result = await this.EstateClient.GetMerchant(tokenResult.Data, estateId, merchantId, cancellationToken);
+        Result<MerchantResponse>? result = await this.TransactionProcessorClient.GetMerchant(tokenResult.Data, estateId, merchantId, cancellationToken);
         if (result.IsFailed) {
             this.WriteError("Error getting merchant");
             this.WriteError(result.Message);
@@ -621,7 +617,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         {
             this.WriteTrace($"About to send Generate Merchant Statement Request for Estate [{estateId}] and Merchant [{merchantId}] StatementDate [{statementDateTime:dd-MM-yyyy}]");
 
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.EstateManagementApi}/api/estates/{estateId}/merchants/{merchantId}/statements");
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{this.TransactionProcessorApi}/api/estates/{estateId}/merchants/{merchantId}/statements");
             var body = new
             {
                 merchant_statement_date = statementDateTime,

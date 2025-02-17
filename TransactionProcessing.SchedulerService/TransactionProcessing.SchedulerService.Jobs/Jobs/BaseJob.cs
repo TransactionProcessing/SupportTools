@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using EstateManagement.Client;
 using Quartz;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
@@ -22,14 +21,12 @@ public abstract class BaseJob : IJob{
 
     protected ITransactionDataGeneratorService CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode){
         ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
-        IEstateClient estateClient = Bootstrapper.GetService<IEstateClient>();
         ITransactionProcessorClient transactionProcessorClient = Bootstrapper.GetService<ITransactionProcessorClient>();
         Func<String, String> baseAddressFunc = Bootstrapper.GetService<Func<String, String>>();
 
         ITransactionDataGeneratorService g = new TransactionDataGeneratorService(securityServiceClient,
-                                                                   estateClient,
                                                                    transactionProcessorClient,
-                                                                   baseAddressFunc("EstateManagementApi"),
+                                                                   baseAddressFunc("TransactionProcessorApi"),
                                                                    baseAddressFunc("FileProcessorApi"),
                                                                    baseAddressFunc("TestHostApi"),
                                                                    clientId,

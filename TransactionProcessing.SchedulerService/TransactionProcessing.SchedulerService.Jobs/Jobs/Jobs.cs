@@ -2,6 +2,8 @@
 using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessing.SchedulerService.Jobs.Configuration;
 using TransactionProcessor.DataTransferObjects;
+using TransactionProcessor.DataTransferObjects.Responses.Contract;
+using TransactionProcessor.DataTransferObjects.Responses.Merchant;
 
 namespace TransactionProcessing.SchedulerService.Jobs.Jobs;
 
@@ -14,8 +16,6 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using EstateManagement.DataTransferObjects.Responses.Contract;
-using EstateManagement.DataTransferObjects.Responses.Merchant;
 using EventStore.Client;
 using MessagingService.Client;
 using MessagingService.DataTransferObjects;
