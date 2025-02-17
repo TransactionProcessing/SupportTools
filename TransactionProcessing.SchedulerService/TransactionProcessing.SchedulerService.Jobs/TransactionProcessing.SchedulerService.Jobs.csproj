@@ -11,7 +11,7 @@
     <PackageReference Include="MessagingService.Client" Version="2024.12.1" />
     
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.1" />
-    <PackageReference Include="Shared" Version="2025.1.1" />
+    <PackageReference Include="Shared" Version="2025.1.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Quartz" Version="3.10.0" />

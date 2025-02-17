@@ -6,7 +6,6 @@ using TransactionProcessing.SchedulerService.Jobs.Jobs;
 
 namespace JobTestDriver
 {
-    using EstateManagement.Client;
     using MessagingService.Client;
     using NLog.LayoutRenderers.Wrappers;
     using SecurityService.Client;
@@ -50,18 +49,17 @@ namespace JobTestDriver
                 }
             };
             HttpClient client = new HttpClient(handler);
-            ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate (String s) { return "https://192.168.1.167:5001"; }, client); IEstateClient estateClient = new EstateClient(delegate (String s) { return "http://192.168.1.167:5000"; }, client);
+            ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate (String s) { return "https://192.168.1.167:5001"; }, client);
             ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
-            String estateManagementApi = "http://192.168.1.167:5000";
+            String transactionProcessorApi = "http://192.168.1.167:5002";
             String fileProcessorApi = "http://192.168.1.167:5009";
             String testHostApi = "http://192.168.1.167:9000";
             String clientId = "serviceClient";
             String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
 
             ITransactionDataGeneratorService t = new TransactionDataGeneratorService(securityServiceClient,
-                                                                       estateClient,
                                                                        transactionProcessorClient,
-                                                                       estateManagementApi,
+                                                                       transactionProcessorApi,
                                                                        fileProcessorApi,
                                                                        testHostApi,
                                                                        clientId,
@@ -69,7 +67,7 @@ namespace JobTestDriver
                                                                        RunningMode.WhatIf);
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
 
-            MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, estateManagementApi, fileProcessorApi,"","", "", estateId,
+            MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, fileProcessorApi,"","", transactionProcessorApi, estateId,
                 new List<DepositAmount> { new DepositAmount(Guid.NewGuid(), Guid.NewGuid(), 100) }
             );
 

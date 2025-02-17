@@ -1,8 +1,8 @@
-﻿using EstateManagement.DataTransferObjects.Responses.Contract;
-using EstateManagement.DataTransferObjects.Responses.Merchant;
-using SimpleResults;
+﻿using SimpleResults;
 using System.Text.Json;
 using TransactionProcessor.DataTransferObjects;
+using TransactionProcessor.DataTransferObjects.Responses.Contract;
+using TransactionProcessor.DataTransferObjects.Responses.Merchant;
 
 namespace TransactionProcessing.SchedulerService.DataGenerator;
 
