@@ -23,13 +23,11 @@ jobs:
       run: |
         dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
-        dotnet restore TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
 
     - name: Build Code
       run: |
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
         dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
-        dotnet build TransactionProcessor.DataGenerator/TransactionProcessor.DataGenerator.sln --configuration Release
 
     - name: Publish API
       run: |
@@ -59,12 +57,7 @@ jobs:
       with:
         name: schedulerservice
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
-
-    - name: Build and Publish Nuget Packages
-      run: |
-        dotnet pack "TransactionProcessor.DataGenerator\TransactionProcessing.DataGeneration\TransactionProcessing.DataGeneration.csproj" /p:PackageVersion=${{ steps.get_version.outputs.VERSION }} --output Nugets -c Release            
-        dotnet nuget push Nugets/TransactionProcessing.DataGeneration.${{ steps.get_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }} --skip-duplicate
-
+        
   deploystaging:
     runs-on: stagingserver
     needs: buildlinux
