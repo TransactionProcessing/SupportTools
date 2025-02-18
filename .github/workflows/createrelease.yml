@@ -49,13 +49,13 @@ jobs:
          echo "Zip file created at: $(realpath ../schedulerservice.zip)"
 
     - name: Upload the artifact (Health Check UI)    
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4.4.0
       with:
         name: healthchecksui
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip    
 
     - name: Upload the artifact (Scheduler Service)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4.4.0
       with:
         name: schedulerservice
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
@@ -73,7 +73,7 @@ jobs:
     
     steps:
       - name: Download the artifact (Health Check UI) 
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.8
         with:
           name: healthchecksui
 
@@ -99,7 +99,7 @@ jobs:
           Start-Service -Name $serviceName
 
       - name: Download the artifact (Scheduler Service) 
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.8
         with:
           name: schedulerservice
 
@@ -132,7 +132,7 @@ jobs:
     
     steps:
       - name: Download the artifact (Health Check UI) 
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.8
         with:
           name: healthchecksui
 
@@ -158,7 +158,7 @@ jobs:
           Start-Service -Name $serviceName
 
       - name: Download the artifact (Scheduler Service) 
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.8
         with:
           name: schedulerservice
 
