@@ -89,14 +89,34 @@ public static class Jobs
     public static async Task<Result> GenerateFloatCredits(ITransactionDataGeneratorService t,
                                                   MakeFloatCreditsJobConfig config,
                                                   CancellationToken cancellationToken) {
+        List<string> results = new();
+        // Get all the contracts up front
+        Result<List<ContractResponse>> contractsResult = await t.GetEstateContracts(config.EstateId, cancellationToken);
+        if (contractsResult.IsFailed) {
+            results.Add($"Error getting Contract List");
+            return Result.Failure($"Error making float credits for [{string.Join(",", results)}]");
+        }
 
-        List<string> results = new List<string>();
         foreach (DepositAmount configDepositAmount in config.DepositAmounts) {
-            Result result = await t.MakeFloatDeposit(DateTime.Now, config.EstateId, configDepositAmount.ContractId,
-                configDepositAmount.ProductId, configDepositAmount.Amount, cancellationToken);
+            // lookup the contract/product info
+            ContractResponse contract = contractsResult.Data.SingleOrDefault(c => c.Description == configDepositAmount.ContractName);
+            if (contract == null) {
+                results.Add($"Contract Name {configDepositAmount.ContractName} not found");
+                continue;
+            }
+        
+            ContractProduct product  = contract.Products.SingleOrDefault(p => p.Name== configDepositAmount.ProductName);
+            if (product == null)
+            {
+                results.Add($"Contract Name {configDepositAmount.ContractName} Product {configDepositAmount.ProductName} not found");
+                continue;
+            }
+
+            Result result = await t.MakeFloatDeposit(DateTime.Now, config.EstateId, contract.ContractId,
+                product.ProductId, configDepositAmount.Amount, cancellationToken);
             if (result.IsFailed)
             {
-                results.Add($"Contract Id {configDepositAmount.ContractId} Product Id {configDepositAmount.ProductId}");
+                results.Add($"Contract Id {contract.ContractId} Product Id {product.ProductId}");
             }
         }
         if (results.Any())

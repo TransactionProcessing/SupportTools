@@ -13,4 +13,4 @@ public record MakeFloatCreditsJobConfig(String ClientId,
                                         List<DepositAmount> DepositAmounts) : BaseConfiguration(ClientId, ClientSecret, FileProcessorApi, SecurityService, TestHostApi, TransactionProcessorApi);
 
 
-public record DepositAmount(Guid ContractId, Guid ProductId, Decimal Amount);
+public record DepositAmount(String ContractName, String ProductName, Decimal Amount);

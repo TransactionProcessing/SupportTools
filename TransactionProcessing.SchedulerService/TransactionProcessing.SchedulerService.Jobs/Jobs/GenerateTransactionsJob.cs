@@ -32,17 +32,4 @@ namespace TransactionProcessing.SchedulerService.Jobs.Jobs
         }
         #endregion
     }
-
-    public class MakeFloatCredits : BaseJob {
-        public override async Task ExecuteJob(IJobExecutionContext context) {
-            MakeFloatCreditsJobConfig configuration = Helpers.LoadJobConfig<MakeFloatCreditsJobConfig>(context.MergedJobDataMap);
-
-            ITransactionDataGeneratorService t = CreateTransactionDataGenerator(configuration.ClientId, configuration.ClientSecret, RunningMode.Live);
-            t.TraceGenerated += TraceGenerated;
-
-            var result = await Jobs.GenerateFloatCredits(t, configuration, context.CancellationToken);
-            if (result.IsFailed)
-                throw new JobExecutionException(result.Message);
-        }
-    }
 }
