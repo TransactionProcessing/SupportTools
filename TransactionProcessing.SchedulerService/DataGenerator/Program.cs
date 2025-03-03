@@ -97,30 +97,29 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2025, 1, 1); //27/7
-            DateTime endDate = new DateTime(2025, 1,12); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 3, 1); //27/7
+            DateTime endDate = new DateTime(2025, 3,2); // This is the date of the last generated transaction
 
             List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
             List<ContractResponse> allContracts = await g.GetEstateContracts(estateId, cancellationToken);
             List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
 
-            Dictionary<(String, String), Decimal> floatDeposits = new Dictionary<(String, String), Decimal>();
-            floatDeposits.Add(("Healthcare Centre 1 Contract", "10 KES Voucher"), 1400);
-            floatDeposits.Add(("Healthcare Centre 1 Contract", "Custom"), 27000);
-
-            floatDeposits.Add(("Safaricom Contract", "100 KES Topup"), 14000);
-            floatDeposits.Add(("Safaricom Contract", "200 KES Topup"), 28000);
-            floatDeposits.Add(("Safaricom Contract", "Custom"), 27000);
-
-            floatDeposits.Add(("PataPawa PostPay Contract", "Post Pay Bill Pay"), 18000);
-            floatDeposits.Add(("PataPawa prePay Contract", "Pre Pay Bill Pay"), 18000);
+            Dictionary<(String, String), Decimal> floatDeposits = new Dictionary<(String, String), Decimal> {
+                { ("Healthcare Centre 1 Contract", "10 KES Voucher"), 1400 },
+                { ("Healthcare Centre 1 Contract", "Custom"), 27000 },
+                { ("Safaricom Contract", "100 KES Topup"), 14000 },
+                { ("Safaricom Contract", "200 KES Topup"), 28000 },
+                { ("Safaricom Contract", "Custom"), 27000 },
+                { ("PataPawa PostPay Contract", "Post Pay Bill Pay"), 18000 },
+                { ("PataPawa prePay Contract", "Pre Pay Bill Pay"), 18000 }
+            };
 
 
             // Everything
             //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files | DataToSend.Settlement;
             
             // Everything (No settlement)
-            DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files;
+            //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files;
 
             //  Floats
             //DataToSend dataToSend = DataToSend.FloatDeposits;
@@ -132,7 +131,7 @@ namespace TransactionDataGenerator{
             //DataToSend dataToSend = DataToSend.Files;
 
             // Settlement
-            //DataToSend dataToSend = DataToSend.Settlement;
+            DataToSend dataToSend = DataToSend.Settlement;
 
             foreach (DateTime dateTime in dateRange){
 
@@ -191,20 +190,25 @@ namespace TransactionDataGenerator{
 
                 // Settlement
                 if ((dataToSend & DataToSend.Settlement) == DataToSend.Settlement) {
-                    await g.PerformSettlement(dateTime, estateId, cancellationToken);
+                    try {
+                        await g.PerformSettlement(dateTime, estateId, cancellationToken);
 
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    }
+                    catch (Exception e) {
+                        Console.WriteLine(e);
+                    }
                 }
             }
         }
 
         [Flags]
         enum DataToSend {
-            FloatDeposits= 0,
-            Logons = 1,
-            Sales = 2,
-            Files = 4,
-            Settlement = 8
+            FloatDeposits= 1,
+            Logons = 2,
+            Sales = 4,
+            Files = 8,
+            Settlement = 16
         }
     }
 }

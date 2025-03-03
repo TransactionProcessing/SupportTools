@@ -30,36 +30,34 @@ public class EventStoreFunctions{
     }
 
     private async Task<Result> SetupSubscriptions(CancellationToken cancellationToken){
-        List<(String streamName, String groupName, Int32 retryCount)> subscriptions = new List<(String streamName, String groupName, Int32 retryCount)>();
-        subscriptions.Add(("$ce-TransactionAggregate", "Transaction Processor", 0));
-        subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor", 0));
-        subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor", 0));
-        subscriptions.Add(("$ce-FloatAggregate", "Transaction Processor", 0));
+        List<(String streamName, String groupName, Int32 retryCount)> subscriptions = [
+            ("$ce-TransactionAggregate", "Transaction Processor", 0),
+            ("$ce-SettlementAggregate", "Transaction Processor", 0),
+            ("$ce-VoucherAggregate", "Transaction Processor", 0),
+            ("$ce-FloatAggregate", "Transaction Processor", 0),
+            ("$ce-MerchantStatementAggregate", "Transaction Processor", 0),
+            ("$ce-ContractAggregate", "Transaction Processor", 0),
+            ("$ce-EstateAggregate", "Transaction Processor", 0),
+            ("$ce-MerchantAggregate", "Transaction Processor", 0),
+            ("$ce-CallbackMessageAggregate", "Transaction Processor", 0),
+            ("$ce-ReconciliationAggregate", "Transaction Processor", 0),
+            ("$ce-FileAggregate", "Transaction Processor", 0),
+            ("$ce-FileImportLogAggregate", "Transaction Processor", 0),
+            ("$ce-OperatorAggregate", "Transaction Processor", 0),
 
-        subscriptions.Add(("$ce-EstateAggregate", "Transaction Processor - Ordered", 1));
-        subscriptions.Add(("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1));
-        subscriptions.Add(("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1));
-            
-        subscriptions.Add(("$ce-TransactionAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-SettlementAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-VoucherAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-ContractAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-EstateAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-MerchantAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-CallbackMessageAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-ReconciliationAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-FileAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-FileImportLogAggregate", "Estate Management", 0));
-        subscriptions.Add(("$ce-OperatorAggregate", "Estate Management", 0));
+            ("$ce-EstateAggregate", "Transaction Processor - Ordered", 1),
+            ("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1),
+            ("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1),
+            ("$ce-TransactionAggregate", "Transaction Processor - Ordered", 0),
+            ("$ce-MerchantStatementAggregate", "Transaction Processor - Ordered", 0),
+            ("$ce-EstateAggregate", "Transaction Processor - Ordered", 0),
 
-        subscriptions.Add(("$ce-TransactionAggregate", "Estate Management - Ordered", 0));
-        subscriptions.Add(("$ce-MerchantStatementAggregate", "Estate Management - Ordered", 0));
-        subscriptions.Add(("$ce-EstateAggregate", "Estate Management - Ordered", 0));
-        subscriptions.Add(("$ce-FileAggregate", "File Processor", 0));
-        subscriptions.Add(("$ce-FileImportLogAggregate", "File Processor", 0));
-        subscriptions.Add(("$ce-EmailAggregate", "Messaging Service", 0));
-        subscriptions.Add(("$ce-SMSAggregate", "Messaging Service", 0));
+            ("$ce-FileAggregate", "File Processor", 0),
+            ("$ce-FileImportLogAggregate", "File Processor", 0),
+
+            ("$ce-EmailAggregate", "Messaging Service", 0),
+            ("$ce-SMSAggregate", "Messaging Service", 0)
+        ];
 
         foreach ((String streamName, String groupName, Int32 retryCount) subscription in subscriptions){
             Boolean exists = false;
