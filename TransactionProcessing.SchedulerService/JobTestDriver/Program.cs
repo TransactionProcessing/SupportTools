@@ -68,7 +68,7 @@ namespace JobTestDriver
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
 
             MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, fileProcessorApi,"","", transactionProcessorApi, estateId,
-                new List<DepositAmount> { new DepositAmount(Guid.NewGuid(), Guid.NewGuid(), 100) }
+                new List<DepositAmount> { new DepositAmount("" ,"", 100) }
             );
 
             await Jobs.GenerateFloatCredits(t, c, CancellationToken.None);
