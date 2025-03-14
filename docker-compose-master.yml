@@ -46,27 +46,6 @@ services:
     depends_on:
       - sqlserver
 
-  estatemanagement: 
-    image: stuartferguson/estatemanagement:master 
-    container_name: estatemanagement_master
-    volumes:
-      - E:/home/txnproc/docker/master/trace:/home/txnproc/trace
-    ports:
-      - "5000:5000"
-    environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
-      - EventStoreSettings:Insecure=true
-      - AppSettings:SecurityService=https://securityservice:5001
-      - SecurityConfiguration:Authority=https://securityservice:5001
-      - urls=http://*:5000
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
-    restart: on-failure
-    depends_on:
-      - sqlserver
-      - eventstore
-      - securityservice
-
   messagingservice: 
     image: stuartferguson/messagingservice:master   
     container_name: messagingservice_master
@@ -95,6 +74,7 @@ services:
     ports:
       - "5002:5002"
     environment:
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
@@ -105,12 +85,13 @@ services:
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
       - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
+      - OperatorConfiguration:PataPawaPrePay:ApiLogonRequired=false
       - OperatorConfiguration:PataPawaPostPay:Url=http://testhosts:9000/PataPawaPostPayService/basichttp
+      - OperatorConfiguration:PataPawaPostPay:ApiLogonRequired=false
     restart: on-failure
     depends_on:
       - eventstore
       - securityservice
-      - estatemanagement
       - testhosts
 
   transactionprocessoracl:
