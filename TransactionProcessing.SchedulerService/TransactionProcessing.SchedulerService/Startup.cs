@@ -22,7 +22,6 @@ namespace TransactionProcessing.SchedulerService
     using Quartz.Impl;
     using Shared.Logger;
     using SilkierQuartz;
-    using ConfigurationManager = System.Configuration.ConfigurationManager;
     using ILogger = Microsoft.Extensions.Logging.ILogger;
     using SetupBuilderExtensions = NLog.SetupBuilderExtensions;
 
@@ -63,7 +62,7 @@ namespace TransactionProcessing.SchedulerService
         public static void AddOrUpdateConnectionString(String name,
                                                        String connectionString){
             try{
-                Configuration configFile = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                Configuration configFile = System.Configuration.ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
                 ConnectionStringSettingsCollection settings = configFile.ConnectionStrings.ConnectionStrings;
 
                 if (settings[name] == null){
@@ -74,7 +73,7 @@ namespace TransactionProcessing.SchedulerService
                 }
 
                 configFile.Save(ConfigurationSaveMode.Modified);
-                ConfigurationManager.RefreshSection(configFile.AppSettings.SectionInformation.Name);
+                System.Configuration.ConfigurationManager.RefreshSection(configFile.AppSettings.SectionInformation.Name);
             }
             catch(ConfigurationErrorsException){
                 Console.WriteLine("Error writing connection string");
