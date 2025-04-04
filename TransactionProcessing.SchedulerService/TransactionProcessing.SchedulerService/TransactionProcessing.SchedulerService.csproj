@@ -22,9 +22,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Update="quartz.config">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Content Update="TransactionProcessing.SchedulerService.dll.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
