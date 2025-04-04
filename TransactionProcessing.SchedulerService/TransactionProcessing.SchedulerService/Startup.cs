@@ -50,9 +50,6 @@ namespace TransactionProcessing.SchedulerService
 
             Startup.Configuration = builder.Build();
             Startup.WebHostEnvironment = webHostEnvironment;
-
-            //String connectionString = Startup.Configuration.GetConnectionString("X");
-            //Startup.AddOrUpdateConnectionString("X", connectionString);
         }
 
         #endregion
@@ -66,27 +63,6 @@ namespace TransactionProcessing.SchedulerService
         #endregion
 
         #region Methods
-
-        public static void AddOrUpdateConnectionString(String name,
-                                                       String connectionString){
-            try{
-                Configuration configFile = System.Configuration.ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-                ConnectionStringSettingsCollection settings = configFile.ConnectionStrings.ConnectionStrings;
-
-                if (settings[name] == null){
-                    settings.Add(new ConnectionStringSettings(name, connectionString));
-                }
-                else{
-                    settings[name].ConnectionString = connectionString;
-                }
-
-                configFile.Save(ConfigurationSaveMode.Modified);
-                System.Configuration.ConfigurationManager.RefreshSection(configFile.AppSettings.SectionInformation.Name);
-            }
-            catch(ConfigurationErrorsException){
-                Console.WriteLine("Error writing connection string");
-            }
-        }
 
         public void Configure(IApplicationBuilder app,
                               IWebHostEnvironment env, ILoggerFactory loggerFactory)
@@ -131,7 +107,6 @@ namespace TransactionProcessing.SchedulerService
             ISchedulerFactory schedulerFactory = serviceProvider.GetRequiredService<ISchedulerFactory>();
 
             IScheduler scheduler = schedulerFactory.GetScheduler().Result;
-            //var g = scheduler.Context.Get("Quartz.Plugins.RecentHistory.Impl.InProcExecutionHistoryStore,Quartz.Plugins.RecentHistory");
             IExecutionHistoryStore store = new InProcExecutionHistoryStore();
             scheduler.Context.SetExecutionHistoryStore(store);
 
@@ -236,12 +211,6 @@ namespace TransactionProcessing.SchedulerService
             // custom connection provider
             services.AddSingleton<IDbProvider, CustomSqlServerConnectionProvider>();
 
-            // a custom time provider will be pulled from DI
-            //services.AddSingleton<TimeProvider, CustomTimeProvider>();
-
-            // async disposable
-            //services.AddScoped<AsyncDisposableDependency>();
-
             services.AddQuartz(q => {
                 // handy when part of cluster or you want to otherwise identify multiple schedulers
                 q.SchedulerId = "Scheduler-Core";
@@ -266,23 +235,12 @@ namespace TransactionProcessing.SchedulerService
                     s.RetryInterval = TimeSpan.FromSeconds(15);
                     s.UseSqlServer(sqlServer =>
                     {
-                        // if needed, could create a custom strategy for handling connections
-                        //sqlServer.UseConnectionProvider<CustomSqlServerConnectionProvider>();
-
                         sqlServer.ConnectionString = configuration.GetConnectionString("Quartz");
-
-                        // or from appsettings.json
-                        // sqlServer.ConnectionStringName = "Quartz";
 
                         // this is the default
                         sqlServer.TablePrefix = "QRTZ_";
                     });
                     s.UseNewtonsoftJsonSerializer();
-                    //s.UseClustering(c =>
-                    //{
-                    //    c.CheckinMisfireThreshold = TimeSpan.FromSeconds(20);
-                    //    c.CheckinInterval = TimeSpan.FromSeconds(10);
-                    //});
                 });
                 q.UseDefaultThreadPool(maxConcurrency: 10);
                 q.UseTimeZoneConverter();
@@ -293,35 +251,7 @@ namespace TransactionProcessing.SchedulerService
                 q.AddJobListener<ExecutionHistoryPlugin>(p);
             });
             
-
             return services;
-        }
-    }
-
-    public class CustomTypeLoader : ITypeLoadHelper
-    {
-        private readonly ILogger<CustomTypeLoader> logger;
-
-        public CustomTypeLoader(ILogger<CustomTypeLoader> logger)
-        {
-            this.logger = logger;
-        }
-
-        public void Initialize()
-        {
-        }
-
-        public Type? LoadType(string? name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return null;
-            }
-
-            logger.LogInformation("Requested to load type {TypeName}", name);
-            
-            var x  = Type.GetType(name);
-            return x;
         }
     }
 }
