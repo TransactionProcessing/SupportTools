@@ -45,6 +45,11 @@ public class EventStoreFunctions{
             ("$ce-FileImportLogAggregate", "Transaction Processor", 0),
             ("$ce-OperatorAggregate", "Transaction Processor", 0),
 
+            ("$ce-TransactionAggregate", "Transaction Processor - Domain", 0),
+            ("$ce-SettlementAggregate", "Transaction Processor - Domain", 0),
+            ("$ce-FloatAggregate", "Transaction Processor - Domain", 0),
+            ("$ce-MerchantStatementForDateAggregate", "Transaction Processor - Domain", 0),
+
             ("$ce-EstateAggregate", "Transaction Processor - Ordered", 1),
             ("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1),
             ("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1),

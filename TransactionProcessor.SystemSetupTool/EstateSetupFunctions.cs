@@ -449,11 +449,16 @@ public class EstateSetupFunctions {
             return ResultHelpers.CreateFailure(getContractsResult);
 
         var merchantContractsResult = await this.TransactionProcessorClient.GetMerchantContracts(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, cancellationToken);
-        if (merchantContractsResult.IsFailed)
+        if (merchantContractsResult.IsFailed && merchantContractsResult.Status != ResultStatus.NotFound)
             return ResultHelpers.CreateFailure(merchantContractsResult);
+        List<ContractResponse> merchantContracts = merchantContractsResult.Data;
+        if (merchantContractsResult.Status == ResultStatus.NotFound) {
+            merchantContracts = new List<ContractResponse>();
+        }
+
         // Now contracts
-        foreach (ContractResponse contractResponse in getContractsResult.Data) {
-            if (merchantContractsResult.Data.SingleOrDefault(c => c.ContractId == contractResponse.ContractId) != null)
+            foreach (ContractResponse contractResponse in getContractsResult.Data) {
+            if (merchantContracts.SingleOrDefault(c => c.ContractId == contractResponse.ContractId) != null)
                 continue;
 
             AddMerchantContractRequest addMerchantContractRequest = new() { ContractId = contractResponse.ContractId };

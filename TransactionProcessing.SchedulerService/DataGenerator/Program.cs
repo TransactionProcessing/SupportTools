@@ -1,4 +1,5 @@
 ﻿using System;
+using SimpleResults;
 using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
 using TransactionProcessor.DataTransferObjects.Responses.Merchant;
@@ -66,7 +67,7 @@ namespace TransactionDataGenerator{
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
             
             // Get a token to talk to the estate service
-            CancellationToken cancellationToken = new CancellationToken();
+            CancellationToken cancellationToken = new();
             String clientId = "serviceClient";
             String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
             ITransactionDataGeneratorService g = new TransactionDataGeneratorService(Program.SecurityServiceClient,
@@ -97,14 +98,25 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2025, 3, 1); //27/7
-            DateTime endDate = new DateTime(2025, 3,2); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 4, 14); //27/7
+            DateTime endDate = new DateTime(2025, 4,30); // This is the date of the last generated transaction
 
-            List<DateTime> dateRange = g.GenerateDateRange(startDate, endDate);
-            List<ContractResponse> allContracts = await g.GetEstateContracts(estateId, cancellationToken);
-            List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
-
-            Dictionary<(String, String), Decimal> floatDeposits = new Dictionary<(String, String), Decimal> {
+            Result<List<DateTime>> dateRangeResult = g.GenerateDateRange(startDate, endDate);
+            if (dateRangeResult.IsFailed)
+            {
+                Console.WriteLine($"Failed to generate date range: {dateRangeResult.Message}");
+                return;
+            }
+            var allContractsResult = await g.GetEstateContracts(estateId, cancellationToken);
+            if (allContractsResult.IsFailed) {
+                Console.WriteLine($"Failed to get estate contracts: {allContractsResult.Message}");
+            }
+            var merchantsResult = await g.GetMerchants(estateId, cancellationToken);
+            if (merchantsResult.IsFailed)
+            {
+                Console.WriteLine($"Failed to get merchants: {merchantsResult.Message} ");
+            }
+            Dictionary<(String, String), Decimal> floatDeposits = new() {
                 { ("Healthcare Centre 1 Contract", "10 KES Voucher"), 1400 },
                 { ("Healthcare Centre 1 Contract", "Custom"), 27000 },
                 { ("Safaricom Contract", "100 KES Topup"), 14000 },
@@ -133,14 +145,14 @@ namespace TransactionDataGenerator{
             // Settlement
             DataToSend dataToSend = DataToSend.Settlement;
 
-            foreach (DateTime dateTime in dateRange){
+            foreach (DateTime dateTime in dateRangeResult.Data){
 
                 if ((dataToSend & DataToSend.FloatDeposits) == DataToSend.FloatDeposits)
                 {
-                    foreach (ContractResponse contractResponse in allContracts) {
+                    foreach (ContractResponse contractResponse in allContractsResult.Data) {
                         foreach (ContractProduct contractResponseProduct in contractResponse.Products) {
                             // Lookup the deposit amount here
-                            var depositAmount = floatDeposits.SingleOrDefault(f =>
+                            KeyValuePair<(String, String), Decimal> depositAmount = floatDeposits.SingleOrDefault(f =>
                                 f.Key.Item1 == contractResponse.Description &&
                                 f.Key.Item2 == contractResponseProduct.Name);
 
@@ -151,7 +163,7 @@ namespace TransactionDataGenerator{
                 }
 
                 if ((dataToSend & DataToSend.Logons) == DataToSend.Logons) {
-                    foreach (MerchantResponse merchant in merchants) {
+                    foreach (MerchantResponse merchant in merchantsResult.Data) {
 
                         // Send a logon transaction
                         await g.PerformMerchantLogon(dateTime, merchant, cancellationToken);
@@ -160,7 +172,7 @@ namespace TransactionDataGenerator{
 
                 if ((dataToSend & DataToSend.Sales) == DataToSend.Sales)
                 {
-                    foreach (MerchantResponse merchant in merchants) {
+                    foreach (MerchantResponse merchant in merchantsResult.Data) {
                         // Get the merchants contracts
                         List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
                         foreach (ContractResponse contract in contracts) {
@@ -173,7 +185,7 @@ namespace TransactionDataGenerator{
                 }
 
                 if ((dataToSend & DataToSend.Files) == DataToSend.Files) {
-                    foreach (MerchantResponse merchant in merchants) {
+                    foreach (MerchantResponse merchant in merchantsResult.Data) {
                         // Get the merchants contracts
                         List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
 
