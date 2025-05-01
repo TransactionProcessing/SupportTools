@@ -69,7 +69,7 @@ namespace TransactionProcessor.SystemSetupTool
 
             Mode setupMode = Mode.EstateSetup;
 
-            String configFileName = "setupconfig.json";
+            String configFileName = "setupconfig.staging.json";
 
             IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
             IdentityServerFunctions identityServerFunctions = new(Program.SecurityServiceClient, identityServerConfiguration);

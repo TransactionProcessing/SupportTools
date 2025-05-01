@@ -49,14 +49,6 @@
   ],
   "apiresources": [
     {
-      "secret": "eb47603986574b3ea2e6195a2076696e",
-      "name": "estateManagement",
-      "display_name": "Estate Management REST",
-      "description": "API Resource representing Estate Management REST",
-      "scopes": [ "estateManagement" ],
-      "user_claims": [ "merchantId", "estateId", "role" ]
-    },
-    {
       "secret": "3241913328414df4b8d031ed8f59d1bb",
       "name": "estateReporting",
       "display_name": "Estate Reporting REST",
@@ -78,7 +70,7 @@
       "display_name": "Transaction Processor REST",
       "description": "API Resource representing Transaction Processor REST",
       "scopes": [ "transactionProcessor" ],
-      "user_claims": null
+      "user_claims": [ "merchantId", "estateId", "role" ]
     },
     {
       "secret": "bc7c25e9bf1649cc9d41abebfe98955e",
@@ -103,7 +95,7 @@
       "secret": "d192cbc46d834d0da90e8a9d50ded543",
       "client_name": "Service Client",
       "client_description": "Client for use in inter service communications",
-      "allowed_scopes": [ "transactionProcessorACL", "transactionProcessor", "estateManagement", "estateReporting", "messagingService", "fileProcessor" ],
+      "allowed_scopes": [ "transactionProcessorACL", "transactionProcessor", "estateReporting", "messagingService", "fileProcessor" ],
       "allowed_grant_types": [ "client_credentials" ]
     },
     {
@@ -111,7 +103,7 @@
       "secret": "d192cbc46d834d0da90e8a9d50ded543",
       "client_name": "Management UI App Client",
       "client_description": "Client for use by management app",
-      "allowed_scopes": [ "fileProcessor", "estateManagement", "transactionProcessor", "openid", "email", "profile" ],
+      "allowed_scopes": [ "fileProcessor", "transactionProcessor", "openid", "email", "profile" ],
       "allowed_grant_types": [
         "hybrid",
         "password"
@@ -130,16 +122,6 @@
       "allow_offline_access": true
     },
     {
-      "client_id": "voucherAppClient",
-      "secret": "d09bdc23b50f4582aca09134268d5600",
-      "client_name": "Voucher Mobile App Client",
-      "client_description": "Client for use by voucher redemption mobile app to process voucher redemptions",
-      "allowed_scopes": [ "voucherManagementACL" ],
-      "allowed_grant_types": [
-        "password"
-      ]
-    },
-    {
       "client_id": "mobileAppClient",
       "secret": "d192cbc46d834d0da90e8a9d50ded543",
       "client_name": "Mobile App Client",
@@ -151,11 +133,6 @@
     }
   ],
   "apiscopes": [
-    {
-      "description": "Scope for Estate Management REST",
-      "displayName": "Estate Management REST",
-      "name": "estateManagement"
-    },
     {
       "description": "Scope for Estate Reporting REST",
       "displayName": "Estate Reporting REST",

@@ -830,7 +830,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         else
         {
             // Generate the time
-            Int32 hours = r.Next(0, 23);
+            Int32 hours = r.Next(9, 22);
             Int32 minutes = r.Next(0, 59);
             Int32 seconds = r.Next(0, 59);
 
