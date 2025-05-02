@@ -29,13 +29,14 @@ public static class Jobs
 {
     public static async Task<Result> GenerateMerchantStatements(ITransactionDataGeneratorService t, MerchantStatementJobConfig config, CancellationToken cancellationToken)
     {
-        List<MerchantResponse> merchants = await t.GetMerchants(config.EstateId, cancellationToken);
+        var getMerchantsResult = await t.GetMerchants(config.EstateId, cancellationToken);
 
-        if (merchants.Any() == false)
+        if (getMerchantsResult.IsFailed)
         {
             return Result.Failure($"No merchants returned for Estate [{config.EstateId}]");
         }
 
+        var merchants = getMerchantsResult.Data;
         List<string> results = new();
         foreach (MerchantResponse merchantResponse in merchants)
         {
@@ -55,17 +56,23 @@ public static class Jobs
 
     public static async Task<Result> GenerateFileUploads(ITransactionDataGeneratorService t, FileUploadJobConfig config, CancellationToken cancellationToken)
     {
-        MerchantResponse merchant = await t.GetMerchant(config.EstateId, config.MerchantId, cancellationToken);
+        Result<MerchantResponse> merchantResult = await t.GetMerchant(config.EstateId, config.MerchantId, cancellationToken);
 
-        if (merchant == default)
+        if (merchantResult.IsFailed)
         {
             return Result.Failure($"No merchant returned for Estate Id [{config.EstateId}] Merchant Id [{config.MerchantId}]");
         }
 
-        List<ContractResponse> contracts = await t.GetMerchantContracts(merchant, cancellationToken);
+        MerchantResponse merchant = merchantResult.Data;
+        Result<List<ContractResponse>> getMerchantContractsResult = await t.GetMerchantContracts(merchant, cancellationToken);
+        if (getMerchantContractsResult.IsFailed)
+        {
+            Console.WriteLine($"Failed to get merchant contracts: {getMerchantContractsResult.Message}");
+            return Result.Failure();
+        }
         DateTime fileDate = DateTime.Now.Date;
         List<string> results = new List<string>();
-        foreach (ContractResponse contract in contracts)
+        foreach (ContractResponse contract in getMerchantContractsResult.Data)
         {
             if (config.ContractNames.Contains(contract.Description) == false)
                 continue;
@@ -129,19 +136,19 @@ public static class Jobs
     public static async Task<Result> GenerateTransactions(ITransactionDataGeneratorService t, TransactionJobConfig config, CancellationToken cancellationToken)
     {
         // get the merchant
-        var merchantResult = await t.GetMerchant(config.EstateId, config.MerchantId, cancellationToken);
+        Result<MerchantResponse> merchantResult = await t.GetMerchant(config.EstateId, config.MerchantId, cancellationToken);
 
         if (merchantResult.IsFailed)
         {
             return Result.Failure($"Error getting Merchant Id [{config.MerchantId}] for Estate Id [{config.EstateId}]");
         }
 
-        var merchant = merchantResult.Data;
+        MerchantResponse merchant = merchantResult.Data;
 
         DateTime transactionDate = DateTime.Now;
 
         // Get the merchants contracts
-        var contractResult = await t.GetMerchantContracts(merchant, cancellationToken);
+        Result<List<ContractResponse>> contractResult = await t.GetMerchantContracts(merchant, cancellationToken);
         
         if (contractResult.IsFailed) {
             return Result.Failure($"Error getting contracts for Merchant [{merchant.MerchantName}]");

@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.Extensions.Logging;
 using SimpleResults;
 using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
@@ -23,8 +24,10 @@ namespace TransactionDataGenerator{
         private static TransactionProcessorClient TransactionProcessorClient;
         
         private static Func<String, String> baseAddressFunc;
-
+        
         static async Task Main(string[] args){
+
+
             HttpClientHandler handler = new HttpClientHandler{
                                                                  ServerCertificateCustomValidationCallback = (message,
                                                                                                               cert,
@@ -58,7 +61,7 @@ namespace TransactionDataGenerator{
 
                                   return null;
                               };
-
+            Shared.Logger.Logger.Initialise(new ConsoleLogger());
             Program.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
 
             Program.TransactionProcessorClient = new TransactionProcessorClient(baseAddressFunc, httpClient);
@@ -90,7 +93,10 @@ namespace TransactionDataGenerator{
         }
 
         private static async Task GenerateStatements(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
-            List<MerchantResponse> merchants = await g.GetMerchants(estateId, cancellationToken);
+            Result<List<MerchantResponse>> getMerchantsResult = await g.GetMerchants(estateId, cancellationToken);
+            if (getMerchantsResult.IsFailed)
+                return;
+            List<MerchantResponse>? merchants = getMerchantsResult.Data;
             foreach (MerchantResponse merchant in merchants){
                 await g.GenerateMerchantStatement(merchant.EstateId, merchant.MerchantId, DateTime.Now.AddMonths(-2), cancellationToken);
             }
@@ -98,8 +104,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2025, 4, 14); //27/7
-            DateTime endDate = new DateTime(2025, 4,30); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 4, 16); //27/7
+            DateTime endDate = new DateTime(2025, 4,16); // This is the date of the last generated transaction
 
             Result<List<DateTime>> dateRangeResult = g.GenerateDateRange(startDate, endDate);
             if (dateRangeResult.IsFailed)
@@ -174,8 +180,12 @@ namespace TransactionDataGenerator{
                 {
                     foreach (MerchantResponse merchant in merchantsResult.Data) {
                         // Get the merchants contracts
-                        List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
-                        foreach (ContractResponse contract in contracts) {
+                        Result<List<ContractResponse>> getMerchantContractsResult = await g.GetMerchantContracts(merchant, cancellationToken);
+                        if (getMerchantContractsResult.IsFailed) {
+                            Console.WriteLine($"Failed to get merchant contracts: {getMerchantContractsResult.Message}");
+                            break;
+                        }
+                        foreach (ContractResponse contract in getMerchantContractsResult.Data) {
                             // Generate and send some sales
 
                             await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
@@ -187,9 +197,13 @@ namespace TransactionDataGenerator{
                 if ((dataToSend & DataToSend.Files) == DataToSend.Files) {
                     foreach (MerchantResponse merchant in merchantsResult.Data) {
                         // Get the merchants contracts
-                        List<ContractResponse> contracts = await g.GetMerchantContracts(merchant, cancellationToken);
-
-                        foreach (ContractResponse contract in contracts) {
+                        Result<List<ContractResponse>> getMerchantContractsResult = await g.GetMerchantContracts(merchant, cancellationToken);
+                        if (getMerchantContractsResult.IsFailed)
+                        {
+                            Console.WriteLine($"Failed to get merchant contracts: {getMerchantContractsResult.Message}");
+                            break;
+                        }
+                        foreach (ContractResponse contract in getMerchantContractsResult.Data) {
                             // Generate a file and upload
                             await g.SendUploadFile(dateTime, contract, merchant, Guid.Empty, cancellationToken);
 
@@ -222,5 +236,45 @@ namespace TransactionDataGenerator{
             Files = 8,
             Settlement = 16
         }
+    }
+
+    public class ConsoleLogger : Shared.Logger.ILogger {
+        public void LogCritical(Exception exception) {
+            Console.WriteLine(exception);
+        }
+
+        public void LogCritical(String message,
+                                Exception exception) {
+            Console.WriteLine(message);
+            Console.WriteLine(exception);
+        }
+
+        public void LogDebug(String message) {
+            Console.WriteLine(message);
+        }
+
+        public void LogError(Exception exception) {
+            Console.WriteLine(exception);
+        }
+
+        public void LogError(String message,
+                             Exception exception) {
+            Console.WriteLine(message);
+            Console.WriteLine(exception);
+        }
+
+        public void LogInformation(String message) {
+            Console.WriteLine(message);
+        }
+
+        public void LogTrace(String message) {
+            Console.WriteLine(message);
+        }
+
+        public void LogWarning(String message) {
+            Console.WriteLine(message);
+        }
+
+        public Boolean IsInitialised { get; set; }
     }
 }
