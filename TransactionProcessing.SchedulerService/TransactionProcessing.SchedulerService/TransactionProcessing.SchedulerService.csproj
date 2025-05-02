@@ -10,7 +10,7 @@
     <PackageReference Include="Quartz.Extensions.Hosting" Version="3.14.0" />
     <PackageReference Include="Quartz.Plugins.TimeZoneConverter" Version="3.14.0" />
     <PackageReference Include="Quartz.Serialization.Json" Version="3.14.0" />
-    <PackageReference Include="Shared" Version="2025.3.1" />
+    <PackageReference Include="Shared" Version="2025.5.2" />
     <PackageReference Include="SilkierQuartz" Version="5.0.375" />
     <PackageReference Include="NLog.Extensions.Logging" Version="5.4.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />

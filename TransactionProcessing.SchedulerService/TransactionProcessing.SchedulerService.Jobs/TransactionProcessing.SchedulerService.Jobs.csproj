@@ -8,10 +8,10 @@
     
     <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.3.8" />
     
-    <PackageReference Include="MessagingService.Client" Version="2025.1.4" />
+    <PackageReference Include="MessagingService.Client" Version="2025.3.1" />
     
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
-    <PackageReference Include="Shared" Version="2025.3.1" />
+    <PackageReference Include="Shared" Version="2025.5.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Quartz" Version="3.14.0" />

@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
 using Newtonsoft.Json;
+using Polly;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Results;
@@ -156,7 +157,10 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
     public async Task<Result> PerformSettlement(DateTime dateTime,
                                                 Guid estateId,
                                                 CancellationToken cancellationToken) {
-        List<MerchantResponse> merchants = await this.GetMerchants(estateId, cancellationToken);
+        Result<List<MerchantResponse>> getMerchantsResult = await this.GetMerchants(estateId, cancellationToken);
+        if (getMerchantsResult.IsFailed)
+            return Result.Failure("Error getting merchants");
+        List<MerchantResponse>? merchants = getMerchantsResult.Data;
         List<String> errors = new List<String>();
         foreach (MerchantResponse merchantResponse in merchants) {
             this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantResponse.MerchantId}]");
@@ -379,7 +383,10 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
 
-        EstateResponse estate = await this.TransactionProcessorClient.GetEstate(tokenResult.Data, merchant.EstateId, cancellationToken);
+        var getEstate = await this.TransactionProcessorClient.GetEstate(tokenResult.Data, merchant.EstateId, cancellationToken);
+        if (getEstate.IsFailed)
+            return Result.Failure("Get Estate failed");
+        var estate = getEstate.Data;
         Guid userId = estate.SecurityUsers.First().SecurityUserId;
         Decimal depositAmount = 0;
         if (productType == ProductType.MobileTopup)
@@ -587,7 +594,23 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
-        return await this.TransactionProcessorClient.ProcessSettlement(tokenResult.Data, dateTime, estateId, merchantId, cancellationToken);
+
+        // Create a retry policy
+        IAsyncPolicy<Result> policy = PolicyFactory.CreatePolicy<Result>(2, retryDelay: TimeSpan.FromSeconds(5), policyTag: "TestPolicy", null, ShouldRetryException);
+
+        Result result = await PolicyFactory.ExecuteWithPolicyAsync(async () => 
+            await this.TransactionProcessorClient.ProcessSettlement(tokenResult.Data, dateTime, estateId, merchantId, cancellationToken), 
+            policy, "TransactionDataGeneratorService - SendProcessSettlementRequest");
+        return result;
+    }
+
+    private static bool ShouldRetryException(Exception exception)
+    {
+        return exception switch
+        {
+            TaskCanceledException { InnerException: TimeoutException } => true,
+            _ => false
+        };
     }
 
     public async Task<Result<MerchantResponse>> GetMerchant(Guid estateId,
