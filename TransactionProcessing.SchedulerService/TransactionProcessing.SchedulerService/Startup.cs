@@ -12,12 +12,16 @@ namespace TransactionProcessing.SchedulerService
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
+    using NLog;
+    using NLog.Config;
     using NLog.Extensions.Logging;
     using Quartz;
     using Quartz.Impl;
     using Quartz.Impl.AdoJobStore.Common;
     using Quartz.Impl.Matchers;
     using Quartz.Spi;
+    using Shared.Extensions;
+    using Shared.General;
     using Shared.Logger;
     using SilkierQuartz;
     using System;
@@ -67,23 +71,43 @@ namespace TransactionProcessing.SchedulerService
         public void Configure(IApplicationBuilder app,
                               IWebHostEnvironment env, ILoggerFactory loggerFactory)
         {
+            ConfigurationReader.Initialise(Startup.Configuration);
 
             String nlogConfigFilename = "nlog.config";
-
-            if (env.IsDevelopment()){
+            
+            if (env.IsDevelopment())
+            {
                 app.UseDeveloperExceptionPage();
+
+                string directoryPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                LogManager.AddHiddenAssembly(Assembly.LoadFrom(Path.Combine(directoryPath, "Shared.dll")));
+
+                var developmentNlogConfigFilename = "nlog.development.config";
+                var developmentConfigPath = Path.Combine(env.ContentRootPath, developmentNlogConfigFilename);
+
+                if (File.Exists(developmentConfigPath))
+                {
+                    nlogConfigFilename = developmentNlogConfigFilename;
+                }
             }
-            else{
-                app.UseExceptionHandler("/Error");
+            else
+            {
+                LogManager.AddHiddenAssembly(Assembly.LoadFrom(Path.Combine(env.ContentRootPath, "Shared.dll")));
             }
 
-            
-            loggerFactory.ConfigureNLog(Path.Combine(env.ContentRootPath, nlogConfigFilename));
+            string configPath = Path.Combine(env.ContentRootPath, nlogConfigFilename);
+
+            // Correct way to load config with auto-reload support
+            LogManager.Configuration = new XmlLoggingConfiguration(configPath);
+
+            // Register NLog with ILoggerFactory
             loggerFactory.AddNLog();
-            
-            ILogger logger = loggerFactory.CreateLogger("EstateManagement");
 
-            Logger.Initialise(logger);
+            ILogger logger = loggerFactory.CreateLogger("TransactionProcessor");
+
+            Shared.Logger.Logger.Initialise(logger);
+
+            Startup.Configuration.LogConfiguration(Shared.Logger.Logger.LogWarning);
 
             app.UseStaticFiles();
             app.UseRouting();
@@ -140,14 +164,11 @@ namespace TransactionProcessing.SchedulerService
 
     public class CustomSqlServerConnectionProvider : IDbProvider
     {
-        private readonly ILogger<CustomSqlServerConnectionProvider> logger;
+        //private readonly ILogger<CustomSqlServerConnectionProvider> logger;
         private readonly IConfiguration configuration;
 
-        public CustomSqlServerConnectionProvider(
-            ILogger<CustomSqlServerConnectionProvider> logger,
-            IConfiguration configuration)
+        public CustomSqlServerConnectionProvider(IConfiguration configuration)
         {
-            this.logger = logger;
             this.configuration = configuration;
             Metadata = new DbMetadata
             {
@@ -168,7 +189,7 @@ namespace TransactionProcessing.SchedulerService
 
         public void Initialize()
         {
-            logger.LogInformation("Initializing");
+            Shared.Logger.Logger.LogInformation("Initializing");
         }
 
         public DbCommand CreateCommand()
@@ -191,7 +212,7 @@ namespace TransactionProcessing.SchedulerService
 
         public void Shutdown()
         {
-            logger.LogInformation("Shutting down");
+            Shared.Logger.Logger.LogInformation("Shutting down");
         }
     }
 
@@ -226,7 +247,7 @@ namespace TransactionProcessing.SchedulerService
 
                 // we take this from appsettings.json, just show it's possible
                 q.SchedulerName = "Txn Processing Scheduler";
-
+                
                 // these are the defaults
                 q.UseSimpleTypeLoader();
                 q.UsePersistentStore(s => {
@@ -248,7 +269,7 @@ namespace TransactionProcessing.SchedulerService
                 ExecutionHistoryPlugin p = new ExecutionHistoryPlugin();
                 p.StoreType = Type.GetType("Quartz.Plugins.RecentHistory.Impl.InProcExecutionHistoryStore,Quartz.Plugins.RecentHistory");
                 p.Name = "ExecutionHistoryPlugin";
-                q.AddJobListener<ExecutionHistoryPlugin>(p);
+                //q.AddJobListener<ExecutionHistoryPlugin>(p);
             });
             
             return services;
