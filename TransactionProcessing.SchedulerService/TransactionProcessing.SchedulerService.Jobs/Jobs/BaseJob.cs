@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using Quartz;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
-using Shared.Logger;
+using SimpleResults;
 using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessing.SchedulerService.Jobs.Common;
 using TransactionProcessing.SchedulerService.Jobs.Configuration;
 using TransactionProcessor.Client;
+using Logger = Shared.Logger.Logger;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace TransactionProcessing.SchedulerService.Jobs.Jobs;
 
@@ -34,19 +37,11 @@ public abstract class BaseJob : IJob{
                                                                    runningMode);
         return g;
     }
-
-    //protected async Task<String> GetToken(String clientId, String clientSecret, CancellationToken cancellationToken)
-    //{
-    //    ISecurityServiceClient securityServiceClient = Bootstrapper.GetService<ISecurityServiceClient>();
-    //    TokenResponse token = await securityServiceClient.GetToken(clientId, clientSecret, cancellationToken);
-
-    //    return token.AccessToken;
-    //}
-
+    
     protected void TraceGenerated(TraceEventArgs traceArguments)
     {
         if (traceArguments.TraceLevel == TraceEventArgs.Level.Error){
-            Logger.LogError(new Exception(traceArguments.Message));
+            Logger.LogError(traceArguments.Message, null);
         }
         else if (traceArguments.TraceLevel == TraceEventArgs.Level.Warning){
             Logger.LogWarning(traceArguments.Message);
@@ -56,19 +51,21 @@ public abstract class BaseJob : IJob{
         }
     }
 
-    public abstract Task ExecuteJob(IJobExecutionContext context);
+    public abstract Task<Result> ExecuteJob(IJobExecutionContext context);
 
     public async Task Execute(IJobExecutionContext context){
 
         this.CacheConfiguration(context);
-        Logger.LogInformation($"Running Job Group: [{this.JobGroup}] Name: [{this.JobName}]");
-        //this.LogConfiguration();
-
+        Logger.LogWarning($"Running Job Group: [{this.JobGroup}] Name: [{this.JobName}]");
+        
         Bootstrapper.ConfigureServices(context, this.BaseConfiguration);
+        Result result = await this.ExecuteJob(context);
+        if (result.IsFailed){
+            Logger.LogWarning($"Job Group: [{this.JobGroup}] Name: [{this.JobName}] failed. Exception {result.Message}");
+            throw new JobExecutionException(result.Message);
+        }
 
-        await this.ExecuteJob(context);
-
-        Logger.LogInformation($"Job Group: [{this.JobGroup}] Name: [{this.JobName}] completed");
+        Logger.LogWarning($"Job Group: [{this.JobGroup}] Name: [{this.JobName}] completed");
     }
 
     private void CacheConfiguration(IJobExecutionContext context){
