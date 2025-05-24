@@ -74,27 +74,7 @@ namespace TransactionProcessing.SchedulerService
             ConfigurationReader.Initialise(Startup.Configuration);
 
             String nlogConfigFilename = "nlog.config";
-
-            //if (env.IsDevelopment())
-            //{
-            //    app.UseDeveloperExceptionPage();
-            //    string directoryPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            //    LogManager.AddHiddenAssembly(Assembly.LoadFrom(Path.Combine(directoryPath, "Shared.dll")));
-
-            //    var developmentNlogConfigFilename = "nlog.development.config";
-            //    if (File.Exists(Path.Combine(env.ContentRootPath, developmentNlogConfigFilename)))
-            //    {
-            //        nlogConfigFilename = developmentNlogConfigFilename;
-            //    }
-            //}
-            //else
-            //{
-            //    LogManager.AddHiddenAssembly(Assembly.LoadFrom(Path.Combine(env.ContentRootPath, "Shared.dll")));
-            //}
-
-            //loggerFactory.ConfigureNLog(Path.Combine(env.ContentRootPath, nlogConfigFilename));
-            //loggerFactory.AddNLog();
-
+            
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
