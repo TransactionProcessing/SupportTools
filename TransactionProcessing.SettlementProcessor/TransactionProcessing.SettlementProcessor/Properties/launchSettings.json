@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "TransactionProcessing.SettlementProcessor": {
-      "commandName": "Project",
-      "commandLineArgs": "435613ac-a468-47a3-ac4f-649d89764c22"
-    }
-  }
-}
