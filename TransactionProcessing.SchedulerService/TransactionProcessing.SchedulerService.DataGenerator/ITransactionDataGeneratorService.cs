@@ -17,6 +17,11 @@ public interface ITransactionDataGeneratorService
     Task<Result<List<MerchantResponse>>> GetMerchants(Guid estateId, CancellationToken cancellationToken);
     Task<Result<SerialisedMessage>> PerformMerchantLogon(DateTime dateTime, MerchantResponse merchant, CancellationToken cancellationToken);
     Task<Result> PerformSettlement(DateTime dateTime, Guid estateId, CancellationToken cancellationToken);
+
+    Task<Result> PerformMerchantSettlement(DateTime dateTime,
+                                                Guid estateId,
+                                                Guid merchantId,
+                                                CancellationToken cancellationToken);
     Task<Result> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfSales, CancellationToken cancellationToken);
     Task<Result> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, Guid userId, CancellationToken cancellationToken);
     Task<Result<MerchantResponse>> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken);

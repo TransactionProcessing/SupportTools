@@ -94,7 +94,8 @@ public class EventStoreFunctions{
                 projection.Contains("TransactionProcessorSubscriptionStreamBuilder") ||
                 projection.Contains("EstateAggregator") ||
                 projection.Contains("MerchantAggregator") ||
-                projection.Contains("MerchantBalanceAggregator"))
+                projection.Contains("MerchantBalanceAggregator") ||
+                projection.Contains("CallbackHandlerEnricher"))
             {
                 continue;
             }

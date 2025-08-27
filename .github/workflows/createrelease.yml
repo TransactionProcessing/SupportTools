@@ -38,6 +38,7 @@ jobs:
       run: |
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r linux-x64 --self-contained
         dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.csproj" --configuration Release --output TransactionProcessing.SchedulerService/publishOutput -r linux-x64 --self-contained
+        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.TickerQ.csproj" --configuration Release --output TransactionProcessing.SchedulerService.TickerQ/publishOutput -r linux-x64 --self-contained
             
     - name: Build Release Package (Health Check UI)
       run: |
@@ -51,6 +52,12 @@ jobs:
          zip -r ../schedulerservice.zip ./*
          echo "Zip file created at: $(realpath ../schedulerservice.zip)"
 
+    - name: Build Release Package (Scheduler Service TickerQ)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService.TickerQ/publishOutput
+         zip -r ../schedulerservicetq.zip ./*
+         echo "Zip file created at: $(realpath ../schedulerservicetq.zip)"
+
     - name: Upload the artifact (Health Check UI)    
       uses: actions/upload-artifact@v4.4.0
       with:
@@ -62,6 +69,12 @@ jobs:
       with:
         name: schedulerservice
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
+
+    - name: Upload the artifact (Scheduler Service Ticker Q)
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: schedulerservicetq
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService.TickerQ/schedulerservicetq.zip
         
   deploystaging:
     runs-on: [stagingserver, linux]
@@ -142,15 +155,74 @@ jobs:
           sudo systemctl start "$SERVICE_NAME"
           sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification
 
-      - name: Download the artifact (Scheduler Service) 
+      # - name: Download the artifact (Scheduler Service) 
+      #   uses: actions/download-artifact@v4.1.8
+      #   with:
+      #     name: schedulerservice
+      #     path: /tmp/supporttools/schedulerservice
+
+      # - name: Remove existing service (Scheduler Service)
+      #   run: |
+      #     SERVICE_NAME="schedulerservice"
+      #     if systemctl is-active --quiet "$SERVICE_NAME"; then
+      #       echo "Stopping existing service..."
+      #       sudo systemctl stop "$SERVICE_NAME"
+      #     fi
+      #     if systemctl is-enabled --quiet "$SERVICE_NAME"; then
+      #       echo "Disabling existing service..."
+      #       sudo systemctl disable "$SERVICE_NAME"
+      #     fi
+      #     if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
+      #       echo "Removing existing service unit file..."
+      #       sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
+      #       sudo systemctl daemon-reload
+      #     fi
+
+      # - name: Unzip the files (Scheduler Service)
+      #   run: |
+      #     sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservice
+      #     sudo unzip -o /tmp/supporttools/schedulerservice/schedulerservice.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservice
+      
+      # - name: Install and Start as a Linux service (Scheduler Service)
+      #   run: |
+      #     SERVICE_NAME="schedulerservice"
+      #     # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
+      #     WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservice"
+      #     DLL_NAME="TransactionProcessing.SchedulerService.dll" # Your application's DLL
+      #     SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service"
+  
+      #     # Create a systemd service file
+      #     echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     # IMPORTANT: Use 'dotnet' to run your DLL
+      #     echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
+      #     echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
+      #     echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
+      #     echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+      #     echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
+  
+      #     # Reload systemd, enable, and start the service
+      #     sudo systemctl daemon-reload
+      #     sudo systemctl enable "$SERVICE_NAME"
+      #     sudo systemctl start "$SERVICE_NAME"
+      #     sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification         
+
+      - name: Download the artifact (Scheduler Service TickerQ) 
         uses: actions/download-artifact@v4.1.8
         with:
-          name: schedulerservice
-          path: /tmp/supporttools/schedulerservice
+          name: schedulerservicetq
+          path: /tmp/supporttools/schedulerservicetq
 
-      - name: Remove existing service (Scheduler Service)
+      - name: Remove existing service (Scheduler Service TickerQ)
         run: |
-          SERVICE_NAME="schedulerservice"
+          SERVICE_NAME="schedulerservicetq"
           if systemctl is-active --quiet "$SERVICE_NAME"; then
             echo "Stopping existing service..."
             sudo systemctl stop "$SERVICE_NAME"
@@ -165,18 +237,18 @@ jobs:
             sudo systemctl daemon-reload
           fi
 
-      - name: Unzip the files (Scheduler Service)
+      - name: Unzip the files (Scheduler Service TickerQ)
         run: |
-          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservice
-          sudo unzip -o /tmp/supporttools/schedulerservice/schedulerservice.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservice
+          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservicetq
+          sudo unzip -o /tmp/supporttools/schedulerservicetq/schedulerservicetq.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservicetq
       
-      - name: Install and Start as a Linux service (Scheduler Service)
+      - name: Install and Start as a Linux service (Scheduler Service TickerQ)
         run: |
-          SERVICE_NAME="schedulerservice"
+          SERVICE_NAME="schedulerservicetq"
           # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservice"
-          DLL_NAME="TransactionProcessing.SchedulerService.dll" # Your application's DLL
-          SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service"
+          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservicetq"
+          DLL_NAME="TransactionProcessing.SchedulerService.TickerQ.dll" # Your application's DLL
+          SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service Ticker Q"
   
           # Create a systemd service file
           echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
