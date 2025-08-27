@@ -39,7 +39,7 @@ namespace TransactionDataGenerator{
             HttpClient httpClient = new HttpClient(handler);
 
             baseAddressFunc = (apiName) => {
-                                  String ipaddress = "192.168.1.167";
+                                  String ipaddress = "192.168.1.163";
 
                                   if (apiName == "SecurityService"){
                                       return $"https://{ipaddress}:5001";
@@ -104,8 +104,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2025, 4, 16); //27/7
-            DateTime endDate = new DateTime(2025, 4,16); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 7, 2); //27/7
+            DateTime endDate = new DateTime(2025, 8,27); // This is the date of the last generated transaction
 
             Result<List<DateTime>> dateRangeResult = g.GenerateDateRange(startDate, endDate);
             if (dateRangeResult.IsFailed)
@@ -132,24 +132,29 @@ namespace TransactionDataGenerator{
                 { ("PataPawa prePay Contract", "Pre Pay Bill Pay"), 18000 }
             };
 
-
+            DataToSend dataToSend = 0; 
             // Everything
-            //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files | DataToSend.Settlement;
+            //dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files | DataToSend.Settlement;
             
             // Everything (No settlement)
-            //DataToSend dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files;
+            dataToSend = DataToSend.FloatDeposits | DataToSend.Logons | DataToSend.Sales | DataToSend.Files;
 
             //  Floats
-            //DataToSend dataToSend = DataToSend.FloatDeposits;
+            //dataToSend = DataToSend.FloatDeposits;
 
             //  Logons and Sales
-            //DataToSend dataToSend = DataToSend.Logons | DataToSend.Sales;
+            //dataToSend = DataToSend.Logons | DataToSend.Sales;
 
             // Files
-            //DataToSend dataToSend = DataToSend.Files;
+            //dataToSend = DataToSend.Files;
 
             // Settlement
-            DataToSend dataToSend = DataToSend.Settlement;
+            dataToSend = DataToSend.Settlement;
+
+            if (dataToSend == 0) {
+                Console.WriteLine("No data to send");
+                return;
+            }
 
             foreach (DateTime dateTime in dateRangeResult.Data){
 
@@ -205,7 +210,7 @@ namespace TransactionDataGenerator{
                         }
                         foreach (ContractResponse contract in getMerchantContractsResult.Data) {
                             // Generate a file and upload
-                            await g.SendUploadFile(dateTime, contract, merchant, Guid.Empty, cancellationToken);
+                            await g.SendUploadFile(dateTime, contract, merchant, Guid.Parse("75e19f2e-2ce9-4296-930a-3bb4416375f4"), cancellationToken);
 
                             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                         }

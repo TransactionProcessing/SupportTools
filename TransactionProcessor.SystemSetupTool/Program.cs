@@ -58,7 +58,7 @@ namespace TransactionProcessor.SystemSetupTool
                                                                                             return true;
                                                                                         }
                                         };
-            HttpClient client = new HttpClient(handler);
+            HttpClient client = new(handler);
             Program.HttpClient = new HttpClient(handler);
 
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);

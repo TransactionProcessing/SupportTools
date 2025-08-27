@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.8">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="NLog.Web.AspNetCore" Version="6.0.3" />
+		<PackageReference Include="Shared" Version="2025.6.1" />
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.5" />
+		<PackageReference Include="TickerQ" Version="2.5.1" />
+		<PackageReference Include="TickerQ.Dashboard" Version="2.5.1" />
+		<PackageReference Include="TickerQ.EntityFrameworkCore" Version="2.5.1" />
+		<PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.3.9" />
+		<!--<PackageReference Include="NLog.Extensions.Logging" Version="5.5.0" />-->
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\DataGenerator\TransactionDataGenerator.csproj" />
+	  <ProjectReference Include="..\TransactionProcessing.SchedulerService.DataGenerator\TransactionProcessing.SchedulerService.DataGenerator.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Update="nlog.config">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </Content>
+	</ItemGroup>
+</Project>

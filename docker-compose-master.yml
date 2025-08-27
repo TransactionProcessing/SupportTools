@@ -74,7 +74,7 @@ services:
     ports:
       - "5002:5002"
     environment:
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
@@ -144,7 +144,7 @@ services:
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
       - AppSettings:ClientId=serviceClient
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
       - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
       - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
       - AppSettings:FileProfiles__0__ListeningDirectory=/home/txnproc/bulkfiles/safaricom

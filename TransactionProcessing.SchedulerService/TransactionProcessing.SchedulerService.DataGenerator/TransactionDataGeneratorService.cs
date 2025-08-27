@@ -180,6 +180,23 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         return Result.Success();
     }
 
+    public async Task<Result> PerformMerchantSettlement(DateTime dateTime,
+                                                        Guid estateId,
+                                                        Guid merchantId,
+                                                        CancellationToken cancellationToken) {
+        this.WriteTrace($"About to send Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantId}]");
+        Result result = await this.SendProcessSettlementRequest(dateTime, estateId, merchantId, cancellationToken);
+        if (result.IsFailed) {
+            this.WriteError($"Error sending Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and MerchantId [{merchantId}]");
+            this.WriteError(result.Message);
+            return Result.Failure($"Error sending Process Settlement Request for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and MerchantId [{merchantId}]");
+        }
+
+        this.WriteTrace($"Process Settlement Request sent for Date [{dateTime:dd-MM-yyyy}] and Estate [{estateId}] and Merchant [{merchantId}]");
+
+        return Result.Success();
+    }
+
     public async Task<Result> SendSales(DateTime dateTime,
                                         MerchantResponse merchant,
                                         ContractResponse contract,
@@ -198,7 +215,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             // Get a number of sales to be sent
             if (numberOfSales == 0)
             {
-                numberOfSales = this.r.Next(20, 25);
+                numberOfSales = this.r.Next(2, 10);
             }
 
             for (Int32 i = 1; i <= numberOfSales; i++)
@@ -260,7 +277,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         {
             sale.TransactionNumber = this.GetTransactionNumber().ToString();
             Result<SerialisedMessage> saleResult = await this.SendSaleTransaction(merchant, sale, cancellationToken);
-            if (saleResult.IsFailed)
+            if (saleResult.IsSuccess)
             {
                 salesSent++;
             }
@@ -271,7 +288,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             // All sales failed
             return Result.Failure("All sales have failed");
         }
-
+        this.WriteTraceX($"{salesSent} sales for merchant {merchant.MerchantName} sent to host {orderedSales.Count() - salesSent} sales failed to send");
         return Result.Success();
     }
 
@@ -732,7 +749,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
                                                                       SaleTransactionRequest request,
                                                                       CancellationToken cancellationToken) {
         if (this.RunningMode == RunningMode.WhatIf) {
-            this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionNumber} - {request.OperatorId} - {request.GetAmount()}");
+            this.WriteTrace($"Send Sale for Merchant [{merchant.MerchantName}] - {request.TransactionDateTime:yyyy-MM-dd HH:mm:ss} {request.TransactionNumber} - {request.OperatorId} - {request.GetAmount()}");
             return Result.Success();
         }
 
@@ -805,7 +822,19 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         }
     }
 
+    private void WriteMessageX(String message,
+                              TraceEventArgs.Level traceLevel)
+    {
+        if (this.TraceGenerated != null)
+        {
+            TraceEventArgs args = new() { TraceLevel = traceLevel, Message = message };
+
+            this.TraceGenerated.Invoke(args);
+        }
+    }
+
     private void WriteTrace(String message) => this.WriteMessage(message, TraceEventArgs.Level.Trace);
+    private void WriteTraceX(String message) => this.WriteMessageX(message, TraceEventArgs.Level.Trace);
     private void WriteWarning(String message) => this.WriteMessage(message, TraceEventArgs.Level.Warning);
     private void WriteError(String message) => this.WriteMessage(message, TraceEventArgs.Level.Error);
     private void WriteError(Exception ex) => this.WriteMessage(ex.ToString(), TraceEventArgs.Level.Error);
