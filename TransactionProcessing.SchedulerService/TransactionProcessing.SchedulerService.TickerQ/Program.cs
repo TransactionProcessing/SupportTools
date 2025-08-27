@@ -78,7 +78,10 @@ builder.Services.AddSingleton<Func<String, String>>(container => (serviceName) =
 builder.Logging.ClearProviders();
 
 // Add NLog
-builder.Host.UseNLog();
+builder.Host.UseNLog().ConfigureAppConfiguration((hostingContext, config) =>
+{
+    config.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
+});
 
 String nlogConfigFilename = "nlog.config";
 
