@@ -31,11 +31,15 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
 
             // Get the base configuration
             this.BaseConfiguration= BuildBaseConfiguration();
-            this.TransactionDataGeneratorService = CreateTransactionDataGenerator(this.BaseConfiguration.ClientId, this.BaseConfiguration.ClientSecret, RunningMode.WhatIf);
+            this.TransactionDataGeneratorService = CreateTransactionDataGenerator(this.BaseConfiguration.ClientId, this.BaseConfiguration.ClientSecret);
         }
 
-        protected ITransactionDataGeneratorService CreateTransactionDataGenerator(String clientId, String clientSecret, RunningMode runningMode)
-        {
+        protected ITransactionDataGeneratorService CreateTransactionDataGenerator(String clientId, String clientSecret) {
+            var runningModeConfig = ConfigurationReader.GetValueOrDefault("AppSettings", "RunningMode", "WhatIf");
+            if (Enum.TryParse<RunningMode>(runningModeConfig, true, out RunningMode runningMode) == false) {
+                throw new ApplicationException("Running Mode invalid");
+            }
+
             ITransactionDataGeneratorService g = new TransactionDataGeneratorService(this.SecurityServiceClient,
                 this.TransactionProcessorClient,
                 this.BaseAddressFunc("TransactionProcessorApi"),
