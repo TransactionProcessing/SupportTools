@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TickerQ.EntityFrameworkCore.Configurations;
 
 namespace TransactionProcessing.SchedulerService.TickerQ.Database

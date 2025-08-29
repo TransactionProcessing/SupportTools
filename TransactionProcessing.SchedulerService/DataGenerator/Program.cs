@@ -104,8 +104,8 @@ namespace TransactionDataGenerator{
 
         private static async Task GenerateTransactions(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
             // Set the date range
-            DateTime startDate = new DateTime(2025, 7, 2); //27/7
-            DateTime endDate = new DateTime(2025, 8,27); // This is the date of the last generated transaction
+            DateTime startDate = new DateTime(2025, 8, 28); //27/7
+            DateTime endDate = new DateTime(2025, 8,28); // This is the date of the last generated transaction
 
             Result<List<DateTime>> dateRangeResult = g.GenerateDateRange(startDate, endDate);
             if (dateRangeResult.IsFailed)
@@ -149,7 +149,7 @@ namespace TransactionDataGenerator{
             //dataToSend = DataToSend.Files;
 
             // Settlement
-            dataToSend = DataToSend.Settlement;
+            //dataToSend = DataToSend.Settlement;
 
             if (dataToSend == 0) {
                 Console.WriteLine("No data to send");

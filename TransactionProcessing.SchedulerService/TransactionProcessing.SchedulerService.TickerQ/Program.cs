@@ -54,7 +54,7 @@ HttpClientHandler httpClientHandler = new HttpClientHandler
 };
 HttpClient httpClient = new HttpClient(httpClientHandler);
 
-BaseConfiguration baseConfiguration = TickerFunctions.BuildBaseConfiguration();
+ServiceConfiguration baseConfiguration = TickerFunctions.BuildBaseConfiguration();
 builder.Services.AddSingleton(baseConfiguration);
 
 builder.Services.AddSingleton(httpClient);

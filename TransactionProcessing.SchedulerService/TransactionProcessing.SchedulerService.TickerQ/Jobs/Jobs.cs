@@ -1,5 +1,6 @@
 ﻿using EventStore.Client;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.Tokens;
 using SecurityService.Client;
 using Shared.General;
 using Shared.Logger;
@@ -7,6 +8,7 @@ using SimpleResults;
 using TickerQ.Utilities.Base;
 using TickerQ.Utilities.Models;
 using TransactionProcessing.SchedulerService.DataGenerator;
+using TransactionProcessing.SchedulerService.TickerQ.Database;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
@@ -19,15 +21,18 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
         private readonly ISecurityServiceClient SecurityServiceClient;
         private readonly ITransactionProcessorClient TransactionProcessorClient;
         private readonly Func<String, String> BaseAddressFunc;
+        private readonly SchedulerContext SchedulerContext;
         private readonly ITransactionDataGeneratorService TransactionDataGeneratorService;
-        private readonly BaseConfiguration BaseConfiguration;
+        private readonly ServiceConfiguration BaseConfiguration;
 
         public TickerFunctions(ISecurityServiceClient securityServiceClient,
                                ITransactionProcessorClient transactionProcessorClient,
-                               Func<String, String> baseAddressFunc) {
+                               Func<String, String> baseAddressFunc,
+                               SchedulerContext schedulerContext) {
             this.SecurityServiceClient = securityServiceClient;
             this.TransactionProcessorClient = transactionProcessorClient;
             this.BaseAddressFunc = baseAddressFunc;
+            this.SchedulerContext = schedulerContext;
 
             // Get the base configuration
             this.BaseConfiguration= BuildBaseConfiguration();
@@ -51,7 +56,7 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
             return g;
         }
 
-        internal static BaseConfiguration BuildBaseConfiguration() {
+        internal static ServiceConfiguration BuildBaseConfiguration() {
             String? clientId = ConfigurationReader.GetValueOrDefault<String>("BaseConfiguration", "ClientId", "");
             String? clientSecret = ConfigurationReader.GetValueOrDefault<String>("BaseConfiguration", "ClientSecret", "");
             String? fileProcessorApi = ConfigurationReader.GetValueOrDefault<String>("BaseConfiguration", "FileProcessorApi", "");
@@ -87,7 +92,7 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
                 throw new InvalidOperationException("Configuration validation failed: " + String.Join(", ", validationErrors));
             }
 
-            return new BaseConfiguration(
+            return new ServiceConfiguration(
                 clientId,
                 clientSecret,
                 fileProcessorApi,
@@ -97,8 +102,12 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
         }
 
         [TickerFunction(functionName: "Replay Parked Queue")]
-        public async Task ReplayParkedQueue(TickerFunctionContext tickerContext, CancellationToken ct)
-        {
+        public async Task ReplayParkedQueue(TickerFunctionContext<ReplayParkedQueueJobConfiguration> tickerContext, CancellationToken ct) {
+            if (this.IsJobEnabled(tickerContext.Request) == false) {
+                Logger.LogWarning("Replay Parked Queue Job is not enabled");
+                return;
+            }
+
             Result result = await Jobs.ReplayParkedQueues(this.BaseConfiguration.EventStoreAddress, ct);
 
             if (result.IsFailed) {
@@ -108,8 +117,19 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
             Logger.LogWarning("Running Replay Parked Queue");
         }
 
+        private Boolean IsJobEnabled<TConfiguration>(TConfiguration configuration) where TConfiguration : BaseConfiguration {
+            if (configuration == null)
+                return true;
+            return configuration.IsEnabled;
+        }
+
         [TickerFunction(functionName: "Make Float Credits")]
         public async Task MakeFloatCredits(TickerFunctionContext<MakeFloatCreditsJobConfiguration> tickerContext, CancellationToken ct) {
+            if (this.IsJobEnabled(tickerContext.Request) == false)
+            {
+                Logger.LogWarning("Make Float Credits is not enabled");
+                return;
+            }
             Result result = await Jobs.MakeFloatCredits(this.TransactionDataGeneratorService, tickerContext.Request, ct);
 
             if (result.IsFailed)
@@ -123,6 +143,11 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
         [TickerFunction(functionName: "Upload Transaction File")]
         public async Task UploadTransactionFile(TickerFunctionContext<UploadTransactionFileJobConfiguration> tickerContext, CancellationToken ct)
         {
+            if (this.IsJobEnabled(tickerContext.Request) == false)
+            {
+                Logger.LogWarning("Upload Transaction File is not enabled");
+                return;
+            }
             String name = tickerContext.Request.MerchantId.ToString() switch
             {
                 "af4d7c7c-9b8d-4e58-a12a-28d3e0b89df6" => "Demo Merchant 2",
@@ -141,6 +166,12 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
 
         [TickerFunction(functionName: "Process Merchant Settlement")]
         public async Task ProcessMerchantSettlement(TickerFunctionContext<ProcessSettlementJobConfiguration> tickerContext, CancellationToken ct) {
+            if (this.IsJobEnabled(tickerContext.Request) == false)
+            {
+                Logger.LogWarning("Process Merchant Settlement Job is not enabled");
+                return;
+            }
+
             String name = tickerContext.Request.MerchantId.ToString() switch
             {
                 "af4d7c7c-9b8d-4e58-a12a-28d3e0b89df6" => "Demo Merchant 2",
@@ -159,6 +190,11 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
 
         [TickerFunction(functionName: "Generate Merchant Transactions")]
         public async Task GenerateMerchantTransactions(TickerFunctionContext<GenerateTransactionsJobConfiguration> tickerContext, CancellationToken ct) {
+            if (this.IsJobEnabled(tickerContext.Request) == false)
+            {
+                Logger.LogWarning("Generate Merchant Transactions Job is not enabled");
+                return;
+            }
             String name = tickerContext.Request.MerchantId.ToString() switch {
                 "af4d7c7c-9b8d-4e58-a12a-28d3e0b89df6" => "Demo Merchant 2",
                 "ab1c99fb-1c6c-4694-9a32-b71be5d1da33" => "Demo Merchant 1",
@@ -179,6 +215,11 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
         [TickerFunction(functionName: "Generate Merchant Logon")]
         public async Task GenerateMerchantLogon(TickerFunctionContext<GenerateTransactionsJobConfiguration> tickerContext, CancellationToken ct)
         {
+            if (this.IsJobEnabled(tickerContext.Request) == false)
+            {
+                Logger.LogWarning("Generate Merchant Logon Job is not enabled");
+                return;
+            }
             String name = tickerContext.Request.MerchantId.ToString() switch
             {
                 "af4d7c7c-9b8d-4e58-a12a-28d3e0b89df6" => "Demo Merchant 2",
