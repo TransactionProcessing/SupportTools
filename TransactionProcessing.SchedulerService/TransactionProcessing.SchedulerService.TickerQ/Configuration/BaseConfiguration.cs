@@ -1,4 +1,4 @@
-﻿    public record BaseConfiguration(
+﻿    public record ServiceConfiguration(
         String ClientId,
         String ClientSecret,
         String FileProcessorApi,
@@ -8,45 +8,52 @@
         String EventStoreAddress);
 
 
-    public class ReplayParkedQueueJobConfiguration {
+    public class BaseConfiguration {
+        public Boolean IsEnabled { get; set; } = true;
+    }
+
+    public class ReplayParkedQueueJobConfiguration : BaseConfiguration
+    {
         
     }
 
-    public class MakeFloatCreditsJobConfiguration{
+    public class MakeFloatCreditsJobConfiguration : BaseConfiguration
+    {
 
         public Guid EstateId { get; set; }
         public List<DepositAmount> DepositAmounts { get; set; } = new List<DepositAmount>();
     }
 
 
-    public class DepositAmount{
+    public class DepositAmount : BaseConfiguration
+    {
         public Guid ContractId { get; set; }
         public Guid ProductId { get; set; }
         public Decimal Amount { get; set; }
     }
 
-    public class UploadTransactionFileJobConfiguration
-    {
+    public class UploadTransactionFileJobConfiguration : BaseConfiguration
+{
         public Guid EstateId { get; set; }
         public Guid MerchantId { get; set; }
         public Guid UserId { get; set; }
         public List<String> ContractsToInclude { get; set; }
 }
 
-    public class GenerateTransactionsJobConfiguration
-    {
+    public class GenerateTransactionsJobConfiguration : BaseConfiguration
+{
         public Guid EstateId { get; set; }
         public Guid MerchantId { get; set; }
     }
 
-    public class ProcessSettlementJobConfiguration
-    {
+    public class ProcessSettlementJobConfiguration : BaseConfiguration
+{
         public Guid EstateId { get; set; }
         public Guid MerchantId { get; set; }
     }
 
-    public class MerchantStatementJobConfiguration
-    {
+    public class MerchantStatementJobConfiguration : BaseConfiguration
+{
         public Guid EstateId { get; set; }
         public Guid MerchantId { get; set; }
     }
