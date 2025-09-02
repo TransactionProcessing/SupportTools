@@ -282,9 +282,9 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             {
                 salesSent++;
             }
-            var random = new Random();
-            int delaySeconds = random.Next(5, 10); // 30–60 inclusive
-            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+            //var random = new Random();
+            //int delaySeconds = random.Next(5, 10); // 30–60 inclusive
+            //await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
         }
 
         if (salesSent == 0)
