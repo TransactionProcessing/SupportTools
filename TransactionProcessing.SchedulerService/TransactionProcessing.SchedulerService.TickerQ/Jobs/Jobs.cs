@@ -399,7 +399,7 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
             List<string> results = new List<string>();
             foreach (ContractResponse contract in contracts)
             {
-                int numberOfSales = r.Next(1, 2);
+                int numberOfSales = r.Next(0, 2) == 0 ? 3 : 5;
                 // Generate and send some sales
                 Result saleResult = await t.SendSales(transactionDate, merchant, contract, numberOfSales, cancellationToken);
 
