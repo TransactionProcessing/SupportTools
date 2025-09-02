@@ -260,14 +260,15 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         }
 
         // Build up a deposit (minus the last sale amount)
-        MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(depositAmount, dateTime);
+        if (depositAmount > 0) {
+            MakeMerchantDepositRequest depositRequest = this.CreateMerchantDepositRequest(depositAmount, dateTime);
 
-        // Send the deposit
-        Result result = await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
+            // Send the deposit
+            Result result = await this.SendMerchantDepositRequest(merchant, depositRequest, cancellationToken);
 
-        if (result.IsFailed)
-        {
-            return result;
+            if (result.IsFailed) {
+                return result;
+            }
         }
 
         Int32 salesSent = 0;
@@ -281,6 +282,9 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             {
                 salesSent++;
             }
+            var random = new Random();
+            int delaySeconds = random.Next(30, 90); // 30–60 inclusive
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
         }
 
         if (salesSent == 0)
