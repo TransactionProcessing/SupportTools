@@ -107,7 +107,6 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
                 Logger.LogWarning("Replay Parked Queue Job is not enabled");
                 return;
             }
-
             Result result = await Jobs.ReplayParkedQueues(this.BaseConfiguration.EventStoreAddress, ct);
 
             if (result.IsFailed) {
@@ -203,7 +202,7 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
             };
 
             Result result = await Jobs.GenerateSaleTransactions(this.TransactionDataGeneratorService, tickerContext.Request.EstateId, 
-                tickerContext.Request.MerchantId, ct);
+                tickerContext.Request.MerchantId, tickerContext.Request.TaskDelay.GetValueOrDefault(0), ct);
             if (result.IsFailed)
             {
                 throw new ApplicationException(result.Message);
@@ -367,6 +366,7 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
 
         public static async Task<Result> GenerateSaleTransactions(ITransactionDataGeneratorService t,
                                                           Guid estateId, Guid merchantId,
+                                                          Int32 timeDelay,
                                                           CancellationToken cancellationToken)
         {
             // get the merchant
@@ -398,9 +398,9 @@ namespace TransactionProcessing.SchedulerService.TickerQ.Jobs
             Random r = new Random();
             List<string> results = new List<string>();
             foreach (ContractResponse contract in contracts) {
-                int numberOfSales = r.Next(1, 2);
+                int numberOfSales = r.Next(1, 5);
                 // Generate and send some sales
-                Result saleResult = await t.SendSales(transactionDate, merchant, contract, numberOfSales, cancellationToken);
+                Result saleResult = await t.SendSales(transactionDate, merchant, contract, numberOfSales, timeDelay, cancellationToken);
 
                 if (saleResult.IsFailed)
                 {

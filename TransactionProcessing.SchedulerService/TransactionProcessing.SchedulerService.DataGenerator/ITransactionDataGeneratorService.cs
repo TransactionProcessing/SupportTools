@@ -22,7 +22,7 @@ public interface ITransactionDataGeneratorService
                                                 Guid estateId,
                                                 Guid merchantId,
                                                 CancellationToken cancellationToken);
-    Task<Result> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfSales, CancellationToken cancellationToken);
+    Task<Result> SendSales(DateTime dateTime, MerchantResponse merchant, ContractResponse contract, Int32 numberOfSales, Int32 timeDelay, CancellationToken cancellationToken);
     Task<Result> SendUploadFile(DateTime dateTime, ContractResponse contract, MerchantResponse merchant, Guid userId, CancellationToken cancellationToken);
     Task<Result<MerchantResponse>> GetMerchant(Guid estateId, Guid merchantId, CancellationToken cancellationToken);
     Task<Result> GenerateMerchantStatement(Guid estateId, Guid merchantId, DateTime statementDateTime, CancellationToken cancellationToken);

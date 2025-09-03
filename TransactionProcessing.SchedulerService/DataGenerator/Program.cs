@@ -193,9 +193,8 @@ namespace TransactionDataGenerator{
                         foreach (ContractResponse contract in getMerchantContractsResult.Data) {
                             // Generate and send some sales
 
-                            await g.SendSales(dateTime, merchant, contract, 0, cancellationToken);
+                            await g.SendSales(dateTime, merchant, contract, 0,0, cancellationToken);
                         }
-
                     }
                 }
 

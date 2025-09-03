@@ -164,14 +164,14 @@ public static class Jobs {
         }
 
         Random r = new Random();
-        List<string> results = new List<string>();
+        List<string> results = new();
         foreach (ContractResponse contract in contracts) {
             if (config.ContractNames.Contains(contract.Description) == false)
                 continue;
 
             int numberOfSales = r.Next(2, 4);
             // Generate and send some sales
-            Result saleResult = await t.SendSales(transactionDate, merchant, contract, numberOfSales, cancellationToken);
+            Result saleResult = await t.SendSales(transactionDate, merchant, contract, numberOfSales, 0,cancellationToken);
 
             if (saleResult.IsFailed) {
                 results.Add(contract.OperatorName);
@@ -179,7 +179,7 @@ public static class Jobs {
         }
 
         if (results.Any()) {
-            return Result.Failure($"Error sending sales files for merchant [{merchant.MerchantName}] [{string.Join(",", results)}]");
+            return Result.Failure($"Error sending sales files for merchant [{merchant.MerchantName}] [{String.Join(",", results)}]");
         }
 
         return Result.Success();
