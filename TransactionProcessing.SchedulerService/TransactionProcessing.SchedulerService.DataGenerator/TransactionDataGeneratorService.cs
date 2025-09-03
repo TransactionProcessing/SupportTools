@@ -1,11 +1,12 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Polly;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Results;
 using SimpleResults;
+using System;
+using System.Net.Http.Headers;
+using System.Text;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;
@@ -201,62 +202,55 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
                                         MerchantResponse merchant,
                                         ContractResponse contract,
                                         Int32 numberOfSales,
+                                        Int32 timeDelay,
                                         CancellationToken cancellationToken) {
         List<SaleTransactionRequest> salesToSend = new List<SaleTransactionRequest>();
         Decimal depositAmount = 0;
         (Int32 accountNumber, String accountName, Decimal balance) billDetails = default;
         (Int32 meterNumber, String customerName, Decimal amount) meterDetails = default;
 
-        foreach (ContractProduct contractProduct in contract.Products)
-        {
-            this.WriteTrace($"product [{contractProduct.DisplayText}]");
+        // Step 2: Decide how many total transactions to generate in this run
+        numberOfSales = this.r.Next(1, 6); // e.g. 1–5 transactions per run
+        List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
+        for (int i = 0; i < numberOfSales; i++) {
+            ContractProduct? contractProduct = contract.Products[this.r.Next(contract.Products.Count)];
 
-            List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
-            // Get a number of sales to be sent
-            if (numberOfSales == 0)
-            {
-                numberOfSales = this.r.Next(2, 10);
+            // Spread transactions randomly across 5 minutes
+            int delayMs = this.r.Next(0, timeDelay * 60 * 1000);
+
+            await Task.Delay(delayMs);
+            ProductSubType productSubType = this.GetProductSubType(contract.OperatorName);
+
+            if (productSubType == ProductSubType.BillPaymentPostPay) {
+                // Create a bill for this sale
+                billDetails = await this.CreateBillPaymentBill(contract.OperatorName, contractProduct, cancellationToken);
             }
 
-            for (Int32 i = 1; i <= numberOfSales; i++)
-            {
-                ProductSubType productSubType = this.GetProductSubType(contract.OperatorName);
-
-                if (productSubType == ProductSubType.BillPaymentPostPay)
-                {
-                    // Create a bill for this sale
-                    billDetails = await this.CreateBillPaymentBill(contract.OperatorName, contractProduct, cancellationToken);
-                }
-
-                if (productSubType == ProductSubType.BillPaymentPrePay)
-                {
-                    // Create a meter
-                    meterDetails = await this.CreateBillPaymentMeter(contract.OperatorName, contractProduct, cancellationToken);
-                }
-
-                saleRequests = productSubType switch
-                {
-                    ProductSubType.MobileTopup => this.BuildMobileTopupSaleRequests(dateTime, merchant, contract, contractProduct),
-                    ProductSubType.Voucher => this.BuildVoucherSaleRequests(dateTime, merchant, contract, contractProduct),
-                    ProductSubType.BillPaymentPostPay => this.BuildPataPawaPostPayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, billDetails),
-                    ProductSubType.BillPaymentPrePay => this.BuildPataPawaPrePayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, meterDetails),
-                    _ => throw new Exception($"Product Sub Type [{productSubType}] not yet supported")
-                };
-
-                // Add the value of the sale to the deposit amount
-                Boolean addToDeposit = i switch
-                {
-                    _ when i == numberOfSales => false,
-                    _ => true
-                };
-
-                if (addToDeposit)
-                {
-                    depositAmount += saleRequests.Sum(sr => sr.amount);
-                }
-
-                salesToSend.AddRange(saleRequests.Select(s => s.request));
+            if (productSubType == ProductSubType.BillPaymentPrePay) {
+                // Create a meter
+                meterDetails = await this.CreateBillPaymentMeter(contract.OperatorName, contractProduct, cancellationToken);
             }
+
+            saleRequests = productSubType switch {
+                ProductSubType.MobileTopup => this.BuildMobileTopupSaleRequests(dateTime, merchant, contract, contractProduct),
+                ProductSubType.Voucher => this.BuildVoucherSaleRequests(dateTime, merchant, contract, contractProduct),
+                ProductSubType.BillPaymentPostPay => this.BuildPataPawaPostPayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, billDetails),
+                ProductSubType.BillPaymentPrePay => this.BuildPataPawaPrePayBillPaymentSaleRequests(dateTime, merchant, contract, contractProduct, meterDetails),
+                _ => throw new Exception($"Product Sub Type [{productSubType}] not yet supported")
+            };
+
+            // Add the value of the sale to the deposit amount
+            Boolean addToDeposit = i switch {
+                _ when i == numberOfSales => false,
+                _ => true
+            };
+
+            if (addToDeposit) {
+                depositAmount += saleRequests.Sum(sr => sr.amount);
+            }
+
+            salesToSend.AddRange(saleRequests.Select(s => s.request));
+
         }
 
         // Build up a deposit (minus the last sale amount)
@@ -274,24 +268,19 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         Int32 salesSent = 0;
         IOrderedEnumerable<SaleTransactionRequest> orderedSales = salesToSend.OrderBy(s => s.TransactionDateTime);
         // Send the sales to the host
-        foreach (SaleTransactionRequest sale in orderedSales)
-        {
+        foreach (SaleTransactionRequest sale in orderedSales) {
             sale.TransactionNumber = this.GetTransactionNumber().ToString();
             Result<SerialisedMessage> saleResult = await this.SendSaleTransaction(merchant, sale, cancellationToken);
-            if (saleResult.IsSuccess)
-            {
+            if (saleResult.IsSuccess) {
                 salesSent++;
             }
-            //var random = new Random();
-            //int delaySeconds = random.Next(5, 10); // 30–60 inclusive
-            //await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
         }
 
-        if (salesSent == 0)
-        {
+        if (salesSent == 0) {
             // All sales failed
             return Result.Failure("All sales have failed");
         }
+
         this.WriteTraceX($"{salesSent} sales for merchant {merchant.MerchantName} sent to host {orderedSales.Count() - salesSent} sales failed to send");
         return Result.Success();
     }
