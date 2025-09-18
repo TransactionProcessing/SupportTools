@@ -95,7 +95,7 @@ public static class Jobs {
         // Get all the contracts up front
         Result<List<ContractResponse>> contractsResult = await t.GetEstateContracts(config.EstateId, cancellationToken);
         if (contractsResult.IsFailed) {
-            results.Add($"Error getting Contract List");
+            results.Add("Error getting Contract List");
             return Result.Failure($"Error making float credits for [{string.Join(",", results)}]");
         }
 

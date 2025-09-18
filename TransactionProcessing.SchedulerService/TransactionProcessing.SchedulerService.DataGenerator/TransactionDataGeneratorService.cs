@@ -637,7 +637,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return result;
         }
 
-        this.WriteTrace($"Merchant retrieved successfully");
+        this.WriteTrace("Merchant retrieved successfully");
 
         return result;
     }
@@ -709,15 +709,15 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         Result<String> tokenResult = await this.GetAuthToken(cancellationToken);
         if (tokenResult.IsFailed)
             return ResultHelpers.CreateFailure(tokenResult);
-        this.WriteTrace($"About to Float Credit Request");
+        this.WriteTrace("About to Float Credit Request");
         Result? result = await this.TransactionProcessorClient.RecordFloatCreditPurchase(tokenResult.Data, estateId, request, cancellationToken);
         if (result.IsFailed) {
-            this.WriteError($"Error Float Credit Request");
+            this.WriteError("Error Float Credit Request");
             this.WriteError(result.Message);
             return result;
         }
 
-        this.WriteTrace($"Float Credit Request sent");
+        this.WriteTrace("Float Credit Request sent");
 
         return Result.Success();
     }
@@ -782,10 +782,10 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
     private readonly String ClientToken;
 
     private async Task<Result<String>> GetAuthToken(CancellationToken cancellationToken) {
-        this.WriteTrace($"About to get auth token");
+        this.WriteTrace("About to get auth token");
 
         if (this.TokenResponse == null) {
-            this.WriteTrace($"TokenResponse was null");
+            this.WriteTrace("TokenResponse was null");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
 
             if (tokenResult.IsFailed)
@@ -794,14 +794,14 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         }
 
         if (this.TokenResponse.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2)) {
-            this.WriteTrace($"TokenResponse was expired");
+            this.WriteTrace("TokenResponse was expired");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
             this.TokenResponse = tokenResult.Data;
         }
 
-        this.WriteTrace($"Auth token retrieved");
+        this.WriteTrace("Auth token retrieved");
 
         return Result.Success<String>(this.TokenResponse.AccessToken);
     }

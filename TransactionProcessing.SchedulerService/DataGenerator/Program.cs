@@ -41,7 +41,7 @@ namespace TransactionDataGenerator{
             baseAddressFunc = (apiName) => {
                                   String ipaddress = "192.168.1.163";
 
-                                  if (apiName == "SecurityService"){
+                                  if (apiName == "SecurityService"){ 
                                       return $"https://{ipaddress}:5001";
                                   }
 
@@ -51,11 +51,11 @@ namespace TransactionDataGenerator{
                                       //return $"http://127.0.0.1:5002";
                                   }
 
-                                  if (apiName == "FileProcessorApi"){
+                                  if (apiName == "FileProcessorApi"){ 
                                       return $"http://{ipaddress}:5009";
                                   }
 
-                                  if (apiName == "TestHostApi"){
+                                  if (apiName == "TestHostApi"){ 
                                       return $"http://{ipaddress}:9000";
                                   }
 
@@ -89,7 +89,7 @@ namespace TransactionDataGenerator{
             await Program.GenerateTransactions(g, estateId, cancellationToken);
             //await Program.GenerateStatements(g, estateId, cancellationToken);
 
-            Console.WriteLine($"Process Complete");
+            Console.WriteLine("Process Complete");
         }
 
         private static async Task GenerateStatements(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){
