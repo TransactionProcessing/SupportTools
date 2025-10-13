@@ -1,16 +1,7 @@
-﻿using Quartz;
-using Quartz.Core;
-using Quartz.Impl;
-using TransactionProcessing.SchedulerService.Jobs.Configuration;
-using TransactionProcessing.SchedulerService.Jobs.Jobs;
-
-namespace JobTestDriver
+﻿namespace JobTestDriver
 {
-    using MessagingService.Client;
-    using NLog.LayoutRenderers.Wrappers;
     using SecurityService.Client;
     using TransactionProcessing.SchedulerService.DataGenerator;
-    using TransactionProcessing.SchedulerService.Jobs;
     using TransactionProcessor.Client;
 
     internal class Program{
@@ -67,11 +58,11 @@ namespace JobTestDriver
                                                                        RunningMode.WhatIf);
             Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
 
-            MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, fileProcessorApi,"","", transactionProcessorApi, estateId,
-                new List<DepositAmount> { new DepositAmount("" ,"", 100) }
-            );
+            //MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, fileProcessorApi,"","", transactionProcessorApi, estateId,
+            //    new List<DepositAmount> { new DepositAmount("" ,"", 100) }
+            //);
 
-            await Jobs.GenerateFloatCredits(t, c, CancellationToken.None);
+            //await Jobs.GenerateFloatCredits(t, c, CancellationToken.None);
             //Guid merchantId = Guid.Parse("ab1c99fb-1c6c-4694-9a32-b71be5d1da33");
             //await Jobs.GenerateTransactions(t, estateId, merchantId, false, CancellationToken.None);
             ////var d = TransactionDataGenerator.GetTransactionDateTime(new Random(), DateTime.Now);
