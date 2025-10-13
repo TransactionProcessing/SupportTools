@@ -1,9 +1,7 @@
 ﻿namespace JobTestDriver
 {
-    using SecurityService.Client;
     using TransactionProcessing.SchedulerService.DataGenerator;
-    using TransactionProcessor.Client;
-
+    
     internal class Program{
         static async Task Main(string[] args){
 
@@ -29,34 +27,34 @@
             //                            messagingServiceClient,
             //                            CancellationToken.None);
 
-            HttpClientHandler handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message,
-                                                             cert,
-                                                             chain,
-                                                             errors) =>
-                {
-                    return true;
-                }
-            };
-            HttpClient client = new HttpClient(handler);
-            ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate (String s) { return "https://192.168.1.167:5001"; }, client);
-            ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
-            String transactionProcessorApi = "http://192.168.1.167:5002";
-            String fileProcessorApi = "http://192.168.1.167:5009";
-            String testHostApi = "http://192.168.1.167:9000";
-            String clientId = "serviceClient";
-            String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
+            //HttpClientHandler handler = new HttpClientHandler
+            //{
+            //    ServerCertificateCustomValidationCallback = (message,
+            //                                                 cert,
+            //                                                 chain,
+            //                                                 errors) =>
+            //    {
+            //        return true;
+            //    }
+            //};
+            //HttpClient client = new HttpClient(handler);
+            //ISecurityServiceClient securityServiceClient = new SecurityServiceClient(delegate (String s) { return "https://192.168.1.167:5001"; }, client);
+            //ITransactionProcessorClient transactionProcessorClient = new TransactionProcessorClient(delegate (String s) { return "https://eojrtqfzvyheu0l.m.pipedream.net"; }, client);
+            //String transactionProcessorApi = "http://192.168.1.167:5002";
+            //String fileProcessorApi = "http://192.168.1.167:5009";
+            //String testHostApi = "http://192.168.1.167:9000";
+            //String clientId = "serviceClient";
+            //String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
 
-            ITransactionDataGeneratorService t = new TransactionDataGeneratorService(securityServiceClient,
-                                                                       transactionProcessorClient,
-                                                                       transactionProcessorApi,
-                                                                       fileProcessorApi,
-                                                                       testHostApi,
-                                                                       clientId,
-                                                                       clientSecret,
-                                                                       RunningMode.WhatIf);
-            Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
+            //ITransactionDataGeneratorService t = new TransactionDataGeneratorService(securityServiceClient,
+            //                                                           transactionProcessorClient,
+            //                                                           transactionProcessorApi,
+            //                                                           fileProcessorApi,
+            //                                                           testHostApi,
+            //                                                           clientId,
+            //                                                           clientSecret,
+            //                                                           RunningMode.WhatIf);
+            //Guid estateId = Guid.Parse("435613ac-a468-47a3-ac4f-649d89764c22");
 
             //MakeFloatCreditsJobConfig c = new MakeFloatCreditsJobConfig(clientId,clientSecret, fileProcessorApi,"","", transactionProcessorApi, estateId,
             //    new List<DepositAmount> { new DepositAmount("" ,"", 100) }
