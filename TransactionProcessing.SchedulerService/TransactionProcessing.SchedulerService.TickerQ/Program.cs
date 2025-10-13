@@ -59,7 +59,6 @@ builder.Services.AddSingleton(baseConfiguration);
 
 builder.Services.AddSingleton(httpClient);
 builder.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
-//builder.Services.AddSingleton<IMessagingServiceClient, MessagingServiceClient>();
 builder.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
 builder.Services.AddSingleton<Func<String, String>>(container => (serviceName) =>
 {
