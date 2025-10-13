@@ -1,12 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.32014.148
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11109.219 d18.0-oob
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransactionProcessing.SchedulerService", "TransactionProcessing.SchedulerService\TransactionProcessing.SchedulerService.csproj", "{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransactionProcessing.SchedulerService.Jobs", "TransactionProcessing.SchedulerService.Jobs\TransactionProcessing.SchedulerService.Jobs.csproj", "{0A8E0EA7-3A93-4605-A690-C663F6239099}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0131F226-313F-4F7C-9576-7AA726FA9584}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{8EBAA9CC-7C39-497D-A925-866E68CFE20A}"
@@ -25,14 +21,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0A8E0EA7-3A93-4605-A690-C663F6239099}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B7C455B1-F86A-41CD-91D6-DC041FC83B27}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -54,8 +42,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{FCFCFE63-02D6-4CA3-947C-3E51DFE4389C} = {0131F226-313F-4F7C-9576-7AA726FA9584}
-		{0A8E0EA7-3A93-4605-A690-C663F6239099} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 		{B7C455B1-F86A-41CD-91D6-DC041FC83B27} = {8EBAA9CC-7C39-497D-A925-866E68CFE20A}
 		{47C05ABD-A317-48A2-9398-33601407F5E8} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 		{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8} = {0131F226-313F-4F7C-9576-7AA726FA9584}
