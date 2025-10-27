@@ -45,12 +45,6 @@ jobs:
          zip -r ../healthchecksui.zip ./*
          echo "Zip file created at: $(realpath ../healthchecksui.zip)"
     
-    - name: Build Release Package (Scheduler Service)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/publishOutput
-         zip -r ../schedulerservice.zip ./*
-         echo "Zip file created at: $(realpath ../schedulerservice.zip)"
-
     - name: Build Release Package (Scheduler Service TickerQ)
       run: |
          cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService.TickerQ/publishOutput
@@ -62,12 +56,6 @@ jobs:
       with:
         name: healthchecksui
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip    
-
-    - name: Upload the artifact (Scheduler Service)
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: schedulerservice
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService/schedulerservice.zip
 
     - name: Upload the artifact (Scheduler Service Ticker Q)
       uses: actions/upload-artifact@v4.4.0
