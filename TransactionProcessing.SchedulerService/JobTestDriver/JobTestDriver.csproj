@@ -7,8 +7,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\TransactionProcessing.SchedulerService.Jobs\TransactionProcessing.SchedulerService.Jobs.csproj" />
-  </ItemGroup>
-
 </Project>
