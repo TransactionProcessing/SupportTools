@@ -23,12 +23,12 @@
     <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="23.3.9" />
     <PackageReference Include="EventStore.Client.Grpc.ProjectionManagement" Version="23.3.9" />
     <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.6" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="SecurityService.Client" Version="2025.7.2" />
-    <PackageReference Include="Shared" Version="2025.7.13" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2025.7.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="SecurityService.Client" Version="2025.8.1" />
+    <PackageReference Include="Shared" Version="2025.10.2" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2025.9.1" />
   </ItemGroup>
 
   <ItemGroup>
