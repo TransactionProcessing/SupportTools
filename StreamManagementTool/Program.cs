@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using EventStore.Client;
+using KurrentDB.Client;
 using Microsoft.Extensions.Configuration;
 using Shared.General;
 
@@ -13,8 +14,8 @@ namespace StreamManagementTool
             ConfigurationReader.Initialise(configurationRoot);
 
             List<StreamConfiguration> config = await LoadStreamConfig(CancellationToken.None);
-            EventStoreClientSettings settings = EventStoreClientSettings.Create(ConfigurationReader.GetValue("AppSettings", "EventStoreAddress"));
-            EventStoreClient client = new EventStoreClient(settings);
+            KurrentDBClientSettings settings = KurrentDBClientSettings.Create(ConfigurationReader.GetValue("AppSettings", "EventStoreAddress"));
+            KurrentDBClient client = new KurrentDBClient(settings);
 
             foreach (StreamConfiguration streamConfiguration in config) {
                 // Fetch existing metadata
@@ -36,7 +37,7 @@ namespace StreamManagementTool
                 // Set the updated metadata
                 await client.SetStreamMetadataAsync(
                     streamName: streamConfiguration.StreamName,
-                    expectedRevision: new StreamRevision(existingMetadataResult.MetastreamRevision.GetValueOrDefault()),
+                    StreamState.StreamRevision(existingMetadataResult.MetastreamRevision.GetValueOrDefault()),
                     metadata: updatedMetadata
                 );
 

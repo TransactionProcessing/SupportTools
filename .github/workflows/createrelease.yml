@@ -5,7 +5,7 @@ on:
     types: [published]
 
 jobs:
-  buildlinux:
+  build:
     name: "Release"
     env:
         ASPNETCORE_ENVIRONMENT: "Production"
@@ -32,12 +32,10 @@ jobs:
     - name: Build Code
       run: |
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
-        dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
 
     - name: Publish API
       run: |
-        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r linux-x64 --self-contained
-        dotnet publish "TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.TickerQ/TransactionProcessing.SchedulerService.TickerQ.csproj" --configuration Release --output TransactionProcessing.SchedulerService.TickerQ/publishOutput -r linux-x64 --self-contained
+        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
             
     - name: Build Release Package (Health Check UI)
       run: |
@@ -45,27 +43,15 @@ jobs:
          zip -r ../healthchecksui.zip ./*
          echo "Zip file created at: $(realpath ../healthchecksui.zip)"
     
-    - name: Build Release Package (Scheduler Service TickerQ)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService.TickerQ/publishOutput
-         zip -r ../schedulerservicetq.zip ./*
-         echo "Zip file created at: $(realpath ../schedulerservicetq.zip)"
-
     - name: Upload the artifact (Health Check UI)    
       uses: actions/upload-artifact@v4.4.0
       with:
         name: healthchecksui
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip    
-
-    - name: Upload the artifact (Scheduler Service Ticker Q)
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: schedulerservicetq
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.SchedulerService.TickerQ/schedulerservicetq.zip
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip            
         
   deploystaging:
-    runs-on: [stagingserver, linux]
-    needs: buildlinux
+    runs-on: [stagingserver, windows]
+    needs: build
     environment: staging
     name: "Deploy to Staging"
     
@@ -74,195 +60,31 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: healthchecksui
-          path: /tmp/supporttools/healthchecksui
 
-      # IMPORTANT: Add a step to ensure the .NET runtime is installed on the server
-      # This assumes it's not already there. If your base image already has it, you can skip this.
-      - name: Install .NET Runtime
+      - name: Remove existing Windows service
         run: |
-          # Example for Ubuntu. Adjust based on your .NET version (e.g., 8.0, 7.0)
-          # and if you need the SDK or just the runtime.
-          # This uses Microsoft's package repository for the latest versions.
-          wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-          sudo dpkg -i packages-microsoft-prod.deb
-          rm packages-microsoft-prod.deb
-          sudo apt update
-          sudo apt install -y aspnetcore-runtime-9.0
+          $serviceName = "Transaction Processing - Health Checks UI"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
 
-      - name: Remove existing service (Health Check UI)
+      - name: Unzip the files
         run: |
-          SERVICE_NAME="healthchecksui"
-          if systemctl is-active --quiet "$SERVICE_NAME"; then
-            echo "Stopping existing service..."
-            sudo systemctl stop "$SERVICE_NAME"
-          fi
-          if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-            echo "Disabling existing service..."
-            sudo systemctl disable "$SERVICE_NAME"
-          fi
-          if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
-            echo "Removing existing service unit file..."
-            sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
-            sudo systemctl daemon-reload
-          fi
-
-      - name: Unzip the files (Health Check UI)
-        run: |
-          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/healthchecksui
-          sudo unzip -o /tmp/supporttools/healthchecksui/healthchecksui.zip -d /opt/txnproc/transactionprocessing/supporttools/healthchecksui
+          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
       
-      - name: Install and Start as a Linux service (Health Check UI)
+      - name: Install as a Windows service
         run: |
-          SERVICE_NAME="healthchecksui"
-          # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/healthchecksui"
-          DLL_NAME="TransactionProcessor.HealthChecksUI.dll" # Your application's DLL
-          SERVICE_DESCRIPTION="Transaction Processing - Health Checks UI"
-  
-          # Create a systemd service file
-          echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          # IMPORTANT: Use 'dotnet' to run your DLL
-          echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
-          echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
-          echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-  
-          # Reload systemd, enable, and start the service
-          sudo systemctl daemon-reload
-          sudo systemctl enable "$SERVICE_NAME"
-          sudo systemctl start "$SERVICE_NAME"
-          sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification
-
-      # - name: Download the artifact (Scheduler Service) 
-      #   uses: actions/download-artifact@v4.1.8
-      #   with:
-      #     name: schedulerservice
-      #     path: /tmp/supporttools/schedulerservice
-
-      # - name: Remove existing service (Scheduler Service)
-      #   run: |
-      #     SERVICE_NAME="schedulerservice"
-      #     if systemctl is-active --quiet "$SERVICE_NAME"; then
-      #       echo "Stopping existing service..."
-      #       sudo systemctl stop "$SERVICE_NAME"
-      #     fi
-      #     if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-      #       echo "Disabling existing service..."
-      #       sudo systemctl disable "$SERVICE_NAME"
-      #     fi
-      #     if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
-      #       echo "Removing existing service unit file..."
-      #       sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
-      #       sudo systemctl daemon-reload
-      #     fi
-
-      # - name: Unzip the files (Scheduler Service)
-      #   run: |
-      #     sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservice
-      #     sudo unzip -o /tmp/supporttools/schedulerservice/schedulerservice.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservice
-      
-      # - name: Install and Start as a Linux service (Scheduler Service)
-      #   run: |
-      #     SERVICE_NAME="schedulerservice"
-      #     # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-      #     WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservice"
-      #     DLL_NAME="TransactionProcessing.SchedulerService.dll" # Your application's DLL
-      #     SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service"
-  
-      #     # Create a systemd service file
-      #     echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     # IMPORTANT: Use 'dotnet' to run your DLL
-      #     echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
-      #     echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
-      #     echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
-      #     echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-      #     echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-  
-      #     # Reload systemd, enable, and start the service
-      #     sudo systemctl daemon-reload
-      #     sudo systemctl enable "$SERVICE_NAME"
-      #     sudo systemctl start "$SERVICE_NAME"
-      #     sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification         
-
-      - name: Download the artifact (Scheduler Service TickerQ) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: schedulerservicetq
-          path: /tmp/supporttools/schedulerservicetq
-
-      - name: Remove existing service (Scheduler Service TickerQ)
-        run: |
-          SERVICE_NAME="schedulerservicetq"
-          if systemctl is-active --quiet "$SERVICE_NAME"; then
-            echo "Stopping existing service..."
-            sudo systemctl stop "$SERVICE_NAME"
-          fi
-          if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-            echo "Disabling existing service..."
-            sudo systemctl disable "$SERVICE_NAME"
-          fi
-          if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
-            echo "Removing existing service unit file..."
-            sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
-            sudo systemctl daemon-reload
-          fi
-
-      - name: Unzip the files (Scheduler Service TickerQ)
-        run: |
-          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservicetq
-          sudo unzip -o /tmp/supporttools/schedulerservicetq/schedulerservicetq.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservicetq
-      
-      - name: Install and Start as a Linux service (Scheduler Service TickerQ)
-        run: |
-          SERVICE_NAME="schedulerservicetq"
-          # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservicetq"
-          DLL_NAME="TransactionProcessing.SchedulerService.TickerQ.dll" # Your application's DLL
-          SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service Ticker Q"
-  
-          # Create a systemd service file
-          echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          # IMPORTANT: Use 'dotnet' to run your DLL
-          echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
-          echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
-          echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-  
-          # Reload systemd, enable, and start the service
-          sudo systemctl daemon-reload
-          sudo systemctl enable "$SERVICE_NAME"
-          sudo systemctl start "$SERVICE_NAME"
-          sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification         
+          $serviceName = "Transaction Processing - Health Checks UI"
+          $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName     
   
   deployproduction:
-    runs-on: [productionserver, linux]
-    needs: [buildlinux, deploystaging]
+    runs-on: [productionserver, windows]
+    needs: [build, deploystaging]
     environment: production
     name: "Deploy to Production"
     
@@ -271,129 +93,24 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: healthchecksui
-          path: /tmp/supporttools/healthcheckui
 
-      # IMPORTANT: Add a step to ensure the .NET runtime is installed on the server
-      # This assumes it's not already there. If your base image already has it, you can skip this.
-      - name: Install .NET Runtime
+      - name: Remove existing Windows service
         run: |
-          # Example for Ubuntu. Adjust based on your .NET version (e.g., 8.0, 7.0)
-          # and if you need the SDK or just the runtime.
-          # This uses Microsoft's package repository for the latest versions.
-          wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-          sudo dpkg -i packages-microsoft-prod.deb
-          rm packages-microsoft-prod.deb
-          sudo apt update
-          sudo apt install -y aspnetcore-runtime-9.0
+          $serviceName = "Transaction Processing - Health Checks UI"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
 
-      - name: Remove existing service (Health Check UI)
+      - name: Unzip the files
         run: |
-          SERVICE_NAME="healthchecksui"
-          if systemctl is-active --quiet "$SERVICE_NAME"; then
-            echo "Stopping existing service..."
-            sudo systemctl stop "$SERVICE_NAME"
-          fi
-          if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-            echo "Disabling existing service..."
-            sudo systemctl disable "$SERVICE_NAME"
-          fi
-          if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
-            echo "Removing existing service unit file..."
-            sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
-            sudo systemctl daemon-reload
-          fi
-
-      - name: Unzip the files (Health Check UI)
-        run: |
-          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/healthcheckui
-          sudo unzip -o /tmp/supporttools/healthcheckui/healthcheckui.zip -d /opt/txnproc/transactionprocessing/supporttools/healthcheckui
+          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
       
-      - name: Install and Start as a Linux service (Health Check UI)
+      - name: Install as a Windows service
         run: |
-          SERVICE_NAME="healthcheckui"
-          # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/healthcheckui"
-          DLL_NAME="TransactionProcessor.HealthChecksUI.dll" # Your application's DLL
-          SERVICE_DESCRIPTION="Transaction Processing - Health Checks UI"
-  
-          # Create a systemd service file
-          echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          # IMPORTANT: Use 'dotnet' to run your DLL
-          echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
-          echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
-          echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-  
-          # Reload systemd, enable, and start the service
-          sudo systemctl daemon-reload
-          sudo systemctl enable "$SERVICE_NAME"
-          sudo systemctl start "$SERVICE_NAME"
-          sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification
-
-      - name: Download the artifact (Scheduler Service) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: schedulerservice
-          path: /tmp/supporttools/schedulerservice
-
-      - name: Remove existing service (Scheduler Service)
-        run: |
-          SERVICE_NAME="schedulerservice"
-          if systemctl is-active --quiet "$SERVICE_NAME"; then
-            echo "Stopping existing service..."
-            sudo systemctl stop "$SERVICE_NAME"
-          fi
-          if systemctl is-enabled --quiet "$SERVICE_NAME"; then
-            echo "Disabling existing service..."
-            sudo systemctl disable "$SERVICE_NAME"
-          fi
-          if [ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
-            echo "Removing existing service unit file..."
-            sudo rm "/etc/systemd/system/${SERVICE_NAME}.service"
-            sudo systemctl daemon-reload
-          fi
-
-      - name: Unzip the files (Scheduler Service)
-        run: |
-          sudo mkdir -p /opt/txnproc/transactionprocessing/supporttools/schedulerservice
-          sudo unzip -o /tmp/supporttools/schedulerservice/schedulerservice.zip -d /opt/txnproc/transactionprocessing/supporttools/schedulerservice
-      
-      - name: Install and Start as a Linux service (Scheduler Service)
-        run: |
-          SERVICE_NAME="schedulerservice"
-          # The WorkingDirectory is crucial for .NET apps to find appsettings.json and other files
-          WORKING_DIRECTORY="/opt/txnproc/transactionprocessing/supporttools/schedulerservice"
-          DLL_NAME="TransactionProcessing.SchedulerService.dll" # Your application's DLL
-          SERVICE_DESCRIPTION="Transaction Processing - Scheduler Service"
-  
-          # Create a systemd service file
-          echo "[Unit]" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Description=${SERVICE_DESCRIPTION}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "After=network.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Service]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          # IMPORTANT: Use 'dotnet' to run your DLL
-          echo "ExecStart=/usr/bin/dotnet ${WORKING_DIRECTORY}/${DLL_NAME}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WorkingDirectory=${WORKING_DIRECTORY}" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "Restart=always" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "User=youruser"   # IMPORTANT: Change to a dedicated, less privileged user
-          echo "Group=yourgroup" # IMPORTANT: Change to a dedicated, less privileged group
-          echo "Environment=ASPNETCORE_ENVIRONMENT=Production" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service # Example
-          echo "" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "[Install]" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-          echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/${SERVICE_NAME}.service
-  
-          # Reload systemd, enable, and start the service
-          sudo systemctl daemon-reload
-          sudo systemctl enable "$SERVICE_NAME"
-          sudo systemctl start "$SERVICE_NAME"
-          sudo systemctl status "$SERVICE_NAME" --no-pager # For debugging/verification          
+          $serviceName = "Transaction Processing - Health Checks UI"
+          $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName        

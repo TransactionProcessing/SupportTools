@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.0.11109.219 d18.0-oob
+VisualStudioVersion = 18.0.11109.219
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0131F226-313F-4F7C-9576-7AA726FA9584}"
 EndProject
@@ -12,8 +12,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionProcessing.SchedulerService.DataGenerator", "TransactionProcessing.SchedulerService.DataGenerator\TransactionProcessing.SchedulerService.DataGenerator.csproj", "{47C05ABD-A317-48A2-9398-33601407F5E8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionDataGenerator", "DataGenerator\TransactionDataGenerator.csproj", "{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionProcessing.SchedulerService.TickerQ", "TransactionProcessing.SchedulerService.TickerQ\TransactionProcessing.SchedulerService.TickerQ.csproj", "{B64B3031-C00F-4E20-98CE-5E698D04C727}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,10 +31,6 @@ Global
 		{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B64B3031-C00F-4E20-98CE-5E698D04C727}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B64B3031-C00F-4E20-98CE-5E698D04C727}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B64B3031-C00F-4E20-98CE-5E698D04C727}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B64B3031-C00F-4E20-98CE-5E698D04C727}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -45,7 +39,6 @@ Global
 		{B7C455B1-F86A-41CD-91D6-DC041FC83B27} = {8EBAA9CC-7C39-497D-A925-866E68CFE20A}
 		{47C05ABD-A317-48A2-9398-33601407F5E8} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 		{C980BEBA-3713-0DF7-3DD2-E382DD2A3AB8} = {0131F226-313F-4F7C-9576-7AA726FA9584}
-		{B64B3031-C00F-4E20-98CE-5E698D04C727} = {0131F226-313F-4F7C-9576-7AA726FA9584}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FCE31FDA-32E8-49AB-8D30-0D36D461CBC1}

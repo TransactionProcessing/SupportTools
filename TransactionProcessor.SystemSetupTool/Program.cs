@@ -1,4 +1,5 @@
 ﻿using System;
+using KurrentDB.Client;
 using Shared.Results;
 using SimpleResults;
 
@@ -32,9 +33,9 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static SecurityServiceClient SecurityServiceClient;
 
-        private static EventStoreProjectionManagementClient ProjectionClient;
+        private static KurrentDBProjectionManagementClient ProjectionClient;
 
-        private static EventStorePersistentSubscriptionsClient PersistentSubscriptionsClient;
+        private static KurrentDBPersistentSubscriptionsClient PersistentSubscriptionsClient;
 
         private static TokenResponse TokenResponse;
         
@@ -63,9 +64,9 @@ namespace TransactionProcessor.SystemSetupTool
 
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client);
             Program.TransactionProcessorClient = new TransactionProcessorClient(transactionProcessorResolver, client);
-            EventStoreClientSettings settings = EventStoreClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
-            Program.ProjectionClient = new EventStoreProjectionManagementClient(settings);
-            Program.PersistentSubscriptionsClient = new EventStorePersistentSubscriptionsClient(settings);
+            KurrentDBClientSettings settings = KurrentDBClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
+            Program.ProjectionClient = new (settings);
+            Program.PersistentSubscriptionsClient = new (settings);
 
             Mode setupMode = Mode.EstateSetup;
 

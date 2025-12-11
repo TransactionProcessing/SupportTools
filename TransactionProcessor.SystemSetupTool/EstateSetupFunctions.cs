@@ -50,7 +50,8 @@ public class EstateSetupFunctions {
     }
 
     public async Task<Result> SetupEstate(CancellationToken cancellationToken) {
-        this.TokenResponse = await this.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
+        var result = await this.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
+        this.TokenResponse = result.Data;
 
         Result<Guid> createEstateResult = await this.CreateEstate(cancellationToken);
         if (createEstateResult.IsFailed)
