@@ -5,16 +5,17 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EventStore.Client;
+using KurrentDB.Client;
 using SimpleResults;
 
 namespace TransactionProcessor.SystemSetupTool;
 
 public class EventStoreFunctions{
-    private readonly EventStoreProjectionManagementClient ProjectionClient;
+    private readonly KurrentDBProjectionManagementClient ProjectionClient;
 
-    private readonly EventStorePersistentSubscriptionsClient PersistentSubscriptionsClient;
+    private readonly KurrentDBPersistentSubscriptionsClient PersistentSubscriptionsClient;
 
-    public EventStoreFunctions(EventStoreProjectionManagementClient projectionClient,EventStorePersistentSubscriptionsClient persistentSubscriptionsClient){
+    public EventStoreFunctions(KurrentDBProjectionManagementClient projectionClient, KurrentDBPersistentSubscriptionsClient persistentSubscriptionsClient){
         this.ProjectionClient = projectionClient;
         this.PersistentSubscriptionsClient = persistentSubscriptionsClient;
     }
@@ -81,9 +82,14 @@ public class EventStoreFunctions{
 
         return Result.Success();
     }
-    private async Task<Result> DeployProjections(CancellationToken cancellationToken)
-    {
-        var currentProjections = await this.ProjectionClient.ListAllAsync(cancellationToken: cancellationToken).ToListAsync(cancellationToken);
+    private async Task<Result> DeployProjections(CancellationToken cancellationToken) {
+        IAsyncEnumerable<ProjectionDetails> currentProjectionsList = this.ProjectionClient.ListAllAsync(cancellationToken: cancellationToken);
+        var currentProjections = new List<ProjectionDetails>();
+
+        await foreach (var item in currentProjectionsList.WithCancellation(cancellationToken))
+        {
+            currentProjections.Add(item);
+        }
 
         var projectionsToDeploy = Directory.GetFiles("projections/continuous");
 
