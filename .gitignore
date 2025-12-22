@@ -352,3 +352,6 @@ MigrationBackup/
 .ionide/
 /TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/appsettings.development.json
 /TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService/appsettings.development.json
+/TransactionProcessing.MerchantPos/merchant.db
+/TransactionProcessing.MerchantPos/merchant.db-shm
+/TransactionProcessing.MerchantPos/merchant.db-wal
