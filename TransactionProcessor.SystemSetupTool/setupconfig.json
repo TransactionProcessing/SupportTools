@@ -50,6 +50,21 @@
           "name": "Safaricom",
           "require_custom_merchant_number": false,
           "require_custom_terminal_number": false
+        },
+        {
+          "name": "Voucher",
+          "require_custom_merchant_number": false,
+          "require_custom_terminal_number": false
+        },
+        {
+          "name": "PataPawa PostPay",
+          "require_custom_merchant_number": false,
+          "require_custom_terminal_number": false
+        },
+        {
+          "name": "PataPawa PrePay",
+          "require_custom_merchant_number": false,
+          "require_custom_terminal_number": false
         }
       ],
       "contracts": [
@@ -92,6 +107,76 @@
                   "calculation_type": 0,
                   "description": "Merchant Commission",
                   "value": 0.5,
+                  "fee_type": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "operator_name": "Voucher",
+          "description": "Healthcare Centre 1 Contract",
+          "products": [
+            {
+              "display_text": "10 KES",
+              "product_name": "10 KES Voucher",
+              "value": 10.00,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.3,
+                  "fee_type": 0
+                }
+              ]
+            },
+            {
+              "display_text": "Custom",
+              "product_name": "Custom",
+              "value": null,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.3,
+                  "fee_type": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "operator_name": "PataPawa PostPay",
+          "description": "PataPawa PostPay Contract",
+          "products": [
+            {
+              "display_text": "Bill Pay (Post)",
+              "product_name": "Post Pay Bill Pay",
+              "value": null,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.95,
+                  "fee_type": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "operator_name": "PataPawa PrePay",
+          "description": "PataPawa prePay Contract",
+          "products": [
+            {
+              "display_text": "Bill Pay (Pre)",
+              "product_name": "Pre Pay Bill Pay",
+              "value": null,
+              "transaction_fees": [
+                {
+                  "calculation_type": 0,
+                  "description": "Merchant Commission",
+                  "value": 0.95,
                   "fee_type": 0
                 }
               ]
