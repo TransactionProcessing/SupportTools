@@ -33,12 +33,12 @@ jobs:
     - name: Build Code
       run: |
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
-        dotnet build TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos.sln --configuration Release
+        dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
 
     - name: Publish API
       run: |
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
-        dotnet publish "TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos.csproj" --configuration Release --output TransactionProcessor.MerchantPos/publishOutput -r win-x64 --self-contained
+        dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained
           
     - name: Build Release Package (Health Check UI)
       run: |
@@ -54,7 +54,7 @@ jobs:
 
     - name: Build Release Package (Merchant Pos)
       run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.MerchantPos/publishOutput
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/publishOutput
          zip -r ../merchantpos.zip ./*
          echo "Zip file created at: $(realpath ../merchantpos.zip)"
     
@@ -62,7 +62,7 @@ jobs:
       uses: actions/upload-artifact@v4.4.0
       with:
         name: merchantpos
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.MerchantPos/merchantpos.zip
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/merchantpos.zip
         
   deploystaging:
     runs-on: [stagingserver, windows]
