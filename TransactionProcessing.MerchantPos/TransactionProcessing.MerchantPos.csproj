@@ -16,6 +16,9 @@
 	  <PackageReference Include="TransactionProcessorACL.DataTransferObjects" Version="2025.12.1" />
   </ItemGroup>
   <ItemGroup>
+    <Content Update="hosting.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Update="nlog.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
