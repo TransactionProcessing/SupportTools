@@ -96,8 +96,6 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
 
         List<ContractResponseX>? responseData = JsonConvert.DeserializeObject<List<ContractResponseX>>(content.Data);
 
-        responseData = responseData.Where(r => r.ContractId == Guid.Parse("881f5e96-deac-45a5-a9cf-69977a5af559")).ToList();
-
         Logger.LogInformation($"{responseData.Count} for merchant requested successfully");
         Logger.LogDebug($"Merchant Contract Response: [{JsonConvert.SerializeObject(responseData)}]");
 

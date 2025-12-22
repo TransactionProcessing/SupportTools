@@ -31,6 +31,9 @@ try
         EnvironmentName = envName
     });
 
+    // Load hosting.json so values such as "urls" or Kestrel endpoints are applied
+    builder.Configuration.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
+
     // Explicit configuration ordering: appsettings.json, appsettings.{Environment}.json, environment vars, command line
     builder.Configuration
         .SetBasePath(builder.Environment.ContentRootPath)
