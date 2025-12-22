@@ -475,11 +475,12 @@ public class EstateSetupFunctions {
     private async Task<Result> CreateMerchants(CancellationToken cancellationToken) {
 
         var getMerchantsResult = await this.GetMerchants(cancellationToken);
-        if (getMerchantsResult.IsFailed)
+        if (getMerchantsResult.IsFailed && getMerchantsResult.Status != ResultStatus.NotFound)
             return ResultHelpers.CreateFailure(getMerchantsResult);
 
+        var merchants = getMerchantsResult.Data == null ? new List<MerchantResponse>() : getMerchantsResult.Data;
         foreach (Merchant merchant in this.EstateConfig.Merchants) {
-            MerchantResponse existingMerchant = getMerchantsResult.Data.SingleOrDefault(m => m.MerchantName == merchant.Name);
+            MerchantResponse existingMerchant = merchants.SingleOrDefault(m => m.MerchantName == merchant.Name);
             if (existingMerchant == null) {
                 var createMerchantResult = await this.CreateMerchant(merchant, cancellationToken);
                 if (createMerchantResult.IsFailed)

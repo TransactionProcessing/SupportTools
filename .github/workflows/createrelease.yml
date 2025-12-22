@@ -28,15 +28,18 @@ jobs:
       run: |
         dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
 
     - name: Build Code
       run: |
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
+        dotnet build TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos.sln --configuration Release
 
     - name: Publish API
       run: |
         dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
-            
+        dotnet publish "TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos/TransactionProcessor.MerchantPos.csproj" --configuration Release --output TransactionProcessor.MerchantPos/publishOutput -r win-x64 --self-contained
+          
     - name: Build Release Package (Health Check UI)
       run: |
          cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
@@ -48,6 +51,18 @@ jobs:
       with:
         name: healthchecksui
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip            
+
+    - name: Build Release Package (Merchant Pos)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.MerchantPos/publishOutput
+         zip -r ../merchantpos.zip ./*
+         echo "Zip file created at: $(realpath ../merchantpos.zip)"
+    
+    - name: Upload the artifact (Merchant Pos)    
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: merchantpos
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.MerchantPos/merchantpos.zip
         
   deploystaging:
     runs-on: [stagingserver, windows]
@@ -61,7 +76,7 @@ jobs:
         with:
           name: healthchecksui
 
-      - name: Remove existing Windows service
+      - name: Remove existing Windows service (Health Check UI)
         run: |
           $serviceName = "Transaction Processing - Health Checks UI"
           # Check if the service exists
@@ -70,18 +85,39 @@ jobs:
             sc.exe delete $serviceName
           }
 
-      - name: Unzip the files
+      - name: Unzip the files (Health Check UI)
         run: |
           Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
       
-      - name: Install as a Windows service
+      - name: Install as a Windows service (Health Check UI)
         run: |
           $serviceName = "Transaction Processing - Health Checks UI"
           $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
                    
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName     
+          Start-Service -Name $serviceName   
+          
+      - name: Remove existing Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Merchant Pos)
+        run: |
+          Expand-Archive -Path merchantpos.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantpos" -Force
   
+      - name: Install as a Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessor.MerchantPos.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName
+
   deployproduction:
     runs-on: [productionserver, windows]
     needs: [build, deploystaging]
@@ -94,7 +130,7 @@ jobs:
         with:
           name: healthchecksui
 
-      - name: Remove existing Windows service
+      - name: Remove existing Windows service (Health Check UI)
         run: |
           $serviceName = "Transaction Processing - Health Checks UI"
           # Check if the service exists
@@ -103,14 +139,35 @@ jobs:
             sc.exe delete $serviceName
           }
 
-      - name: Unzip the files
+      - name: Unzip the files (Health Check UI)
         run: |
           Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
       
-      - name: Install as a Windows service
+      - name: Install as a Windows service (Health Check UI)
         run: |
           $serviceName = "Transaction Processing - Health Checks UI"
           $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
                    
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName        
+          Start-Service -Name $serviceName   
+          
+      - name: Remove existing Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Merchant Pos)
+        run: |
+          Expand-Archive -Path merchantpos.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantpos" -Force
+  
+      - name: Install as a Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessor.MerchantPos.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName       

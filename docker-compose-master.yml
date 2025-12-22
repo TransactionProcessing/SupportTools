@@ -85,9 +85,9 @@ services:
       - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
       - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
-      - OperatorConfiguration:PataPawaPrePay:ApiLogonRequired=false
+      - OperatorConfiguration:PataPawaPrePay:ApiLogonRequired=true
       - OperatorConfiguration:PataPawaPostPay:Url=http://testhosts:9000/PataPawaPostPayService/basichttp
-      - OperatorConfiguration:PataPawaPostPay:ApiLogonRequired=false
+      - OperatorConfiguration:PataPawaPostPay:ApiLogonRequired=true
     restart: on-failure
     depends_on:
       - eventstore
