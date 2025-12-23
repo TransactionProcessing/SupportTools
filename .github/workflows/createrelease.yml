@@ -118,7 +118,7 @@ jobs:
       - name: Install as a Windows service (Merchant Pos)
         run: |
           $serviceName = "Transaction Processing - Merchant Pos"
-          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessor.MerchantPos.exe"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessing.MerchantPos.exe"
                    
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
           Start-Service -Name $serviceName
