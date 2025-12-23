@@ -96,6 +96,11 @@ jobs:
                    
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
           Start-Service -Name $serviceName   
+
+      - name: Download the artifact (Merchant Pos) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantpos
           
       - name: Remove existing Windows service (Merchant Pos)
         run: |
