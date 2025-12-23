@@ -85,19 +85,37 @@ try
     builder.Services.AddScoped<MerchantRuntime>();
     builder.Services.AddSingleton<IMerchantRuntimeFactory, MerchantRuntimeFactory>();
     builder.Services.AddSingleton<MerchantMetrics>();
-    builder.Services.AddSingleton<Func<String, String>>(
-                                                                    new Func<String, String>(configSetting =>
-                                                                    {
-                                                                        return configSetting switch
-                                                                        {
-                                                                            "SecurityService" => "https://localhost:5001",
-                                                                            "TransactionProcessorACL" => "http://localhost:5003",
-                                                                            "TransactionProcessorApi" => "http://localhost:5002",
-                                                                            "EstateReportingApi" => "http://localhost:5004",
-                                                                            "TestHost" => "http://localhost:9000",
-                                                                            _ => string.Empty,
-                                                                        };
-                                                                    }));
+    //builder.Services.AddSingleton<Func<String, String>>(
+    //                                                                configSetting =>
+    //                                                                {
+    //                                                                    return configSetting switch
+    //                                                                    {
+    //                                                                        "SecurityService" => "https://localhost:5001",
+    //                                                                        "TransactionProcessorACL" => "http://localhost:5003",
+    //                                                                        "TransactionProcessorApi" => "http://localhost:5002",
+    //                                                                        "TestHost" => "http://localhost:9000",
+    //                                                                        _ => string.Empty,
+    //                                                                    };
+    //                                                                });
+
+    // Replace the existing AddSingleton<Func<String, String>>(...) registration with this:
+    builder.Services.AddSingleton<Func<string, string>>(sp =>
+    {
+        // Resolve IConfiguration from the DI container
+        var config = sp.GetRequiredService<IConfiguration>().GetSection("ApiConfiguration");
+
+        // Return a small resolver that looks up keys in the ApiConfiguration section (case-insensitive)
+        return (string configSetting) =>
+        {
+            if (string.IsNullOrWhiteSpace(configSetting))
+                return string.Empty;
+
+            // Section indexer is case-sensitive by default, so use GetChildren() to perform case-insensitive lookup
+            var child = config.GetChildren()
+                .FirstOrDefault(c => string.Equals(c.Key, configSetting, StringComparison.OrdinalIgnoreCase));
+            return child?.Value ?? string.Empty;
+        };
+    });
     // Health checks
     builder.Services.AddHealthChecks();
         
