@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using SecurityService.Client;
+using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json;
 using NLog;
 using NLog.Extensions.Logging;
@@ -24,10 +26,15 @@ try
                   ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
                   ?? Environments.Production;
 
+    // IMPORTANT: use the application's folder (not process working dir) as the ContentRootPath.
+    // When running as a service the current directory is often C:\Windows\System32 which causes the
+    // "appsettings.json not found" error.
+    var contentRoot = AppContext.BaseDirectory;
+
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     {
         Args = args,
-        ContentRootPath = Directory.GetCurrentDirectory(),
+        ContentRootPath = contentRoot,
         EnvironmentName = envName
     });
 
@@ -35,9 +42,10 @@ try
     builder.Configuration.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
 
     // Explicit configuration ordering: appsettings.json, appsettings.{Environment}.json, environment vars, command line
+    // Make appsettings.json optional to avoid hard crash when missing; log a warning instead.
     builder.Configuration
         .SetBasePath(builder.Environment.ContentRootPath)
-        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+        .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
         .AddCommandLine(args);
@@ -100,6 +108,14 @@ try
 
     // --- Build the web app (this replaces ConfigureWebHostDefaults) ---
     var app = builder.Build();
+
+    // If appsettings.json was missing, log a warning so the deployment issue is visible
+    var cfgFile = Path.Combine(builder.Environment.ContentRootPath, "appsettings.json");
+    if (!File.Exists(cfgFile))
+    {
+        var warnLogger = app.Services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>();
+        warnLogger.LogWarning("appsettings.json was not found at {Path}. Using defaults and environment variables.", cfgFile);
+    }
 
     // Auto-create SQLite database and tables
     using (var scope = app.Services.CreateScope())
