@@ -14,6 +14,7 @@ using NLog.Web;
 using TransactionProcessing.MerchantPos.Runtime;
 using TransactionProcessor.Client;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
+using ClientProxyBase;
 
 var logger = LogManager.Setup().LoadConfigurationFromFile("nlog.config").GetCurrentClassLogger();
 try
@@ -78,8 +79,9 @@ try
     // Repos + services
     builder.Services.AddScoped<IEfRepository, EfRepository>();
     builder.Services.AddScoped<IApiClient, ApiClient>();
-    builder.Services.AddSingleton<ISecurityServiceClient, SecurityServiceClient>();
-    builder.Services.AddSingleton<ITransactionProcessorClient, TransactionProcessorClient>();
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.RegisterHttpClient<ISecurityServiceClient, SecurityServiceClient>();
+    builder.Services.RegisterHttpClient<ITransactionProcessorClient, TransactionProcessorClient>();
     builder.Services.AddHttpClient();
 
     builder.Services.AddScoped<MerchantRuntime>();
