@@ -7,9 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SecurityService.Client" Version="2025.12.1" />
-    <PackageReference Include="Shared" Version="2025.12.1" />
-    <PackageReference Include="Shared.Results" Version="2025.12.1" />
+    <PackageReference Include="SecurityService.Client" Version="2025.12.2" />
+    <PackageReference Include="Shared" Version="2025.12.2" />
+    <PackageReference Include="Shared.Results" Version="2025.12.2" />
     <PackageReference Include="TransactionProcessor.Client" Version="2025.12.1" />
   </ItemGroup>
 

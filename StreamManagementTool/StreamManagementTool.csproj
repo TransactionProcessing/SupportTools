@@ -11,7 +11,7 @@
     <PackageReference Include="KurrentDB.Client" Version="1.3.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
-    <PackageReference Include="Shared" Version="2025.12.1" />
+    <PackageReference Include="Shared" Version="2025.12.2" />
   </ItemGroup>
 
   <ItemGroup>
