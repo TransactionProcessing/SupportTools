@@ -26,8 +26,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="SecurityService.Client" Version="2025.12.2" />
-    <PackageReference Include="Shared" Version="2025.12.2" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2025.12.1" />
+    <PackageReference Include="Shared" Version="2026.2.1" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2026.1.1" />
   </ItemGroup>
 
   <ItemGroup>
