@@ -32,10 +32,14 @@ public class MerchantRuntime
     }
 
     private TokenResponse CurrentServiceToken;
-    public async Task RunAsync((String clientId, String clientSecret) serviceClient, (String clientId, String clientSecret) posClient, MerchantConfig config, CancellationToken cancellationToken)
+    private TokenResponse CurrentUserToken;
+    private (String clientId, String clientSecret) ServiceClientCredentials;
+    private (String clientId, String clientSecret) PosClientCredentials;
+    public async Task RunAsync((String clientId, String clientSecret) serviceClient, (String clientId, String clientSecret) posClient , MerchantConfig config, CancellationToken cancellationToken)
     {
         Logger.LogInformation($"MerchantRuntime started for {config.MerchantName}");
-
+        this.ServiceClientCredentials = serviceClient;
+        this.PosClientCredentials = posClient;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -44,8 +48,8 @@ public class MerchantRuntime
                 //Result<TokenResponse> serviceToken = await this.GetToken(this.CurrentServiceToken, serviceClient, cancellationToken);
                 //this.CurrentServiceToken = serviceToken.Data;
 
-                await StartupSequence(posClient.clientId, posClient.clientSecret, config, cancellationToken);
-                await RunMainLoop(posClient.clientId, posClient.clientSecret, config, cancellationToken);
+                await StartupSequence(config, cancellationToken);
+                await RunMainLoop( config, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -55,12 +59,11 @@ public class MerchantRuntime
         }
     }
 
-    private async Task<Result> GetToken((String clientId, String clientSecret) serviceClient,
-                                                       CancellationToken cancellationToken)
+    private async Task<Result> GetServiceToken(CancellationToken cancellationToken)
     {
         if (this.CurrentServiceToken == null)
         {
-            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(serviceClient.clientId, serviceClient.clientSecret, cancellationToken);
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ServiceClientCredentials.clientId, this.ServiceClientCredentials.clientSecret, cancellationToken);
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
             TokenResponse token = tokenResult.Data;
@@ -72,7 +75,7 @@ public class MerchantRuntime
         if (this.CurrentServiceToken.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2))
         {
             Logger.LogDebug($"Token is about to expire at {this.CurrentServiceToken.Expires.DateTime:O}");
-            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(serviceClient.clientId, serviceClient.clientSecret, cancellationToken);
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ServiceClientCredentials.clientId, this.ServiceClientCredentials.clientSecret, cancellationToken);
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
             TokenResponse token = tokenResult.Data;
@@ -84,12 +87,46 @@ public class MerchantRuntime
         return Result.Success();
     }
 
-    private async Task StartupSequence(String clientId,
-                                       String clientSecret,
-                                       MerchantConfig cfg,
+    private async Task<Result> GetUserToken(MerchantConfig config,
+                                        CancellationToken cancellationToken)
+    {
+        if (this.CurrentUserToken == null)
+        {
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(config.Username, config.Password, this.PosClientCredentials.clientId, this.PosClientCredentials.clientSecret, cancellationToken);
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            TokenResponse token = tokenResult.Data;
+            Logger.LogDebug($"Token is {token.AccessToken}");
+            this.CurrentUserToken = token;
+            return Result.Success();
+        }
+
+        if (this.CurrentUserToken.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2))
+        {
+            Logger.LogDebug($"Token is about to expire at {this.CurrentUserToken.Expires.DateTime:O}");
+            Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(config.Username, config.Password, this.PosClientCredentials.clientId, this.PosClientCredentials.clientSecret, cancellationToken);
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            TokenResponse token = tokenResult.Data;
+            Logger.LogDebug($"Token is {token.AccessToken}");
+            this.CurrentUserToken = token;
+            return Result.Success();
+        }
+
+        return Result.Success();
+    }
+
+    private async Task StartupSequence(MerchantConfig cfg,
                                        CancellationToken cancellationToken) {
         // 1. Token
-        Result tokenResult = await this.GetToken((clientId, clientSecret), cancellationToken);
+        Result tokenResult = await this.GetServiceToken(cancellationToken);
+        if (tokenResult.IsFailed)
+        {
+            Logger.LogWarning($"Failed to get service token during startup sequence.");
+            return;
+        }
+
+        tokenResult = await this.GetUserToken(cfg, cancellationToken);
 
         if (tokenResult.IsFailed) {
             Logger.LogWarning($"Failed to get token for merchant {cfg.MerchantName} during startup sequence.");
@@ -97,7 +134,7 @@ public class MerchantRuntime
         }
 
         // 2. Load products
-        List<Product> products = await ApiClient.GetProductList(cfg, this.CurrentServiceToken, cancellationToken);
+        List<Product> products = await ApiClient.GetProductList(cfg, this.CurrentUserToken, cancellationToken);
         cfg.Products = products;
         
         // 3. Balance
@@ -105,9 +142,7 @@ public class MerchantRuntime
         await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balance);
     }
 
-    private async Task RunMainLoop(String clientId,
-                                   String clientSecret,
-                                   MerchantConfig cfg,
+    private async Task RunMainLoop(MerchantConfig cfg,
                                    CancellationToken token) {
         TimeSpan saleInterval = TimeSpan.FromSeconds(cfg.SaleIntervalSeconds);
 
@@ -127,7 +162,7 @@ public class MerchantRuntime
                 // Get last end of day time
                 
                 if (currentTime.Date > merchant.LastEndOfDayDateTime.Date) {
-                    await DoReconciliation(clientId, clientSecret, cfg, token);
+                    await DoReconciliation(cfg, token);
                 }
 
                 TimeSpan delay = openingTime - currentTime.TimeOfDay;
@@ -149,14 +184,14 @@ public class MerchantRuntime
             DateTime now = DateTime.Now;
             if (merchant.LastLogonDateTime.Date != now.Date)
             {
-                Result tokenResult = await this.GetToken((clientId, clientSecret), token);
+                Result tokenResult = await this.GetUserToken(cfg, token);
                 if (tokenResult.IsFailed)
                 {
                     Logger.LogWarning($"Failed to obtain token for daily logon for merchant {cfg.MerchantName}");
                 }
                 else
                 {
-                    await ApiClient.SendLogon(cfg, this.CurrentServiceToken, merchant.TransactionNumber, token);
+                    await ApiClient.SendLogon(cfg, this.CurrentUserToken, merchant.TransactionNumber, token);
                     //_lastDailyLogonDate = now.Date;
                     await this.Repository.UpdateLastLogon(cfg.MerchantId, cfg.MerchantName, now);
                     Logger.LogInformation($"Performed daily logon for merchant {cfg.MerchantName} on {now:yyyy-MM-dd}");
@@ -164,7 +199,7 @@ public class MerchantRuntime
             }
             else {
                 // Sell product
-                await DoSaleCycle(clientId, clientSecret, cfg, merchant.TransactionNumber, token);
+                await DoSaleCycle(cfg, merchant.TransactionNumber, token);
             }
 
             await this.Repository.IncrementTransactionNumber(cfg.MerchantId, cfg.MerchantName);
@@ -172,9 +207,12 @@ public class MerchantRuntime
         }
     }
 
-    private async Task DoSaleCycle(String clientId, String clientSecret, MerchantConfig cfg,Int32 transactionNumber, CancellationToken cancellationToken)
+    private async Task DoSaleCycle(MerchantConfig cfg,Int32 transactionNumber, CancellationToken cancellationToken)
     {
-        Result tokenResult = await this.GetToken((clientId, clientSecret), cancellationToken);
+        Result tokenResult = await this.GetServiceToken(cancellationToken);
+        if (tokenResult.IsFailed)
+            return;
+        tokenResult = await this.GetUserToken(cfg, cancellationToken);
         if (tokenResult.IsFailed)
             return;
 
@@ -193,7 +231,7 @@ public class MerchantRuntime
         bool induceFail = _rng.NextDouble() < cfg.FailureInjectionProbability;
         decimal saleValue = induceFail ? balance + 10 : value;
         
-        SaleResponse result = await ApiClient.SendSale(cfg, this.CurrentServiceToken, product, saleValue, transactionNumber, cancellationToken);
+        SaleResponse result = await ApiClient.SendSale(cfg, this.CurrentUserToken, product, saleValue, transactionNumber, cancellationToken);
 
         if (result.Authorised)
         {
@@ -217,14 +255,14 @@ public class MerchantRuntime
         }
     }
 
-    private async Task DoReconciliation(String clientId, String clientSecret, MerchantConfig cfg, CancellationToken cancellationToken)
+    private async Task DoReconciliation(MerchantConfig cfg, CancellationToken cancellationToken)
     {
-        Result tokenResult = await this.GetToken((clientId, clientSecret), cancellationToken);
+        Result tokenResult = await this.GetUserToken(cfg, cancellationToken);
         if (tokenResult.IsFailed)
             return;
 
         List<OperatorTotal> totals = await Repository.GetTotals(cfg.MerchantId);
-        await ApiClient.SendReconciliation(cfg, this.CurrentServiceToken, totals, cancellationToken);
+        await ApiClient.SendReconciliation(cfg, this.CurrentUserToken, totals, cancellationToken);
 
         // Clear totals
         await this.Repository.UpdateLastEndOfDay(cfg.MerchantId, cfg.MerchantName, DateTime.Now);
