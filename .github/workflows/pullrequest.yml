@@ -37,6 +37,8 @@ jobs:
   pester-tests:
     name: "Run PowerShell Tests"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - uses: actions/checkout@v4
