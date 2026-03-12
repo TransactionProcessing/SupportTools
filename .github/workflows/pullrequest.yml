@@ -33,3 +33,24 @@ jobs:
         dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
         dotnet build TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --configuration Release
         dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
+
+  pester-tests:
+    name: "Run PowerShell Tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Ensure Pester is Available
+      shell: pwsh
+      run: |
+        if (-not (Get-Module -ListAvailable -Name Pester)) {
+          Install-Module -Name Pester -Force -SkipPublisherCheck -Scope CurrentUser
+        }
+
+    - name: Run Pester Tests
+      shell: pwsh
+      run: |
+        Invoke-Pester -Path ./Scripts/Tests -CI
