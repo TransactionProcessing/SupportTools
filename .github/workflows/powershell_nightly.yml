@@ -24,4 +24,4 @@ jobs:
       - name: Run Pester Tests
         shell: pwsh
         run: |
-          Invoke-Pester -Path ./Scripts/Tests -CI
+          Invoke-Pester -Path ./ScheduledTasks/SettlementProcessing/Scripts/Tests -CI
