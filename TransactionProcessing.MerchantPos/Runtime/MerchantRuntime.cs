@@ -140,6 +140,10 @@ public class MerchantRuntime
         // 3. Balance
         decimal balance = await ApiClient.GetBalance(cfg, this.CurrentServiceToken, cancellationToken);
         await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balance);
+
+        // 4. get the merchant record
+        var merchant = await ApiClient.GetMerchant(cfg, this.CurrentUserToken, cancellationToken);
+        cfg.Merchant = merchant.Data;
     }
 
     private async Task RunMainLoop(MerchantConfig cfg,
@@ -150,8 +154,22 @@ public class MerchantRuntime
             Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId);
             // Wait until the merchant's configured opening time
             DateTime currentTime = DateTime.Now;
-            TimeSpan openingTime = cfg.OpeningTime.ToTimeSpan();
-            TimeSpan closingTime = cfg.ClosingTime.ToTimeSpan();
+
+            // Get the current days opening and closing time
+            TimeSpan openingTime;
+            TimeSpan closingTime;
+            Boolean found = cfg.Merchant.OpeningHours.TryGetValue(DateTime.Now.DayOfWeek, out var openingHours);
+            if (found == false) {
+                // fallback to the configured default opening and closing time if no specific hours for the day of week
+                openingTime = cfg.OpeningTime.ToTimeSpan();
+                closingTime = cfg.ClosingTime.ToTimeSpan();
+            }
+            else {
+                // We have opening and closing times for the current day of week, so use those
+                openingTime = TimeSpan.ParseExact(openingHours.Opening, "hhmm", null);
+                closingTime = TimeSpan.ParseExact(openingHours.Closing, "hhmm", null);
+            }
+
             if (currentTime.TimeOfDay < openingTime) {
                 TimeSpan delay = openingTime - currentTime.TimeOfDay;
                 Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");

@@ -1,11 +1,13 @@
-using System.Net.Http.Headers;
-using System.Text;
 using MerchantPos.EF.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects.Responses;
 using Shared.Logger;
 using SimpleResults;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Headers;
+using System.Text;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;
@@ -18,6 +20,9 @@ namespace TransactionProcessing.MerchantPos.Runtime;
 public interface IApiClient
 {
     Task<Result<TokenResponse>> GetToken(String clientId, String clientSecret, MerchantConfig cfg, CancellationToken cancellationToken);
+
+    Task<Result<MerchantResponse>> GetMerchant(MerchantConfig cfg, TokenResponse token, CancellationToken cancellationToken);
+
     Task SendLogon(MerchantConfig cfg, TokenResponse token, 
                    Int32 transactionNumber, CancellationToken cancellationToken);
     Task<List<Product>> GetProductList(MerchantConfig cfg, TokenResponse token, CancellationToken cancellationToken);
@@ -47,6 +52,40 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                                                       MerchantConfig cfg,
                                                       CancellationToken cancellationToken) {
         return await this.SecurityClient.GetToken(cfg.Username, cfg.Password, clientId, clientSecret, cancellationToken);
+    }
+
+    public async Task<Result<MerchantResponse>> GetMerchant(MerchantConfig cfg,
+                                                            TokenResponse token,
+                                                            CancellationToken cancellationToken) {
+
+        Guid estateId = cfg.EstateId;
+        Guid merchantId = cfg.MerchantId;
+
+        String requestUri = this.BuildRequestUrl($"api/merchants?applicationVersion={cfg.ApplicationVersion}");
+
+        Logger.LogInformation("About to request merchant details");
+        Logger.LogDebug($"Merchant Request details:  Estate Id {estateId} Merchant Id {merchantId} Access Token {token.AccessToken}");
+
+        HttpRequestMessage request = new(HttpMethod.Get, requestUri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+        var httpResponse = await this.HttpClient.SendAsync(request, cancellationToken);
+
+        // Process the response
+        Result<String> content = await this.HandleResponseX(httpResponse, cancellationToken);
+
+        if (content.IsFailed)
+        {
+            Logger.LogInformation($"GetMerchant failed {content.Status}");
+        }
+
+        Logger.LogDebug($"Merchant Response details:  Status {httpResponse.StatusCode} Payload {content.Data}");
+        //MerchantResponse
+
+        MerchantResponse responseData = JsonConvert.DeserializeObject<MerchantResponse>(content.Data);
+
+        Logger.LogDebug($"Merchant Response: [{JsonConvert.SerializeObject(responseData)}]");
+
+        return responseData;
     }
 
     public async Task SendLogon(MerchantConfig cfg,
@@ -92,7 +131,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             Logger.LogInformation($"GetMerchantContracts failed {content.Status}");
         }
 
-        Logger.LogDebug($"Transaction Response details:  Status {httpResponse.StatusCode} Payload {content.Data}");
+        Logger.LogDebug($"Merchant Contract Response details:  Status {httpResponse.StatusCode} Payload {content.Data}");
 
         List<ContractResponseX>? responseData = JsonConvert.DeserializeObject<List<ContractResponseX>>(content.Data);
 
@@ -499,4 +538,29 @@ public enum ProductSubType
     BillPaymentPostPay,
     BillPaymentPrePay,
     Voucher
+}
+
+[ExcludeFromCodeCoverage]
+public class MerchantResponse
+{
+    [JsonProperty("estate_id")]
+    public Guid EstateId { get; set; }
+
+    [JsonProperty("merchant_id")]
+    public Guid MerchantId { get; set; }
+
+    [JsonProperty("merchant_name")]
+    public string MerchantName { get; set; }
+
+    [JsonProperty("opening_hours")]
+    public Dictionary<DayOfWeek, OpeningHoursResponse> OpeningHours { get; set; }
+}
+
+public class OpeningHoursResponse
+{
+    [JsonProperty("opening")]
+    public string Opening { get; set; }
+
+    [JsonProperty("closing")]
+    public string Closing { get; set; }
 }
