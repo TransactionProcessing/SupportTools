@@ -26,35 +26,20 @@ jobs:
 
     - name: Restore Nuget Packages
       run: |
-        dotnet restore TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.SchedulerService/TransactionProcessing.SchedulerService.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
 
     - name: Build Code
       run: |
-        dotnet build TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.sln --configuration Release
         dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
         dotnet build TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --configuration Release
 
     - name: Publish API
       run: |
-        dotnet publish "TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI/TransactionProcessor.HealthChecksUI.csproj" --configuration Release --output TransactionProcessor.HealthChecksUI/publishOutput -r win-x64 --self-contained
         dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained
         dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained
           
-    - name: Build Release Package (Health Check UI)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/publishOutput
-         zip -r ../healthchecksui.zip ./*
-         echo "Zip file created at: $(realpath ../healthchecksui.zip)"
-    
-    - name: Upload the artifact (Health Check UI)    
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: healthchecksui
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessor.HealthChecksUI/healthchecksui.zip            
-
     - name: Build Release Package (Merchant Pos)
       run: |
          cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/publishOutput
@@ -86,32 +71,7 @@ jobs:
     name: "Deploy to Staging"
     
     steps:
-      - name: Download the artifact (Health Check UI) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: healthchecksui
-
-      - name: Remove existing Windows service (Health Check UI)
-        run: |
-          $serviceName = "Transaction Processing - Health Checks UI"
-          # Check if the service exists
-          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $serviceName
-            sc.exe delete $serviceName
-          }
-
-      - name: Unzip the files (Health Check UI)
-        run: |
-          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
       
-      - name: Install as a Windows service (Health Check UI)
-        run: |
-          $serviceName = "Transaction Processing - Health Checks UI"
-          $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
-                   
-          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName   
-
       - name: Download the artifact (Merchant Pos) 
         uses: actions/download-artifact@v4.1.8
         with:
@@ -166,32 +126,7 @@ jobs:
     name: "Deploy to Production"
     
     steps:
-      - name: Download the artifact (Health Check UI) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: healthchecksui
-
-      - name: Remove existing Windows service (Health Check UI)
-        run: |
-          $serviceName = "Transaction Processing - Health Checks UI"
-          # Check if the service exists
-          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $serviceName
-            sc.exe delete $serviceName
-          }
-
-      - name: Unzip the files (Health Check UI)
-        run: |
-          Expand-Archive -Path healthchecksui.zip -DestinationPath "C:\txnproc\transactionprocessing\healthchecksui" -Force
-      
-      - name: Install as a Windows service (Health Check UI)
-        run: |
-          $serviceName = "Transaction Processing - Health Checks UI"
-          $servicePath = "C:\txnproc\transactionprocessing\healthchecksui\TransactionProcessor.HealthChecksUI.exe"
-                   
-          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName   
-          
+                
       - name: Remove existing Windows service (Merchant Pos)
         run: |
           $serviceName = "Transaction Processing - Merchant Pos"
