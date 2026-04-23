@@ -76,14 +76,14 @@ public sealed class Worker(MerchantProcessingOptions options,
         IReadOnlyList<TimeOnly> runTimes = merchant.GetDailyRunTimesUtc();
         DateOnly currentDate = DateOnly.FromDateTime(now.UtcDateTime);
 
-        for (Int32 dayOffset = 0; dayOffset <= 1; dayOffset++) {
+        for (int dayOffset = 0; dayOffset <= 1; dayOffset++) {
             DateOnly candidateDate = currentDate.AddDays(dayOffset);
 
             foreach (TimeOnly runTime in runTimes) {
                 DateTimeOffset scheduledRunUtc = new DateTimeOffset(candidateDate.Year, candidateDate.Month, candidateDate.Day, runTime.Hour, runTime.Minute, runTime.Second, TimeSpan.Zero);
 
                 if (scheduledRunUtc <= now) {
-                    Boolean isComplete = await fileStatusStore.IsMerchantRunCompleteAsync(merchant, scheduledRunUtc, cancellationToken);
+                    bool isComplete = await fileStatusStore.IsMerchantRunCompleteAsync(merchant, scheduledRunUtc, cancellationToken);
                     if (!isComplete) {
                         LocalLogger.For(merchant.MerchantId).LogInformation($"Missed scheduled run at {scheduledRunUtc:O}. Scheduling an immediate catch-up run.");
                         return new ScheduledMerchant(merchant, scheduledRunUtc, now);

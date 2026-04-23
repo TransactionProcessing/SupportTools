@@ -43,7 +43,6 @@ public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClien
         };
 
         Result<Guid>? result = await fileProcessorClient.UploadFile(accessToken, file.FileName, file.Content, request, cancellationToken);
-        //var result = Result.Success(Guid.NewGuid()); // TODO: Replace with actual file upload call
 
         if (result.IsFailed) {
             return new Result<Guid> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"File processor client failed to upload file '{file.FileName}'." };
@@ -71,7 +70,7 @@ public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClien
     private static FileProcessingLineStatusSnapshot MapLineStatus(FileLine line) => new(line.LineNumber, line.LineData, line.ProcessingResult.ToString(), string.IsNullOrWhiteSpace(line.RejectionReason) ? null : line.RejectionReason, line.TransactionId == Guid.Empty ? null : line.TransactionId);
 
     private static bool AreAllLinesResolved(IEnumerable<FileProcessingLineStatusSnapshot> lines) {
-        Boolean hasLines = false;
+        bool hasLines = false;
 
         foreach (FileProcessingLineStatusSnapshot line in lines) {
             hasLines = true;

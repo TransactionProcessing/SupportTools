@@ -11,9 +11,9 @@ public sealed class DelimitedTransactionFileBuilder : ITransactionFileBuilder {
                                FileProfileOptions fileProfile,
                                IReadOnlyList<GeneratedTransaction> transactions,
                                DateTimeOffset processingTimestampUtc) {
-        String delimiter = NormalizeDelimiter(fileProfile.Delimited.Delimiter);
-        List<String> lines = new List<string>();
-        Decimal fileTotalAmount = transactions.Sum(transaction => transaction.TotalAmount);
+        string delimiter = NormalizeDelimiter(fileProfile.Delimited.Delimiter);
+        List<string> lines = new List<string>();
+        decimal fileTotalAmount = transactions.Sum(transaction => transaction.TotalAmount);
 
         if (fileProfile.Delimited.HeaderFields.Count > 0) {
             TransactionFileContext headerContext = new TransactionFileContext(merchant, contract, null, processingTimestampUtc, transactions.Count, fileTotalAmount);
@@ -43,8 +43,8 @@ public sealed class DelimitedTransactionFileBuilder : ITransactionFileBuilder {
 
     private static string Escape(string value,
                                  string delimiter) {
-        Boolean shouldQuote = value.Contains('"') || value.Contains('\r') || value.Contains('\n') || value.Contains(delimiter, StringComparison.Ordinal);
-        String escapedValue = value.Replace("\"", "\"\"", StringComparison.Ordinal);
+        bool shouldQuote = value.Contains('"') || value.Contains('\r') || value.Contains('\n') || value.Contains(delimiter, StringComparison.Ordinal);
+        string escapedValue = value.Replace("\"", "\"\"", StringComparison.Ordinal);
 
         return shouldQuote ? $"\"{escapedValue}\"" : escapedValue;
     }

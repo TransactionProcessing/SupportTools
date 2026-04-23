@@ -14,6 +14,7 @@ public sealed class JsonTransactionFileBuilder : ITransactionFileBuilder
         IReadOnlyList<GeneratedTransaction> transactions,
         DateTimeOffset processingTimestampUtc)
     {
+        var fileTotalAmount = transactions.Sum(transaction => transaction.TotalAmount);
         var mappedRecords = transactions
             .Select(transaction =>
             {
@@ -23,7 +24,7 @@ public sealed class JsonTransactionFileBuilder : ITransactionFileBuilder
                     transaction,
                     processingTimestampUtc,
                     transactions.Count,
-                    transactions.Sum(candidate => candidate.TotalAmount));
+                    fileTotalAmount);
 
                 return fileProfile.Fields.ToDictionary(
                     field => field.Name,

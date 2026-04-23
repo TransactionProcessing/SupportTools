@@ -141,7 +141,7 @@ public sealed class FileStatusReportService(
         var html = new StringBuilder();
 
         AppendDocumentStart(html, "Merchant File Status");
-        html.AppendLine($"  <h1>Merchant File Status</h1>");
+        html.AppendLine("  <h1>Merchant File Status</h1>");
         html.AppendLine($"  <p>Generated at {Encode(report.GeneratedUtc.ToString("u"))}. Auto-refreshes every 30 seconds.</p>");
         html.AppendLine("  <h2>Merchants</h2>");
         html.AppendLine("  <table>");
@@ -171,7 +171,7 @@ public sealed class FileStatusReportService(
 
         var html = new StringBuilder();
         AppendDocumentStart(html, $"Merchant {report.Merchant.MerchantName} Details");
-        html.AppendLine($"  <p><a href=\"/status\">&larr; Back to merchants</a></p>");
+        html.AppendLine("  <p><a href=\"/status\">&larr; Back to merchants</a></p>");
         html.AppendLine($"  <h1>{Encode(report.Merchant.MerchantName)}</h1>");
         html.AppendLine($"  <p class=\"mono\">{Encode(report.Merchant.MerchantId)}</p>");
         html.AppendLine($"  <p>Generated at {Encode(report.GeneratedUtc.ToString("u"))}. Auto-refreshes every 30 seconds.</p>");
@@ -218,7 +218,7 @@ public sealed class FileStatusReportService(
         var html = new StringBuilder();
         AppendDocumentStart(html, $"Merchant {report.Merchant.MerchantName} File {report.File.Id}");
         html.AppendLine($"  <p><a href=\"/status/{Uri.EscapeDataString(report.Merchant.MerchantId)}\">&larr; Back to merchant</a></p>");
-        html.AppendLine($"  <h1>File Details</h1>");
+        html.AppendLine("  <h1>File Details</h1>");
         html.AppendLine($"  <p>Merchant {Encode(report.Merchant.MerchantName)}<br /><span class=\"mono\">{Encode(report.Merchant.MerchantId)}</span></p>");
         html.AppendLine("  <table>");
         html.AppendLine("    <thead><tr><th>Processed (UTC)</th><th>Contract</th><th>Upload Status</th><th>Processing</th><th>Profile</th><th>Format</th></tr></thead>");
