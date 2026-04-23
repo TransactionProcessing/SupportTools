@@ -98,6 +98,11 @@ jobs:
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
           Start-Service -Name $serviceName
 
+      - name: Download the artifact (Merchant File Processor) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantfileprocessor
+
       - name: Remove existing Windows service (Merchant File Processor)
         run: |
           $serviceName = "Transaction Processing - Merchant File Processor"
@@ -156,6 +161,11 @@ jobs:
             Stop-Service -Name $serviceName
             sc.exe delete $serviceName
           }
+
+      - name: Download the artifact (Merchant File Processor) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantfileprocessor
 
       - name: Unzip the files (Merchant File Processor)
         run: |
