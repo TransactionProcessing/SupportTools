@@ -10,10 +10,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.3" />
 	  <PackageReference Include="NLog.Web.AspNetCore" Version="6.1.1" />
-	  <PackageReference Include="SecurityService.Client" Version="2026.2.1" />
-	  <PackageReference Include="Shared.Logger" Version="2026.2.2" />
-	  <PackageReference Include="TransactionProcessor.Client" Version="2026.2.1" />
-	  <PackageReference Include="TransactionProcessorACL.DataTransferObjects" Version="2026.2.1" />
+	  <PackageReference Include="SecurityService.Client" Version="2026.4.3-build157" />
+	  <PackageReference Include="Shared" Version="2026.5.6" />
+	  <PackageReference Include="Shared.Logger" Version="2026.5.6" />
+	  <PackageReference Include="TransactionProcessor.Client" Version="2026.4.3-build355" />
+	  <PackageReference Include="TransactionProcessorACL.DataTransferObjects" Version="2026.4.3-build129" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="hosting.json">

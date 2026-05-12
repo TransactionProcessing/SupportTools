@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
 using SecurityService.Client;
+using Shared.Serialisation;
 using TransactionProcessing.MerchantFileProcessor;
 using TransactionProcessing.MerchantFileProcessor.Clients;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
@@ -118,12 +119,21 @@ try
     builder.Services.AddHostedService<Worker>();
     builder.Services.AddHostedService<FileStatusPollingWorker>();
 
+    builder.Services.AddSingleton<IStringSerialiser, SystemTextJsonSerializer>();
+    builder.Services.AddSingleton<Func<Object, String>>(_ => obj => StringSerialiser.Serialise(obj));
+    builder.Services.AddSingleton<Func<String, Type, Object>>(_ => (str, type) => StringSerialiser.DeserializeObject<Object>(str, type));
+    var serialiserSettings = SystemTextJsonSerializer.GetDefaultJsonSerializerOptions();
+    builder.Services.AddSingleton(serialiserSettings);
+
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
     {
         var startupLogger = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>();
         SharedLogger.Initialise(startupLogger);
+
+        var serialiser = scope.ServiceProvider.GetRequiredService<IStringSerialiser>();
+        StringSerialiser.Initialise(serialiser);
 
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MerchantFileProcessorDbContext>>();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();

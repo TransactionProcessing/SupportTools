@@ -1,20 +1,21 @@
+using ClientProxyBase;
 using MerchantPos.EF.Models;
 using MerchantPos.EF.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using NLog;
+using NLog.Extensions.Logging;
+using NLog.Web;
 using SecurityService.Client;
+using Shared.Serialisation;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
-using NLog;
-using NLog.Extensions.Logging;
-using NLog.Web;
 using TransactionProcessing.MerchantPos.Runtime;
 using TransactionProcessor.Client;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
-using ClientProxyBase;
 
 var logger = LogManager.Setup().LoadConfigurationFromFile("nlog.config").GetCurrentClassLogger();
 try
@@ -87,18 +88,14 @@ try
     builder.Services.AddScoped<MerchantRuntime>();
     builder.Services.AddSingleton<IMerchantRuntimeFactory, MerchantRuntimeFactory>();
     builder.Services.AddSingleton<MerchantMetrics>();
-    //builder.Services.AddSingleton<Func<String, String>>(
-    //                                                                configSetting =>
-    //                                                                {
-    //                                                                    return configSetting switch
-    //                                                                    {
-    //                                                                        "SecurityService" => "https://localhost:5001",
-    //                                                                        "TransactionProcessorACL" => "http://localhost:5003",
-    //                                                                        "TransactionProcessorApi" => "http://localhost:5002",
-    //                                                                        "TestHost" => "http://localhost:9000",
-    //                                                                        _ => string.Empty,
-    //                                                                    };
-    //                                                                });
+
+    builder.Services.AddSingleton<IStringSerialiser, SystemTextJsonSerializer>();
+    builder.Services.AddSingleton<Func<Object, String>>(_ => obj => StringSerialiser.Serialise(obj));
+    builder.Services.AddSingleton<Func<String, Type, Object>>(_ => (str, type) => StringSerialiser.DeserializeObject<Object>(str, type));
+
+    var serialiserSettings = SystemTextJsonSerializer.GetDefaultJsonSerializerOptions();
+
+    builder.Services.AddSingleton(serialiserSettings);
 
     // Replace the existing AddSingleton<Func<String, String>>(...) registration with this:
     builder.Services.AddSingleton<Func<string, string>>(sp =>
@@ -145,6 +142,9 @@ try
 
         var diLogger = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>();
         Shared.Logger.Logger.Initialise(diLogger);
+
+        var serialiser = scope.ServiceProvider.GetRequiredService<IStringSerialiser>();
+        StringSerialiser.Initialise(serialiser);
     }
 
     app.MapGet("/metrics/stream", async (HttpContext ctx, IEfRepository repo, MerchantMetrics metrics) =>
