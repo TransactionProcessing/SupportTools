@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Rewrite;
 using SecurityService.Client;
-using SecurityService.DataTransferObjects.Requests;
-using SecurityService.DataTransferObjects.Responses;
+using SecurityService.DataTransferObjects;
 using Shared.Results;
 using SimpleResults;
 using TransactionProcessor.SystemSetupTool.identityserverconfig;
@@ -25,13 +22,13 @@ public class IdentityServerFunctions{
     }
 
     private async Task<Result> CreateRoles(CancellationToken cancellationToken) {
-        Result<List<RoleDetails>> rolesResult = await this.SecurityServiceClient.GetRoles(cancellationToken);
+        Result<List<RoleResponse>> rolesResult = await this.SecurityServiceClient.GetRoles(cancellationToken);
         if (rolesResult.IsFailed)
             return ResultHelpers.CreateFailure(rolesResult);
 
-        List<RoleDetails> roles = rolesResult.Data;
+        List<RoleResponse> roles = rolesResult.Data;
         if (roles == null)
-            roles = new List<RoleDetails>();
+            roles = new List<RoleResponse>();
 
         foreach (String role in this.identityServerConfiguration.roles)
         {
@@ -52,7 +49,7 @@ public class IdentityServerFunctions{
 
         var apiResources = apiResourcesResult.Data;
         if (apiResources == null)
-            apiResources = new List<ApiResourceDetails>();
+            apiResources = new List<ApiResourceResponse>();
         foreach (ApiResource apiResource in this.identityServerConfiguration.apiresources)
         {
             if (apiResources.Any(a => a.Name == apiResource.name))
@@ -71,7 +68,7 @@ public class IdentityServerFunctions{
 
         var identityResources = identityResourcesResult.Data;
         if (identityResources == null)
-            identityResources = new List<IdentityResourceDetails>();
+            identityResources = new List<IdentityResourceResponse>();
 
         foreach (IdentityResource identityResource in this.identityServerConfiguration.identityresources)
         {
@@ -91,7 +88,7 @@ public class IdentityServerFunctions{
 
         var clients = clientsResult.Data;
         if (clients == null)
-            clients = new List<ClientDetails>();
+            clients = new List<ClientResponse>();
         foreach (identityserverconfig.Client client in this.identityServerConfiguration.clients)
         {
             if (clients.Any(c => c.ClientId == client.client_id))
@@ -110,7 +107,7 @@ public class IdentityServerFunctions{
             return ResultHelpers.CreateFailure(apiScopesResult);
         var apiScopes = apiScopesResult.Data;
         if(apiScopes == null)
-            apiScopes = new List<ApiScopeDetails>();
+            apiScopes = new List<ApiScopeResponse>();
         foreach (ApiScope apiscope in this.identityServerConfiguration.apiscopes)
         {
             if (apiScopes.Any(a => a.Name== apiscope.name))
