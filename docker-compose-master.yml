@@ -1,6 +1,6 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2025-latest
     container_name: sqlserver_master
     ports:
       - "14433:1433"
@@ -12,7 +12,7 @@ services:
       - SA_PASSWORD=thisisalongpassword123!
 
   kurrentdb:
-    image: kurrentplatform/kurrentdb:25.1
+    image: kurrentplatform/kurrentdb:26.1
     container_name: kurrentdb_master
     ports: 
       - "3113:1113"
