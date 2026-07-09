@@ -26,7 +26,7 @@ Describe 'Invoke-DailySettlementProcessing.ps1' {
             }
         } -ParameterFilter {
             $Method -eq 'Get' -and
-            $Uri -eq 'https://api.example/api/v2/estates/estate-123/merchants' -and
+            $Uri -eq 'https://api.example/api/estates/estate-123/merchants' -and
             $Headers.Authorization -eq 'Bearer access-token'
         }
 
@@ -50,7 +50,7 @@ Describe 'Invoke-DailySettlementProcessing.ps1' {
         }
 
         Assert-MockCalled Invoke-RestMethod -Times 1 -ParameterFilter {
-            $Method -eq 'Get' -and $Uri -eq 'https://api.example/api/v2/estates/estate-123/merchants'
+            $Method -eq 'Get' -and $Uri -eq 'https://api.example/api/estates/estate-123/merchants'
         }
 
         $postedUris | Should -Be @(

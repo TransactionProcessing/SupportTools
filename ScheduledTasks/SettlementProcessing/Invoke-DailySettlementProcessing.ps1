@@ -52,7 +52,7 @@ function Get-AccessToken {
         foreach ($propertyName in 'access_token', 'AccessToken', 'token', 'Token') {
             if ($tokenResponse.ContainsKey($propertyName)) {
                 $accessToken = [string]$tokenResponse[$propertyName]
-                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {
+                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {                    
                     return $accessToken
                 }
             }
@@ -63,7 +63,7 @@ function Get-AccessToken {
             $property = $tokenResponse.PSObject.Properties[$propertyName]
             if ($null -ne $property) {
                 $accessToken = [string]$property.Value
-                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {
+                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {                    
                     return $accessToken
                 }
             }
@@ -126,7 +126,7 @@ function Get-MerchantId {
     }
 
     if ($Merchant -is [hashtable]) {
-        foreach ($propertyName in 'merchantId', 'MerchantId', 'id', 'Id') {
+        foreach ($propertyName in 'merchant_Id', 'MerchantId', 'id', 'Id') {
             if ($Merchant.ContainsKey($propertyName)) {
                 $merchantId = [string]$Merchant[$propertyName]
                 if (-not [string]::IsNullOrWhiteSpace($merchantId)) {
@@ -136,7 +136,7 @@ function Get-MerchantId {
         }
     }
     else {
-        foreach ($propertyName in 'merchantId', 'MerchantId', 'id', 'Id') {
+        foreach ($propertyName in 'merchant_Id', 'MerchantId', 'id', 'Id') {
             $property = $Merchant.PSObject.Properties[$propertyName]
             if ($null -ne $property) {
                 $merchantId = [string]$property.Value
@@ -175,20 +175,17 @@ function Invoke-DailySettlementProcessing {
     }
 
     $normalizedBaseUrl = $BaseUrl.TrimEnd('/')
-    $merchantsEndpoint = '{0}/api/v2/estates/{1}/merchants' -f $normalizedBaseUrl, $EstateId
-    Write-Verbose "Requesting merchants from [$merchantsEndpoint]"
-
+    $merchantsEndpoint = '{0}/api/estates/{1}/merchants' -f $normalizedBaseUrl, $EstateId
+    
     $merchantResponse = Invoke-RestMethod -Method Get -Uri $merchantsEndpoint -Headers $headers
     $merchantIds = @(Get-MerchantItems -MerchantResponse $merchantResponse | ForEach-Object { Get-MerchantId -Merchant $_ })
 
     if ($merchantIds.Count -eq 0) {
-        Write-Verbose "No merchants were returned for estate [$EstateId]"
         return
     }
 
     foreach ($merchantId in $merchantIds) {
         $settlementEndpoint = '{0}/api/estates/{1}/settlements/{2}/merchants/{3}' -f $normalizedBaseUrl, $EstateId, $settlementDate, $merchantId
-        Write-Verbose "Submitting settlement for merchant [$merchantId] using [$settlementEndpoint]"
         Invoke-RestMethod -Method Post -Uri $settlementEndpoint -Headers $headers
     }
 }
