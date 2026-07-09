@@ -1,15 +1,10 @@
 using MerchantPos.EF.Persistence;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using SecurityService.Client;
-using SecurityService.DataTransferObjects.Responses;
 using Shared.Logger;
 using Shared.Results;
 using SimpleResults;
-using System.Threading;
 using MerchantPos.EF.Models;
+using SecurityService.DataTransferObjects;
 using TransactionProcessing.MerchantPos.Runtime;
 
 public class MerchantRuntime
@@ -134,12 +129,23 @@ public class MerchantRuntime
         }
 
         // 2. Load products
-        List<Product> products = await ApiClient.GetProductList(cfg, this.CurrentUserToken, cancellationToken);
-        cfg.Products = products;
+        Result<List<Product>> productsResult = await ApiClient.GetProductList(cfg, this.CurrentUserToken, cancellationToken);
+        if (productsResult.IsFailed) {
+            Logger.LogWarning($"Failed to get product list for merchant {cfg.MerchantName} during startup sequence.");
+            return;
+        }
+        cfg.Products = productsResult.Data;
         
         // 3. Balance
-        decimal balance = await ApiClient.GetBalance(cfg, this.CurrentServiceToken, cancellationToken);
-        await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balance);
+        Result<decimal> balanceResult = await ApiClient.GetBalance(cfg, this.CurrentServiceToken, cancellationToken);
+        if (balanceResult.IsFailed) {
+            Logger.LogWarning($"Failed to get balance for merchant {cfg.MerchantName} during startup sequence.");
+            return;
+        }
+        await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balanceResult.Data);
+        // 4. get the merchant record
+        var merchant = await ApiClient.GetMerchant(cfg, this.CurrentUserToken, cancellationToken);
+        cfg.Merchant = merchant.Data;
     }
 
     private async Task RunMainLoop(MerchantConfig cfg,
@@ -150,8 +156,22 @@ public class MerchantRuntime
             Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId);
             // Wait until the merchant's configured opening time
             DateTime currentTime = DateTime.Now;
-            TimeSpan openingTime = cfg.OpeningTime.ToTimeSpan();
-            TimeSpan closingTime = cfg.ClosingTime.ToTimeSpan();
+
+            // Get the current days opening and closing time
+            TimeSpan openingTime;
+            TimeSpan closingTime;
+            Boolean found = cfg.Merchant.OpeningHours.TryGetValue(DateTime.Now.DayOfWeek, out var openingHours);
+            if (found == false) {
+                // fallback to the configured default opening and closing time if no specific hours for the day of week
+                openingTime = cfg.OpeningTime.ToTimeSpan();
+                closingTime = cfg.ClosingTime.ToTimeSpan();
+            }
+            else {
+                // We have opening and closing times for the current day of week, so use those
+                openingTime = TimeSpan.ParseExact(openingHours.Opening, "hhmm", null);
+                closingTime = TimeSpan.ParseExact(openingHours.Closing, "hhmm", null);
+            }
+
             if (currentTime.TimeOfDay < openingTime) {
                 TimeSpan delay = openingTime - currentTime.TimeOfDay;
                 Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");
@@ -231,9 +251,16 @@ public class MerchantRuntime
         bool induceFail = _rng.NextDouble() < cfg.FailureInjectionProbability;
         decimal saleValue = induceFail ? balance + 10 : value;
         
-        SaleResponse result = await ApiClient.SendSale(cfg, this.CurrentUserToken, product, saleValue, transactionNumber, cancellationToken);
+        Result<SaleResponse> result = await ApiClient.SendSale(cfg, this.CurrentUserToken, product, saleValue, transactionNumber, cancellationToken);
 
-        if (result.Authorised)
+        if (result.IsFailed)
+        {
+            Logger.LogWarning($"Sale failed for merchant {cfg.MerchantName} with error: {result.Errors.FirstOrDefault()}");
+            Metrics.IncrementFailedSales(cfg.MerchantId);
+            return;
+        }
+
+        if (result.Data.Authorised)
         {
             Metrics.IncrementSales(cfg.MerchantId);
             await Repository.UpdateTotals(cfg.MerchantId, product.OperatorId, product.ContractId, saleValue);

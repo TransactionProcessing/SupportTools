@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
 using SecurityService.Client;
-using SecurityService.DataTransferObjects.Responses;
+using SecurityService.DataTransferObjects;
 using Shared.Exceptions;
 using Shared.Results;
 using SimpleResults;
@@ -26,7 +22,6 @@ using Address = TransactionProcessor.DataTransferObjects.Requests.Merchant.Addre
 using AssignOperatorRequest = TransactionProcessor.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
 using Contact = TransactionProcessor.DataTransferObjects.Requests.Merchant.Contact;
 using Contract = TransactionProcessor.SystemSetupTool.estateconfig.Contract;
-using ProductType = TransactionProcessor.SystemSetupTool.estateconfig.ProductType;
 
 namespace TransactionProcessor.SystemSetupTool;
 

@@ -1,6 +1,6 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2025-latest
     container_name: sqlserver_master
     ports:
       - "14433:1433"
@@ -11,21 +11,20 @@ services:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=thisisalongpassword123!
 
-  eventstore:
-    image: eventstore/eventstore:24.2.0-jammy
-    container_name: eventstore_master
+  kurrentdb:
+    image: kurrentplatform/kurrentdb:26.1
+    container_name: kurrentdb_master
     ports: 
       - "3113:1113"
       - "4113:2113"
     volumes:
-      - E:/home/txnproc/docker/master/eventstore:/var/lib/eventstore
+      - E:/home/txnproc/docker/master/kurrentdb:/var/lib/kurrentdb
     environment:
       - EVENTSTORE_RUN_PROJECTIONS=all
       - EVENTSTORE_START_STANDARD_PROJECTIONS=true
       - EVENTSTORE_INSECURE=true
       - EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP=true
-      - EVENTSTORE_HTTP_PORT=2113
-      - EVENTSTORE_EXT_IP=0.0.0.0
+      - EVENTSTORE_NODE_PORT=2113
 
   securityservice:
     image: stuartferguson/securityservice:master
@@ -54,7 +53,7 @@ services:
     ports:
       - "5006:5006"
     environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
@@ -63,7 +62,7 @@ services:
       - AppSettings:SMSProxy=Integration
     restart: on-failure
     depends_on:
-      - eventstore  
+      - kurrentdb  
       - securityservice
 
   transactionprocessor:
@@ -75,7 +74,7 @@ services:
       - "5002:5002"
     environment:
       - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
@@ -90,7 +89,7 @@ services:
       - OperatorConfiguration:PataPawaPostPay:ApiLogonRequired=true
     restart: on-failure
     depends_on:
-      - eventstore
+      - kurrentdb
       - securityservice
       - testhosts
 
@@ -135,7 +134,7 @@ services:
     ports:
       - "5009:5009"
     environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
@@ -151,7 +150,7 @@ services:
       - AppSettings:FileProfiles__1__ListeningDirectory=/home/txnproc/bulkfiles/voucher
     restart: on-failure
     depends_on:
-      - eventstore
+      - kurrentdb
       - securityservice
 
   callbackhandler:
@@ -162,5 +161,7 @@ services:
     ports:
       - "5010:5010"
     environment:
-      - EventStoreSettings:ConnectionString=esdb://admin:changeit@eventstore:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
+    depends_on:
+      - kurrentdb

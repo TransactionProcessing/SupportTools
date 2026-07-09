@@ -21,4 +21,5 @@ public class MerchantConfig
     public TimeOnly OpeningTime { get; set; } = new(8, 0);
     public List<Product> Products { get; set; }
     public Boolean RequiresEndOfDay { get; set; } = true;
+    public MerchantResponse Merchant { get; set; }
 }
