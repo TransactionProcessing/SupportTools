@@ -1,5 +1,5 @@
 
-select CONCAT(YEAR(transactiondate),'-', FORMAT(transactiondate, 'MM')),
+/*select CONCAT(YEAR(transactiondate),'-', FORMAT(transactiondate, 'MM')),
 count(*) as 'count',
 SUM(case [transaction].TransactionType
 		WHEN 'Logon' THEN 1
@@ -20,7 +20,7 @@ SUM([transaction].TransactionAmount) as totalamount
 from [transaction] 
 group by CONCAT(YEAR(transactiondate),'-', FORMAT(transactiondate, 'MM'))
 order by CONCAT(YEAR(transactiondate),'-', FORMAT(transactiondate, 'MM')) asc
-
+*/
 
 fromAll()
   .when({
