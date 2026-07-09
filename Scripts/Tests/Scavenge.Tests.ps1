@@ -19,11 +19,11 @@ Describe 'scavenge.ps1' {
 
         & $scriptUnderTest -BaseUrl 'http://localhost:2113/'
 
-        $captured.Count | Should Be 1
-        $captured.Uri | Should Be $expectedUri
-        $captured.Headers.Accept | Should Be 'application/json'
-        $captured.Headers.'Content-Type' | Should Be 'application/json'
-        $captured.Headers.ContainsKey('Authorization') | Should Be $false
+        $captured.Count | Should -Be 1
+        $captured.Uri | Should -Be $expectedUri
+        $captured.Headers.Accept | Should -Be 'application/json'
+        $captured.Headers.'Content-Type' | Should -Be 'application/json'
+        $captured.Headers.ContainsKey('Authorization') | Should -BeFalse
     }
 
     It 'adds a Basic Authorization header when username and password are both provided' {
@@ -47,9 +47,9 @@ Describe 'scavenge.ps1' {
 
         & $scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice' -Password 'secret'
 
-        $captured.Count | Should Be 1
-        $captured.Uri | Should Be $expectedUri
-        $captured.Headers.Authorization | Should Be $expectedAuth
+        $captured.Count | Should -Be 1
+        $captured.Uri | Should -Be $expectedUri
+        $captured.Headers.Authorization | Should -Be $expectedAuth
     }
 
     It 'does not add an Authorization header when only one credential is supplied' {
@@ -71,8 +71,8 @@ Describe 'scavenge.ps1' {
 
         & $scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice'
 
-        $captured.Count | Should Be 1
-        $captured.Uri | Should Be 'http://localhost:2113/admin/scavenge'
-        $captured.Headers.ContainsKey('Authorization') | Should Be $false
+        $captured.Count | Should -Be 1
+        $captured.Uri | Should -Be 'http://localhost:2113/admin/scavenge'
+        $captured.Headers.ContainsKey('Authorization') | Should -BeFalse
     }
 }
