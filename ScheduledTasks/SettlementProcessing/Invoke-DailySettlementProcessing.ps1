@@ -52,8 +52,7 @@ function Get-AccessToken {
         foreach ($propertyName in 'access_token', 'AccessToken', 'token', 'Token') {
             if ($tokenResponse.ContainsKey($propertyName)) {
                 $accessToken = [string]$tokenResponse[$propertyName]
-                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {
-                    Write-Host "Got an access token 1"
+                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {                    
                     return $accessToken
                 }
             }
@@ -64,8 +63,7 @@ function Get-AccessToken {
             $property = $tokenResponse.PSObject.Properties[$propertyName]
             if ($null -ne $property) {
                 $accessToken = [string]$property.Value
-                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {
-                    Write-Host "Got an access token 2"
+                if (-not [string]::IsNullOrWhiteSpace($accessToken)) {                    
                     return $accessToken
                 }
             }
@@ -178,19 +176,16 @@ function Invoke-DailySettlementProcessing {
 
     $normalizedBaseUrl = $BaseUrl.TrimEnd('/')
     $merchantsEndpoint = '{0}/api/estates/{1}/merchants' -f $normalizedBaseUrl, $EstateId
-    Write-Host "Requesting merchants from [$merchantsEndpoint]"
-
+    
     $merchantResponse = Invoke-RestMethod -Method Get -Uri $merchantsEndpoint -Headers $headers
     $merchantIds = @(Get-MerchantItems -MerchantResponse $merchantResponse | ForEach-Object { Get-MerchantId -Merchant $_ })
 
     if ($merchantIds.Count -eq 0) {
-        Write-Host "No merchants were returned for estate [$EstateId]"
         return
     }
 
     foreach ($merchantId in $merchantIds) {
         $settlementEndpoint = '{0}/api/estates/{1}/settlements/{2}/merchants/{3}' -f $normalizedBaseUrl, $EstateId, $settlementDate, $merchantId
-        Write-Host "Submitting settlement for merchant [$merchantId] using [$settlementEndpoint]"
         Invoke-RestMethod -Method Post -Uri $settlementEndpoint -Headers $headers
     }
 }
