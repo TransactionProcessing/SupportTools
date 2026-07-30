@@ -81,6 +81,7 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: scheduledtasks
+          path: ${{ runner.temp }}\scheduledtasks
 
       - name: Install scheduled tasks
         shell: powershell
@@ -89,7 +90,12 @@ jobs:
           SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
         run: |
           $taskScriptDir = 'C:\txnproc\transactionprocessing\powershell'
-          $scheduledTasksRoot = Join-Path $env:GITHUB_WORKSPACE 'ScheduledTasks'
+          $scheduledTasksDownloadRoot = Join-Path $env:RUNNER_TEMP 'scheduledtasks'
+          $scheduledTasksRoot = Join-Path $scheduledTasksDownloadRoot 'ScheduledTasks'
+
+          if (-not (Test-Path $scheduledTasksRoot)) {
+            $scheduledTasksRoot = $scheduledTasksDownloadRoot
+          }
 
           New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
 
@@ -185,6 +191,7 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: scheduledtasks
+          path: ${{ runner.temp }}\scheduledtasks
 
       - name: Install scheduled tasks
         shell: powershell
@@ -193,7 +200,12 @@ jobs:
           SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
         run: |
           $taskScriptDir = 'C:\txnproc\transactionprocessing\powershell'
-          $scheduledTasksRoot = Join-Path $env:GITHUB_WORKSPACE 'ScheduledTasks'
+          $scheduledTasksDownloadRoot = Join-Path $env:RUNNER_TEMP 'scheduledtasks'
+          $scheduledTasksRoot = Join-Path $scheduledTasksDownloadRoot 'ScheduledTasks'
+
+          if (-not (Test-Path $scheduledTasksRoot)) {
+            $scheduledTasksRoot = $scheduledTasksDownloadRoot
+          }
 
           New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
 
