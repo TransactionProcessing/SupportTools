@@ -71,6 +71,47 @@ jobs:
     name: "Deploy to Staging"
     
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Install scheduled tasks
+        shell: pwsh
+        env:
+          SCHEDULED_TASK_USER: ${{ secrets.SCHEDULED_TASK_USER }}
+          SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
+        run: |
+          $taskScriptDir = 'C:\txnproc\transactionprocessing\powershell'
+          $scheduledTasksRoot = Join-Path $env:GITHUB_WORKSPACE 'ScheduledTasks'
+
+          New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.ps1 |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Copy-Item -Destination $taskScriptDir -Force
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.xml |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            ForEach-Object {
+              [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
+              $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
+
+              if ([string]::IsNullOrWhiteSpace($taskName)) {
+                $taskName = $_.BaseName
+              }
+
+              $registerParams = @{
+                Xml      = $taskDefinition.OuterXml
+                TaskName = $taskName.TrimStart('\')
+                TaskPath = '\'
+                Force    = $true
+              }
+
+              if ($env:SCHEDULED_TASK_USER -and $env:SCHEDULED_TASK_PASSWORD) {
+                $registerParams.User = $env:SCHEDULED_TASK_USER
+                $registerParams.Password = $env:SCHEDULED_TASK_PASSWORD
+              }
+
+              Register-ScheduledTask @registerParams | Out-Null
+            }
       
       - name: Download the artifact (Merchant Pos) 
         uses: actions/download-artifact@v4.1.8
@@ -131,6 +172,47 @@ jobs:
     name: "Deploy to Production"
     
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Install scheduled tasks
+        shell: pwsh
+        env:
+          SCHEDULED_TASK_USER: ${{ secrets.SCHEDULED_TASK_USER }}
+          SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
+        run: |
+          $taskScriptDir = 'C:\txnproc\transactionprocessing\powershell'
+          $scheduledTasksRoot = Join-Path $env:GITHUB_WORKSPACE 'ScheduledTasks'
+
+          New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.ps1 |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Copy-Item -Destination $taskScriptDir -Force
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.xml |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            ForEach-Object {
+              [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
+              $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
+
+              if ([string]::IsNullOrWhiteSpace($taskName)) {
+                $taskName = $_.BaseName
+              }
+
+              $registerParams = @{
+                Xml      = $taskDefinition.OuterXml
+                TaskName = $taskName.TrimStart('\')
+                TaskPath = '\'
+                Force    = $true
+              }
+
+              if ($env:SCHEDULED_TASK_USER -and $env:SCHEDULED_TASK_PASSWORD) {
+                $registerParams.User = $env:SCHEDULED_TASK_USER
+                $registerParams.Password = $env:SCHEDULED_TASK_PASSWORD
+              }
+
+              Register-ScheduledTask @registerParams | Out-Null
+            }
                 
       - name: Remove existing Windows service (Merchant Pos)
         run: |

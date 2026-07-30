@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Data;
+using FileProcessor.Client;
+using FileProcessor.DataTransferObjects.Requests;
 using KurrentDB.Client;
 using SecurityService.DataTransferObjects;
 using Shared.Results;
 using Shared.Serialisation;
 using SimpleResults;
+using TransactionProcessor.SystemSetupTool.fileprofileconfig;
 
 namespace TransactionProcessor.SystemSetupTool
 {
@@ -21,6 +25,7 @@ namespace TransactionProcessor.SystemSetupTool
     class Program
     {
         private static TransactionProcessorClient TransactionProcessorClient;
+        private static FileProcessorClient FileProcessorClient;
         
         private static SecurityServiceClient SecurityServiceClient;
 
@@ -43,6 +48,7 @@ namespace TransactionProcessor.SystemSetupTool
 
             Func<String, String> securityResolver = s => { return ConfigurationReader.GetValue("SecurityServiceUri"); };
             Func<String, String> transactionProcessorResolver = s => { return ConfigurationReader.GetValue("TransactionProcessorApi"); };
+            Func<String, String> fileProcessorResolver = s => { return ConfigurationReader.GetValue("FileProcessorApi"); };
             HttpClientHandler handler = new() {
                                             ServerCertificateCustomValidationCallback = (message,
                                                                                          cert,
@@ -56,14 +62,17 @@ namespace TransactionProcessor.SystemSetupTool
             
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client, Serialise, Deserialise);
             Program.TransactionProcessorClient = new TransactionProcessorClient(transactionProcessorResolver, client, Serialise, Deserialise);
+            Program.FileProcessorClient = new FileProcessorClient(fileProcessorResolver, client, Serialise, Deserialise);
+            
             KurrentDBClientSettings settings = KurrentDBClientSettings.Create(ConfigurationReader.GetValue("EventStoreAddress"));
             Program.ProjectionClient = new (settings);
             Program.PersistentSubscriptionsClient = new (settings);
 
-            Mode setupMode = Mode.EstateSetup;
+            Mode setupMode = Mode.FileProcessorSetup;
 
-            String configFileName = "setupconfig.json";
+            String configFileName = "setupconfig.staging.json";
 
+            FileProcessingOptions fileProcessingOptions = await Program.GetFileProfileConfig(cancellationToken);
             IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
             IdentityServerFunctions identityServerFunctions = new(Program.SecurityServiceClient, identityServerConfiguration);
             EventStoreFunctions eventStoreFunctions = new(Program.ProjectionClient, Program.PersistentSubscriptionsClient);
@@ -72,6 +81,7 @@ namespace TransactionProcessor.SystemSetupTool
                 Mode.SecuritySetup => await identityServerFunctions.CreateConfig(cancellationToken),
                 Mode.EventStoreSetup => await eventStoreFunctions.SetupEventStore(cancellationToken),
                 Mode.EstateSetup => await SetupEstates(configFileName,cancellationToken),
+                Mode.FileProcessorSetup => await SetupFileProcessors(fileProcessingOptions, cancellationToken),
                 _ => Result.Invalid($"Invalid mode {setupMode}")
             };
 
@@ -81,6 +91,29 @@ namespace TransactionProcessor.SystemSetupTool
             else {
                 Console.WriteLine($"Status: {result.Status} Message: {result.Message}");
             }
+        }
+
+        private static async Task<Result> SetupFileProcessors(FileProcessingOptions fileProcessingOptions,
+                                                              CancellationToken cancellationToken) {
+            Result<TokenResponse> tokenResult = await SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
+            if (tokenResult.IsFailed)
+                return ResultHelpers.CreateFailure(tokenResult);
+            foreach (FileProfile fileProfile in fileProcessingOptions.FileProfiles) {
+                CreateFileProfileRequest createFileProfileRequest = new()
+                {
+                    FileProfileId = fileProfile.Id,
+                    Name = fileProfile.Name,
+                    ListeningDirectory = fileProfile.ListeningDirectory,
+                    RequestType = fileProfile.RequestType,
+                    OperatorName = fileProfile.OperatorName,
+                    LineTerminator = Enum.Parse<LineTerminatorType>(fileProfile.LineTerminator),
+                    FileFormatHandler = fileProfile.FileFormatHandler
+                };
+                Result<FileProcessor.Models.FileProfile> result = await Program.FileProcessorClient.CreateFileProfile(tokenResult.Data.AccessToken, createFileProfileRequest, cancellationToken);
+                if (result.IsFailed)
+                    return ResultHelpers.CreateFailure(result);
+            }
+            return Result.Success();
         }
 
         static String Serialise(Object arg)
@@ -108,7 +141,8 @@ namespace TransactionProcessor.SystemSetupTool
         public enum Mode {
             SecuritySetup,
             EventStoreSetup,
-            EstateSetup
+            EstateSetup,
+            FileProcessorSetup,
         }
 
         private static async Task<IdentityServerConfiguration> GetIdentityServerConfig(CancellationToken cancellationToken) {
@@ -121,6 +155,18 @@ namespace TransactionProcessor.SystemSetupTool
             IdentityServerConfiguration identityServerConfiguration = StringSerialiser.Deserialise<IdentityServerConfiguration>(identityServerJsonData);
 
             return identityServerConfiguration;
+        }
+
+        private static async Task<FileProcessingOptions> GetFileProfileConfig(CancellationToken cancellationToken)
+        {
+            // Read the file profile config json string
+            String fileProfileJsonData;
+            using StreamReader sr = new("fileprofilesconfig.json");
+            fileProfileJsonData = await sr.ReadToEndAsync(cancellationToken);
+
+            FileProcessingOptions fileProcessingOptions = StringSerialiser.Deserialise<FileProcessingOptions>(fileProfileJsonData);
+
+            return fileProcessingOptions;
         }
 
         private static async Task<EstateConfig> GetEstatesConfig(String configFileName, CancellationToken cancellationToken)

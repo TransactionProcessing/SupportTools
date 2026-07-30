@@ -45,6 +45,7 @@ public class EventStoreFunctions{
             ("$ce-FileAggregate", "Transaction Processor", 0),
             ("$ce-FileImportLogAggregate", "Transaction Processor", 0),
             ("$ce-OperatorAggregate", "Transaction Processor", 0),
+            ("$ce-MerchantBalanceArchive", "Transaction Processor", 0),
 
             ("$ce-TransactionAggregate", "Transaction Processor - Domain", 0),
             ("$ce-SettlementAggregate", "Transaction Processor - Domain", 0),
@@ -100,7 +101,6 @@ public class EventStoreFunctions{
                 projection.Contains("TransactionProcessorSubscriptionStreamBuilder") ||
                 projection.Contains("EstateAggregator") ||
                 projection.Contains("MerchantAggregator") ||
-                projection.Contains("MerchantBalanceAggregator") ||
                 projection.Contains("CallbackHandlerEnricher"))
             {
                 continue;

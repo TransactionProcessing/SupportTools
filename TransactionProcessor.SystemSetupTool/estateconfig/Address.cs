@@ -11,5 +11,6 @@
         public string Region { get; set; }
 
         public string Town { get; set; }
+        public string Postcode { get; set; }
     }
 }

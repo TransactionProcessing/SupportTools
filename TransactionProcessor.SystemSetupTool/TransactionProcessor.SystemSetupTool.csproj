@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
+    <PackageReference Include="FileProcessor.Client" Version="2026.7.2" />
     <PackageReference Include="KurrentDB.Client" Version="1.4.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.9" />
@@ -56,6 +57,9 @@
   <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="fileprofilesconfig.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="identityserverconfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

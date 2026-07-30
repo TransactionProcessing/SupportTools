@@ -2,11 +2,8 @@
     [Parameter(Mandatory = $true)]
     [string]$BaseUrl,
 
-    [Parameter]
-    [string]$Username,
-
-    [Parameter]
-    [string]$Password,
+    [Parameter()]
+    [System.Management.Automation.PSCredential]$Credential,
 
     [string]$LogDirectory = "C:\home\txnproc\trace",
     [int]$LogRetentionDays = 7
@@ -63,10 +60,15 @@ Write-Trace "INFO" "Script started. BaseUrl=$BaseUrl"
 # =========================
 # Auth header
 # =========================
-$AuthHeader = @{
-    Authorization = "Basic " +
+$AuthHeader = @{}
+if ($null -ne $Credential) {
+    $networkCredential = $Credential.GetNetworkCredential()
+    $username = $networkCredential.UserName
+    $password = $networkCredential.Password
+
+    $AuthHeader.Authorization = "Basic " +
         [Convert]::ToBase64String(
-            [Text.Encoding]::ASCII.GetBytes("$Username`:$Password")
+            [Text.Encoding]::ASCII.GetBytes("$username`:$password")
         )
 }
 

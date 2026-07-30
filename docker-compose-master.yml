@@ -119,6 +119,7 @@ services:
     environment:
       - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel;Encrypt=false
       - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PataPawaReadModel;Encrypt=false
+      - ConnectionStrings:AgencyBankingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AgencyBankingReadModel;Encrypt=false
     ports: 
       - "9000:9000"
     restart: on-failure
@@ -165,3 +166,23 @@ services:
       - EventStoreSettings:Insecure=true
     depends_on:
       - kurrentdb
+      
+  estatereporting: 
+    image: stuartferguson/estatereportingapi 
+    container_name: estatereporting_master
+    volumes:
+      - E:\home\txnproc\docker\trace:/home/txnproc/trace
+    ports: 
+      - "5011:5011"
+    environment:
+      - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
+      - EventStoreSettings:Insecure=true
+      - AppSettings:SecurityService=https://securityservice:5001
+      - SecurityConfiguration:Authority=https://securityservice:5001
+      - urls=http://*:5011
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
+    depends_on:
+      - sqlserver
+      - kurrentdb
+      - securityservice
