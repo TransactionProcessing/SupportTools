@@ -109,32 +109,15 @@ jobs:
               [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
               $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
 
-              foreach ($principal in @($taskDefinition.Task.Principals.Principal)) {
-                if ($null -ne $principal) {
-                  $principal.UserId = 'SYSTEM'
-                  $principal.LogonType = 'ServiceAccount'
-                }
-              }
-
-              $taskXml = $taskDefinition.OuterXml
-
               if ([string]::IsNullOrWhiteSpace($taskName)) {
                 $taskName = $_.BaseName
               }
 
-              $registerParams = @{
-                Xml      = $taskXml
-                TaskName = $taskName.TrimStart('\')
-                TaskPath = '\'
-                Force    = $true
+              $taskName = $taskName.TrimStart('\')
+              & schtasks.exe /Create /TN $taskName /XML $_.FullName /RU SYSTEM /F
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
               }
-
-              if ($env:SCHEDULED_TASK_USER -and $env:SCHEDULED_TASK_PASSWORD) {
-                $registerParams.User = $env:SCHEDULED_TASK_USER
-                $registerParams.Password = $env:SCHEDULED_TASK_PASSWORD
-              }
-
-              Register-ScheduledTask @registerParams | Out-Null
             }
       
       - name: Download the artifact (Merchant Pos) 
@@ -228,32 +211,15 @@ jobs:
               [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
               $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
 
-              foreach ($principal in @($taskDefinition.Task.Principals.Principal)) {
-                if ($null -ne $principal) {
-                  $principal.UserId = 'SYSTEM'
-                  $principal.LogonType = 'ServiceAccount'
-                }
-              }
-
-              $taskXml = $taskDefinition.OuterXml
-
               if ([string]::IsNullOrWhiteSpace($taskName)) {
                 $taskName = $_.BaseName
               }
 
-              $registerParams = @{
-                Xml      = $taskXml
-                TaskName = $taskName.TrimStart('\')
-                TaskPath = '\'
-                Force    = $true
+              $taskName = $taskName.TrimStart('\')
+              & schtasks.exe /Create /TN $taskName /XML $_.FullName /RU SYSTEM /F
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
               }
-
-              if ($env:SCHEDULED_TASK_USER -and $env:SCHEDULED_TASK_PASSWORD) {
-                $registerParams.User = $env:SCHEDULED_TASK_USER
-                $registerParams.Password = $env:SCHEDULED_TASK_PASSWORD
-              }
-
-              Register-ScheduledTask @registerParams | Out-Null
             }
                 
       - name: Remove existing Windows service (Merchant Pos)
