@@ -63,6 +63,12 @@ jobs:
       with:
         name: merchantfileprocessor
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/merchantfileprocessor.zip
+
+    - name: Upload ScheduledTasks
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: scheduledtasks
+        path: ScheduledTasks
         
   deploystaging:
     runs-on: [stagingserver, windows]
@@ -71,7 +77,10 @@ jobs:
     name: "Deploy to Staging"
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Download ScheduledTasks
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: scheduledtasks
 
       - name: Install scheduled tasks
         shell: pwsh
@@ -172,7 +181,10 @@ jobs:
     name: "Deploy to Production"
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Download ScheduledTasks
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: scheduledtasks
 
       - name: Install scheduled tasks
         shell: pwsh
