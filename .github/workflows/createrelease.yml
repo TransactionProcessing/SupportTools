@@ -83,7 +83,7 @@ jobs:
           name: scheduledtasks
 
       - name: Install scheduled tasks
-        shell: pwsh
+        shell: powershell
         env:
           SCHEDULED_TASK_USER: ${{ secrets.SCHEDULED_TASK_USER }}
           SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
@@ -187,7 +187,7 @@ jobs:
           name: scheduledtasks
 
       - name: Install scheduled tasks
-        shell: pwsh
+        shell: powershell
         env:
           SCHEDULED_TASK_USER: ${{ secrets.SCHEDULED_TASK_USER }}
           SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
