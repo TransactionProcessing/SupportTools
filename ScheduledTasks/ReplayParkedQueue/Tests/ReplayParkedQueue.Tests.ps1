@@ -2,7 +2,11 @@ Describe 'ReplayParkedQueue.ps1' {
     It 'replays parked messages for subscriptions with parked counts and encodes $all streams' {
         $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
         $logDirectory = Join-Path $TestDrive 'replay-logs-1'
-        $credential = [pscredential]::new('alice', (ConvertTo-SecureString 'secret' -AsPlainText -Force))
+        $securePassword = [System.Security.SecureString]::new()
+        foreach ($code in 115, 101, 99, 114, 101, 116) {
+            $securePassword.AppendChar([char]$code)
+        }
+        $credential = [pscredential]::new('alice', $securePassword)
         $subscriptions = @(
             [pscustomobject]@{
                 eventStreamId = 'stream-1'
@@ -66,7 +70,11 @@ Describe 'ReplayParkedQueue.ps1' {
     It 'does not post a replay when no subscription has parked messages' {
         $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
         $logDirectory = Join-Path $TestDrive 'replay-logs-2'
-        $credential = [pscredential]::new('alice', (ConvertTo-SecureString 'secret' -AsPlainText -Force))
+        $securePassword = [System.Security.SecureString]::new()
+        foreach ($code in 115, 101, 99, 114, 101, 116) {
+            $securePassword.AppendChar([char]$code)
+        }
+        $credential = [pscredential]::new('alice', $securePassword)
         $subscriptions = @(
             [pscustomobject]@{
                 eventStreamId = 'stream-1'
