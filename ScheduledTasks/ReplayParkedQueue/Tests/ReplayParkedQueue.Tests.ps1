@@ -2,6 +2,7 @@ Describe 'ReplayParkedQueue.ps1' {
     It 'replays parked messages for subscriptions with parked counts and encodes $all streams' {
         $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
         $logDirectory = Join-Path $TestDrive 'replay-logs-1'
+        $credential = [pscredential]::new('alice', (ConvertTo-SecureString 'secret' -AsPlainText -Force))
         $subscriptions = @(
             [pscustomobject]@{
                 eventStreamId = 'stream-1'
@@ -49,9 +50,10 @@ Describe 'ReplayParkedQueue.ps1' {
             $Uri -eq 'https://queue.example/subscriptions/stream-1/group-1/replayParked?from=0'
         }
 
-        & $scriptUnderTest 'https://queue.example' 'alice' 'secret' -LogDirectory $logDirectory
+        & $scriptUnderTest 'https://queue.example' -Credential $credential -LogDirectory $logDirectory
 
         $captured.SubscriptionCalls | Should -Be 1
+        $captured.InfoUris.Count | Should -Be 2
         $captured.InfoUris | Should -Be @(
             'https://queue.example/subscriptions/stream-1/group-1/info',
             'https://queue.example/subscriptions/%24all/group-2/info'
@@ -64,6 +66,7 @@ Describe 'ReplayParkedQueue.ps1' {
     It 'does not post a replay when no subscription has parked messages' {
         $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
         $logDirectory = Join-Path $TestDrive 'replay-logs-2'
+        $credential = [pscredential]::new('alice', (ConvertTo-SecureString 'secret' -AsPlainText -Force))
         $subscriptions = @(
             [pscustomobject]@{
                 eventStreamId = 'stream-1'
@@ -99,10 +102,30 @@ Describe 'ReplayParkedQueue.ps1' {
             $Uri -like 'https://queue.example/subscriptions/*/*/replayParked?from=0'
         }
 
-        & $scriptUnderTest 'https://queue.example' 'alice' 'secret' -LogDirectory $logDirectory
+        & $scriptUnderTest 'https://queue.example' -Credential $credential -LogDirectory $logDirectory
 
         $captured.SubscriptionCalls | Should -Be 1
         $captured.InfoCalls | Should -Be 1
         $captured.ReplayCalls | Should -Be 0
+    }
+
+    It 'does not add an Authorization header when no credential is supplied' {
+        $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
+        $logDirectory = Join-Path $TestDrive 'replay-logs-3'
+        $captured = [pscustomobject]@{
+            Headers = $null
+        }
+
+        Mock Invoke-RestMethod {
+            $captured.Headers = $Headers
+            @()
+        } -ParameterFilter {
+            $Method -eq 'GET' -and
+            $Uri -eq 'https://queue.example/subscriptions'
+        }
+
+        & $scriptUnderTest 'https://queue.example' -LogDirectory $logDirectory
+
+        $captured.Headers.ContainsKey('Authorization') | Should -BeFalse
     }
 }
