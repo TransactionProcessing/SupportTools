@@ -108,7 +108,15 @@ jobs:
             ForEach-Object {
               [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
               $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
-              $taskXml = $taskDefinition.OuterXml -replace '<UserId>.*?</UserId>', ''
+
+              foreach ($principal in @($taskDefinition.Task.Principals.Principal)) {
+                if ($null -ne $principal) {
+                  $principal.UserId = 'SYSTEM'
+                  $principal.LogonType = 'ServiceAccount'
+                }
+              }
+
+              $taskXml = $taskDefinition.OuterXml
 
               if ([string]::IsNullOrWhiteSpace($taskName)) {
                 $taskName = $_.BaseName
@@ -219,7 +227,15 @@ jobs:
             ForEach-Object {
               [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
               $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
-              $taskXml = $taskDefinition.OuterXml -replace '<UserId>.*?</UserId>', ''
+
+              foreach ($principal in @($taskDefinition.Task.Principals.Principal)) {
+                if ($null -ne $principal) {
+                  $principal.UserId = 'SYSTEM'
+                  $principal.LogonType = 'ServiceAccount'
+                }
+              }
+
+              $taskXml = $taskDefinition.OuterXml
 
               if ([string]::IsNullOrWhiteSpace($taskName)) {
                 $taskName = $_.BaseName
