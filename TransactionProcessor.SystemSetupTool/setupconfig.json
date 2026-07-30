@@ -15,12 +15,13 @@
         {
           "merchant_id": "AB1C99FB-1C6C-4694-9A32-B71BE5D1DA33",
           "name": "Test Merchant 1",
-          "settlementschedule": "Weekly",
+          "settlement_schedule": "Weekly",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Test Contact",
@@ -42,7 +43,7 @@
           "device": {
             "device_identifier": "testmerchant1device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         }
       ],
       "operators": [

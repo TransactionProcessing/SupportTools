@@ -53,9 +53,9 @@ public class EstateSetupFunctions {
             return ResultHelpers.CreateFailure(createEstateResult);
         this.EstateId = createEstateResult.Data;
         
-        var createUserResult = await this.CreateEstateUser(cancellationToken);
-        if (createUserResult.IsFailed)
-            return ResultHelpers.CreateFailure(createUserResult);
+        //var createUserResult = await this.CreateEstateUser(cancellationToken);
+        //if (createUserResult.IsFailed)
+        //    return ResultHelpers.CreateFailure(createUserResult);
 
         var createOperatorsResult = await this.CreateOperators(cancellationToken);
         if (createOperatorsResult.IsFailed)
@@ -336,6 +336,7 @@ public class EstateSetupFunctions {
         CreateMerchantRequest createMerchantRequest = new CreateMerchantRequest {
             Address = new Address {
                 AddressLine1 = merchant.Address.AddressLine1, Country = merchant.Address.Country, Region = merchant.Address.Region, Town = merchant.Address.Town,
+                PostalCode = merchant.Address.Postcode
             },
             Name = merchant.Name,
             Contact = new Contact { ContactName = merchant.Contact.ContactName, EmailAddress = merchant.Contact.EmailAddress },

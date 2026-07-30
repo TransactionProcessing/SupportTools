@@ -2,10 +2,10 @@
     [Parameter(Mandatory = $true)]
     [string]$BaseUrl,
 
-    [Parameter]
+    [Parameter()]
     [string]$Username,
 
-    [Parameter]
+    [Parameter()]
     [string]$Password,
 
     [string]$LogDirectory = "C:\home\txnproc\trace",

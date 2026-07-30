@@ -15,12 +15,13 @@
         {
           "merchant_id": "AB1C99FB-1C6C-4694-9A32-B71BE5D1DA33",
           "name": "Live Merchant 1",
-          "settlementschedule": "Weekly",
+          "settlement_schedule": "Weekly",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -42,17 +43,18 @@
           "device": {
             "device_identifier": "livemerchant1device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "AF4D7C7C-9B8D-4E58-A12A-28D3E0B89DF6",
           "name": "Live Merchant 2",
-          "settlementschedule": "Monthly",
+          "settlement_schedule": "Monthly",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -74,17 +76,18 @@
           "device": {
             "device_identifier": "livemerchant2device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "8BC8434D-41F9-4CC3-83BC-E73F20C02E1D",
           "name": "Live Merchant 3",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -106,17 +109,18 @@
           "device": {
             "device_identifier": "livemerchant3device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "22549CD1-AFDD-44F9-882F-51C3EA71CCC0",
           "name": "Live Merchant 4",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -138,17 +142,18 @@
           "device": {
             "device_identifier": "livemerchant4device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "115EF339-6FB2-43E8-9C7F-7F270059AD08",
           "name": "Live Merchant 5",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -170,17 +175,18 @@
           "device": {
             "device_identifier": "livemerchant5device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "E8064ED9-BEDC-4159-9708-888BDE070BE4",
           "name": "Live Merchant 6",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -202,17 +208,18 @@
           "device": {
             "device_identifier": "livemerchant6device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "870D41FA-FD73-40B8-A8C2-A2673D6C7428",
           "name": "Live Merchant 7",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -234,17 +241,18 @@
           "device": {
             "device_identifier": "livemerchant7device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         },
         {
           "merchant_id": "279502C6-EA18-4E5A-A678-5F1CA044E828",
           "name": "Live Merchant 8",
-          "settlementschedule": "Immediate",
+          "settlement_schedule": "Immediate",
           "address": {
-            "address_line_1": "test address line 1",
+            "address_line1": "test address line 1",
             "country": "United Kingdom",
             "region": "Region",
-            "town": "MyTown"
+            "town": "MyTown",
+            "postcode": "AB12 3CD"
           },
           "contact": {
             "contact_name": "Live Contact",
@@ -266,7 +274,7 @@
           "device": {
             "device_identifier": "livemerchant8device"
           },
-          "createdate": "2022-08-31"
+          "create_date": "2022-08-31"
         }
 
       ],

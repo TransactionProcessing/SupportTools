@@ -1,6 +1,9 @@
-Describe 'scavenge.ps1' {
+BeforeAll {
+    $script:scriptUnderTest = (Resolve-Path (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'AutoScavenge') 'scavenge.ps1')).Path
+}
+
+Describe 'AutoScavenge\scavenge.ps1' {
     It 'posts to /admin/scavenge after trimming a trailing slash from BaseUrl' {
-        $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'scavenge.ps1')).Path
         $expectedUri = 'http://localhost:2113/admin/scavenge'
         $captured = [pscustomobject]@{
             Count = 0
@@ -17,7 +20,7 @@ Describe 'scavenge.ps1' {
             $Method -eq 'Post'
         }
 
-        & $scriptUnderTest -BaseUrl 'http://localhost:2113/'
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113/'
 
         $captured.Count | Should -Be 1
         $captured.Uri | Should -Be $expectedUri
@@ -27,7 +30,6 @@ Describe 'scavenge.ps1' {
     }
 
     It 'adds a Basic Authorization header when username and password are both provided' {
-        $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'scavenge.ps1')).Path
         $expectedUri = 'http://localhost:2113/admin/scavenge'
         $expectedAuth = 'Basic ' + [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes('alice:secret'))
         $captured = [pscustomobject]@{
@@ -45,7 +47,7 @@ Describe 'scavenge.ps1' {
             $Method -eq 'Post'
         }
 
-        & $scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice' -Password 'secret'
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice' -Password 'secret'
 
         $captured.Count | Should -Be 1
         $captured.Uri | Should -Be $expectedUri
@@ -53,7 +55,6 @@ Describe 'scavenge.ps1' {
     }
 
     It 'does not add an Authorization header when only one credential is supplied' {
-        $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'scavenge.ps1')).Path
         $captured = [pscustomobject]@{
             Count = 0
             Uri = $null
@@ -69,7 +70,30 @@ Describe 'scavenge.ps1' {
             $Method -eq 'Post'
         }
 
-        & $scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice'
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice'
+
+        $captured.Count | Should -Be 1
+        $captured.Uri | Should -Be 'http://localhost:2113/admin/scavenge'
+        $captured.Headers.ContainsKey('Authorization') | Should -BeFalse
+    }
+
+    It 'does not add an Authorization header when only a password is supplied' {
+        $captured = [pscustomobject]@{
+            Count = 0
+            Uri = $null
+            Headers = $null
+        }
+
+        Mock Invoke-RestMethod {
+            $captured.Count++
+            $captured.Uri = $Uri
+            $captured.Headers = $Headers
+            @{ status = 'ok' }
+        } -ParameterFilter {
+            $Method -eq 'Post'
+        }
+
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Password 'secret'
 
         $captured.Count | Should -Be 1
         $captured.Uri | Should -Be 'http://localhost:2113/admin/scavenge'

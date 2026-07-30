@@ -1,0 +1,22 @@
+{
+  "file_profiles": [
+    {
+      "id": "B2A59ABF-293D-4A6B-B81B-7007503C3476",
+      "name": "Safaricom Topup",
+      "listening_directory": "/home/txnproc/bulkfiles/safaricom",
+      "request_type": "SafaricomTopupRequest",
+      "operator_name": "Safaricom",
+      "line_terminator": "LineFeed",
+      "file_format_handler": "SafaricomFileFormatHandler"
+    },
+    {
+      "id": "8806EDBC-3ED6-406B-9E5F-A9078356BE99",
+      "name": "Voucher Issue",
+      "listening_directory": "/home/txnproc/bulkfiles/voucher",
+      "request_type": "VoucherRequest",
+      "operator_name": "Voucher",
+      "line_terminator": "LineFeed",
+      "file_format_handler": "VoucherFileFormatHandler"
+    }
+  ]
+}
