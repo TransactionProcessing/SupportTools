@@ -1,0 +1,102 @@
+@page
+@model TransactionProcessing.MerchantPos.Pages.MerchantsModel
+@{
+    ViewData["Title"] = "Merchant Management";
+}
+
+<main class="screen-shell">
+    <section class="screen-header">
+        <div>
+            <h1 class="screen-title">Merchant management</h1>
+            <p class="section-subtitle">Pick one merchant, edit it, and save with a normal form submit.</p>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <div class="message">@Model.Message</div>
+    }
+
+    <section class="two-column">
+        <aside class="panel side-panel">
+            <div class="panel-title">Merchants</div>
+            <div class="merchant-list">
+                @if (Model.Merchants.Count == 0)
+                {
+                    <div class="page-note">No merchants configured yet.</div>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Merchants.Count; i++)
+                    {
+                        var merchant = Model.Merchants[i];
+                        <a class="merchant-link @(i == Model.Selected ? "active" : string.Empty)" href="/merchants?selected=@i">
+                            @merchant.MerchantName
+                            <small>@(merchant.Enabled ? "Enabled" : "Disabled") · @merchant.MerchantId</small>
+                        </a>
+                    }
+                }
+            </div>
+            <form method="post" asp-page-handler="Add" class="stacked-actions">
+                <button type="submit" class="button">Add merchant</button>
+            </form>
+        </aside>
+
+        <section class="panel editor-panel">
+            @if (Model.Merchants.Count == 0 && !Model.IsDraft)
+            {
+                <div class="editor-shell">
+                    <div class="editor-summary">
+                        <div class="page-note">Use <strong>Add merchant</strong> to create the first merchant.</div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Save" class="editor-shell">
+                    <input type="hidden" asp-for="Selected" />
+                    <div class="editor-summary">
+                        <h2 class="screen-title">@Model.Merchant.MerchantName</h2>
+                        <div class="page-note">@(Model.IsDraft ? "This is a new merchant draft. Nothing is written to the database until you save it." : "The edit screen stays on one page and saves with a standard form submit.")</div>
+                    </div>
+                    <div class="fields merchant-fields">
+                        <div class="field field-wide"><label asp-for="Merchant.MerchantName"></label><input asp-for="Merchant.MerchantName" /></div>
+                        <div class="fields fields-2 field-wide">
+                            <div class="field"><label asp-for="Merchant.MerchantId"></label><input asp-for="Merchant.MerchantId" /></div>
+                            <div class="field"><label asp-for="Merchant.EstateId"></label><input asp-for="Merchant.EstateId" /></div>
+                        </div>
+                        <div class="fields fields-2 field-wide">
+                            <div class="field"><label asp-for="Merchant.Username"></label><input asp-for="Merchant.Username" /></div>
+                            <div class="field"><label asp-for="Merchant.Password"></label><input asp-for="Merchant.Password" type="text" autocomplete="off" spellcheck="false" /></div>
+                        </div>
+                        <div class="fields fields-3 field-wide">
+                            <div class="field"><label asp-for="Merchant.ApplicationVersion"></label><input asp-for="Merchant.ApplicationVersion" /></div>
+                            <div class="field"><label asp-for="Merchant.DeviceIdentifier"></label><input asp-for="Merchant.DeviceIdentifier" /></div>
+                            <div class="field"><label asp-for="Merchant.SaleIntervalSeconds"></label><input asp-for="Merchant.SaleIntervalSeconds" type="number" /></div>
+                        </div>
+                        <div class="fields fields-3 field-wide">
+                            <div class="field"><label asp-for="Merchant.FailureInjectionProbability"></label><input asp-for="Merchant.FailureInjectionProbability" type="number" step="0.01" /></div>
+                            <div class="field"><label asp-for="Merchant.DepositThreshold"></label><input asp-for="Merchant.DepositThreshold" type="number" step="0.01" /></div>
+                            <div class="field"><label asp-for="Merchant.DepositAmount"></label><input asp-for="Merchant.DepositAmount" type="number" step="0.01" /></div>
+                        </div>
+                        <div class="fields fields-2 field-wide">
+                            <div class="field"><label asp-for="Merchant.OpeningTime"></label><input asp-for="Merchant.OpeningTime" type="time" /></div>
+                            <div class="field"><label asp-for="Merchant.ClosingTime"></label><input asp-for="Merchant.ClosingTime" type="time" /></div>
+                        </div>
+                    </div>
+                    <label class="checkbox-row">
+                        <input asp-for="Merchant.Enabled" />
+                        <span class="checkbox-label">Enabled</span>
+                    </label>
+                    <div class="button-row">
+                        @if (!Model.IsDraft)
+                        {
+                            <button type="submit" class="button secondary" asp-page-handler="Remove">Remove merchant</button>
+                        }
+                        <button type="submit" class="button">Save merchant</button>
+                    </div>
+                </form>
+            }
+        </section>
+    </section>
+</main>

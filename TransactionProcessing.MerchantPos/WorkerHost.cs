@@ -4,26 +4,32 @@ using TransactionProcessing.MerchantPos.Runtime;
 public class WorkerHost : BackgroundService
 {
     private readonly IServiceProvider ServiceProvider;
-    private readonly WorkerSettings Settings;
+    private readonly TransactionProcessing.MerchantPos.Persistence.MerchantPosSettingsStore SettingsStore;
 
-    public WorkerHost(IServiceProvider serviceProvider, WorkerSettings settings)
+    public WorkerHost(IServiceProvider serviceProvider, TransactionProcessing.MerchantPos.Persistence.MerchantPosSettingsStore settingsStore)
     {
         this.ServiceProvider = serviceProvider;
-        Settings = settings;
+        SettingsStore = settingsStore;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        Logger.LogInformation($"WorkerHost starting; Merchant count: {Settings.Merchants.Count}");
+        var settings = SettingsStore.Current.WorkerSettings;
+        Logger.LogInformation($"WorkerHost starting; Merchant count: {settings.Merchants.Count}");
 
-        List<Task> tasks = new List<Task>();
-        foreach (MerchantConfig m in Settings.Merchants)
+        foreach (MerchantConfig m in settings.Merchants)
         {
-            tasks.Add(StartMerchantWorker((this.Settings.ServiceClientId, this.Settings.ServiceClientSecret), (this.Settings.ClientId, this.Settings.ClientSecret),
-                m, stoppingToken));
+            _ = StartMerchantWorker((settings.ServiceClientId, settings.ServiceClientSecret), (settings.ClientId, settings.ClientSecret),
+                m, stoppingToken);
         }
 
-        await Task.WhenAll(tasks);
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task StartMerchantWorker((String clientId, String clientSecret) serviceClient, (String clientId, String clientSecret) posClient, MerchantConfig merchant, CancellationToken token)

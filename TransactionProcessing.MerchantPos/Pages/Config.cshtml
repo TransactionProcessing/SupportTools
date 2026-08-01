@@ -1,0 +1,50 @@
+@page
+@model TransactionProcessing.MerchantPos.Pages.ConfigModel
+@{
+    ViewData["Title"] = "Configuration";
+}
+
+<main class="screen-shell">
+    <section class="screen-header">
+        <div>
+            <h1 class="screen-title">Configuration</h1>
+            <p class="section-subtitle">Edit app settings and external SQLite paths from a standard form.</p>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <div class="message">@Model.Message</div>
+    }
+
+    <form method="post" asp-page-handler="Save" class="panel config-panel">
+        <div class="grid-2">
+            <section class="group">
+                <h2>Service and API settings</h2>
+                <div class="fields fields-2">
+                    <div class="field"><label asp-for="Config.SecurityService"></label><input asp-for="Config.SecurityService" /></div>
+                    <div class="field"><label asp-for="Config.TransactionProcessorACL"></label><input asp-for="Config.TransactionProcessorACL" /></div>
+                    <div class="field"><label asp-for="Config.TransactionProcessorApi"></label><input asp-for="Config.TransactionProcessorApi" /></div>
+                    <div class="field"><label asp-for="Config.TestHost"></label><input asp-for="Config.TestHost" /></div>
+                    <div class="field"><label asp-for="Config.ClientId"></label><input asp-for="Config.ClientId" /></div>
+                    <div class="field"><label asp-for="Config.ClientSecret"></label><input asp-for="Config.ClientSecret" type="text" autocomplete="off" spellcheck="false" /></div>
+                    <div class="field"><label asp-for="Config.ServiceClientId"></label><input asp-for="Config.ServiceClientId" /></div>
+                    <div class="field"><label asp-for="Config.ServiceClientSecret"></label><input asp-for="Config.ServiceClientSecret" type="text" autocomplete="off" spellcheck="false" /></div>
+                </div>
+            </section>
+
+            <section class="group">
+                <h2>Storage paths</h2>
+                <div class="fields storage-fields">
+                    <div class="field"><label asp-for="Config.MerchantDb"></label><input asp-for="Config.MerchantDb" /></div>
+                    <div class="field"><label asp-for="Config.SettingsDb"></label><input asp-for="Config.SettingsDb" /></div>
+                </div>
+                <p class="page-note" style="margin-top: 12px;">Keep both paths outside the binaries folder so the SQLite files remain writable at runtime.</p>
+            </section>
+        </div>
+
+        <div class="button-row">
+            <button type="submit" class="button">Save configuration</button>
+        </div>
+    </form>
+</main>

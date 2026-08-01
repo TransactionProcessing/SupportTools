@@ -1,0 +1,105 @@
+@page
+@model TransactionProcessing.MerchantPos.Pages.IndexModel
+@{
+    ViewData["Title"] = "Merchant POS Dashboard";
+}
+@section Head {
+    <meta http-equiv="refresh" content="5" />
+}
+
+<main class="page">
+    <section class="hero">
+        <div class="panel hero-main">
+            <div>
+                <div class="eyebrow"><span class="status-dot"></span> Merchant POS Control Centre</div>
+                <h1 class="title">Running stats, live health, and operational context.</h1>
+                <p class="subtitle">This page stays focused on live status. Merchant editing and configuration are separate screens so the dashboard stays readable.</p>
+            </div>
+
+            <div class="chip-row">
+                <div class="chip">Last updated: @Model.Dashboard.GeneratedUtc.ToLocalTime().ToString("HH:mm:ss")</div>
+                <div class="chip">Settings DB: @Model.Dashboard.SettingsDbPath</div>
+                <div class="chip">Mode: Operations console</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-grid">
+        <div class="stat">
+            <div class="stat-label">Merchants</div>
+            <div class="stat-value">@Model.Dashboard.Summary.MerchantCount</div>
+            <div class="stat-foot">Configured and observed</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Balance</div>
+            <div class="stat-value">@Model.Dashboard.Summary.TotalBalance.ToString("0.00")</div>
+            <div class="stat-foot">Across all merchants</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Sales today</div>
+            <div class="stat-value">@Model.Dashboard.Summary.SalesCount</div>
+            <div class="stat-foot">Successful transactions</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Failures</div>
+            <div class="stat-value">@Model.Dashboard.Summary.FailedSales</div>
+            <div class="stat-foot">Rejected or errored sales</div>
+        </div>
+    </section>
+
+    <section class="panel page">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Live merchant board</h2>
+                <p class="section-subtitle">Refreshes automatically every five seconds.</p>
+            </div>
+            <div class="button-row">
+                <a class="button secondary" href="/merchants">Manage merchants</a>
+                <a class="button secondary" href="/config">Open config</a>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Merchant</th>
+                    <th>Balance</th>
+                    <th>Sales</th>
+                    <th>Failures</th>
+                    <th>Last sale</th>
+                    <th>Last EOD</th>
+                </tr>
+                </thead>
+                <tbody>
+                @if (Model.Dashboard.Merchants.Count == 0)
+                {
+                    <tr><td colspan="6">No merchants configured yet.</td></tr>
+                }
+                else
+                {
+                    foreach (var row in Model.Dashboard.Merchants)
+                    {
+                        <tr>
+                            <td>@row.MerchantName</td>
+                            <td>@row.Balance.ToString("0.00")</td>
+                            <td>@row.Sales</td>
+                            <td>@row.FailedSales</td>
+                            <td>
+                                <span class="badge @(row.LastSaleUtc is null ? "off" : string.Empty)">
+                                    @(row.LastSaleUtc is null ? "Never" : row.LastSaleUtc.Value.ToLocalTime().ToString("dd MMM HH:mm"))
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @(row.LastEndOfDayUtc is null ? "warn" : string.Empty)">
+                                    @(row.LastEndOfDayUtc is null ? "Never" : row.LastEndOfDayUtc.Value.ToLocalTime().ToString("dd MMM HH:mm"))
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>

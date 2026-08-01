@@ -1,17 +1,19 @@
-# Merchant POS with EF Core and Health Dashboard
+# Merchant POS with Dashboard and Persisted Configuration
 
-This skeleton demonstrates:
-- EF Core (SQLite) persistent store (`merchantpos.db`)
-- Minimal health endpoint at `/health`
-- Dashboard endpoint at `/dashboard` (returns balances JSON)
+This app now provides:
+- A single-page operations console at `/`
+- Live merchant stats from `/api/dashboard`
+- Editable configuration stored in SQLite outside the binaries folder
+- Health endpoint at `/health`
 - DbContext & repository abstraction `IEfRepository` / `EfRepository`
 
 How to run:
 - `dotnet restore`
 - `dotnet build`
 - `dotnet run`
-- Visit `http://localhost:5000/health` and `/dashboard`
+- Visit `http://localhost:9600/` for the console
 
 Notes:
-- This is a skeleton. The worker loop is a placeholder — replace with your merchant runtime logic.
-- Database file will be created next to the application: `merchantpos.db`.
+- `ConnectionStrings:SettingsDb` and `ConnectionStrings:MerchantDb` store plain file paths.
+- The code behind adds the SQLite `Data Source=` prefix when opening each database.
+- Both paths should point outside the binaries folder, for example under `G:\Git\TransactionProcessing\SupportTools\MerchantPosData\`.

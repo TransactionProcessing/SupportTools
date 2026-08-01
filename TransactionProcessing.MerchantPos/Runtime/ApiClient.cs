@@ -14,6 +14,7 @@ using TransactionProcessor.DataTransferObjects.Requests.Merchant;
 using TransactionProcessorACL.DataTransferObjects;
 using TransactionProcessorACL.DataTransferObjects.Responses;
 using OperatorTotalRequest = TransactionProcessorACL.DataTransferObjects.OperatorTotalRequest;
+using TransactionProcessing.MerchantPos.Persistence;
 
 namespace TransactionProcessing.MerchantPos.Runtime;
 
@@ -36,17 +37,17 @@ public interface IApiClient
 public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
     private readonly ISecurityServiceClient SecurityClient;
     private readonly ITransactionProcessorClient TransactionProcessorClient;
-    private readonly Func<String, String> BaseAddressResolver;
+    private readonly MerchantPosSettingsStore SettingsStore;
     
     public ApiClient(ISecurityServiceClient securityClient,
                      ITransactionProcessorClient transactionProcessorClient,
                      HttpClient httpClient,
-                     Func<String, String> baseAddressResolver,
+                     MerchantPosSettingsStore settingsStore,
                      Func<object, String> serialise,
                      Func<String, Type, Object> deserialise) : base(httpClient, serialise, deserialise) {
         this.SecurityClient = securityClient;
         this.TransactionProcessorClient = transactionProcessorClient;
-        this.BaseAddressResolver = baseAddressResolver;
+        this.SettingsStore = settingsStore;
     }
 
     public async Task<Result<TokenResponse>> GetToken(String clientId,
@@ -389,7 +390,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
     }
 
     private String BuildRequestUrl(String route) {
-        String baseAddress = this.BaseAddressResolver("TransactionProcessorACL");
+        String baseAddress = this.SettingsStore.Current.ApiConfiguration.TransactionProcessorACL;
 
         String requestUri = $"{baseAddress}/{route}";
 
@@ -399,7 +400,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
     private async Task<Result<(String accountNumber, String accountName, String? mobileNumber)>> CreateBillPaymentBill(Decimal billAmount, CancellationToken cancellationToken)
     {
         Int32 accountNumber = this._rng.Next(1, 100000);
-        String baseAddress = this.BaseAddressResolver("TestHost");
+        String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
         
         var body = new
         {
@@ -423,7 +424,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
     private async Task<Result<(String accountNumber, String accountName, String mobileNumber)>> CreateBillPaymentMeter(CancellationToken cancellationToken)
     {
             Int32 meterNumber = this._rng.Next(1, 100000);
-            String baseAddress = this.BaseAddressResolver("TestHost");
+            String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
             var body = new
             {
                 due_date = DateTime.Now.AddDays(1),
