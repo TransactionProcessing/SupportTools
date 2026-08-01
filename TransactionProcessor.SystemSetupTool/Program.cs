@@ -68,7 +68,7 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new (settings);
             Program.PersistentSubscriptionsClient = new (settings);
 
-            Mode setupMode = Mode.FileProcessorSetup;
+            Mode setupMode = Mode.EstateSetup;
 
             String configFileName = "setupconfig.staging.json";
 

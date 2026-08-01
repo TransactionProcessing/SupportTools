@@ -52,10 +52,10 @@ public class EstateSetupFunctions {
         if (createEstateResult.IsFailed)
             return ResultHelpers.CreateFailure(createEstateResult);
         this.EstateId = createEstateResult.Data;
-        
-        //var createUserResult = await this.CreateEstateUser(cancellationToken);
-        //if (createUserResult.IsFailed)
-        //    return ResultHelpers.CreateFailure(createUserResult);
+
+        var createUserResult = await this.CreateEstateUser(cancellationToken);
+        if (createUserResult.IsFailed)
+            return ResultHelpers.CreateFailure(createUserResult);
 
         var createOperatorsResult = await this.CreateOperators(cancellationToken);
         if (createOperatorsResult.IsFailed)
@@ -408,7 +408,7 @@ public class EstateSetupFunctions {
         var userResult = await this.SecurityServiceClient.GetUsers(merchant.User.EmailAddress, cancellationToken);
         if (userResult.IsFailed)
             return ResultHelpers.CreateFailure(userResult);
-        if (userResult.Data == null) {
+        if (userResult.Data == null || userResult.Data.Count == 0) {
             CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest {
                 EmailAddress = merchant.User.EmailAddress,
                 FamilyName = merchant.User.FamilyName,
