@@ -1,0 +1,210 @@
+@page "/ops/config/contracts"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+@inject NavigationManager Navigation
+
+<PageTitle>Merchant File Processor - Contracts</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading contracts...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <section class="panel notice-panel">@statusMessage</section>
+        }
+
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Contracts</div>
+                <h1>Contract mappings</h1>
+                <p>Select a contract from the table to edit it in the detail pane.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Contracts</div>
+                    <div class="field-value">@snapshot.Options.ContractDefinitions.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">File profiles</div>
+                    <div class="field-value">@snapshot.Options.FileProfiles.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Updated</div>
+                    <div class="field-value mono">@snapshot.UpdatedUtc.ToString("u")</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="master-detail">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Existing contracts</h2>
+                    <p>Select a row to edit it.</p>
+                </div>
+                @if (snapshot.Options.ContractDefinitions.Count == 0)
+                {
+                    <div class="empty-state">No contracts are configured yet.</div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table selector-table">
+                            <thead>
+                                <tr>
+                                    <th>Contract ID</th>
+                                    <th>File profile ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var contract in snapshot.Options.ContractDefinitions)
+                                {
+                                    var isSelected = string.Equals(contract.ContractId, selectedContractId, StringComparison.OrdinalIgnoreCase);
+                                    <tr class="@(isSelected ? "selected" : string.Empty)">
+                                        <td>
+                                            <a href="@BuildSelectionHref(contract.ContractId)"><strong>@contract.ContractId</strong></a>
+                                        </td>
+                                        <td class="mono">@contract.FileProfileId</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
+
+            <div class="detail-stack">
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>@(selectedContract?.ContractId ?? "Contract details")</h2>
+                        <p>@(selectedContract is null ? "Select a contract on the left." : selectedContract.FileProfileId)</p>
+                    </div>
+
+                    @if (selectedContract is null)
+                    {
+                        <div class="empty-state">Pick a contract from the table to edit it here.</div>
+                    }
+                    else
+                    {
+                        <form method="post" action="/api/configuration/contracts" class="config-form">
+                            <input type="hidden" name="ReturnUrl" value="@BuildReturnUrl(selectedContract.ContractId)" />
+                            <input type="hidden" name="OriginalContractId" value="@selectedContract.ContractId" />
+                            <div class="form-grid">
+                                <label>
+                                    <span>Contract ID</span>
+                                    <input name="ContractId" class="text-input mono" value="@selectedContract.ContractId" />
+                                </label>
+                                <label>
+                                    <span>File profile ID</span>
+                                    <input name="FileProfileId" class="text-input mono" value="@selectedContract.FileProfileId" />
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="primary-button">Save contract</button>
+                            </div>
+                        </form>
+                    }
+                </section>
+
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>Add contract</h2>
+                        <p>Create a new contract-to-profile mapping.</p>
+                    </div>
+                    <form method="post" action="/api/configuration/contracts" class="config-form">
+                        <input type="hidden" name="ReturnUrl" value="/ops/config/contracts" />
+                        <input type="hidden" name="OriginalContractId" value="" />
+                        <div class="form-grid">
+                            <label>
+                                <span>Contract ID</span>
+                                <input name="ContractId" class="text-input mono" value="" />
+                            </label>
+                            <label>
+                                <span>File profile ID</span>
+                                <input name="FileProfileId" class="text-input mono" value="" />
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Add contract</button>
+                            <a class="secondary-button" href="/ops/config">Back to configuration hub</a>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private bool loaded;
+    private string? statusMessage;
+    private string selectedContractId = string.Empty;
+
+    private ContractDefinitionOptions? selectedContract => snapshot.Options.ContractDefinitions.FirstOrDefault(contract =>
+        contract.ContractId.Equals(selectedContractId, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        selectedContractId = GetQueryValue("contractId") ?? snapshot.Options.ContractDefinitions.FirstOrDefault()?.ContractId ?? string.Empty;
+        statusMessage = ResolveStatusMessage();
+        loaded = true;
+    }
+
+    private string BuildSelectionHref(string contractId) =>
+        $"/ops/config/contracts?contractId={Uri.EscapeDataString(contractId)}";
+
+    private string BuildReturnUrl(string contractId) =>
+        BuildSelectionHref(contractId);
+
+    private string? GetQueryValue(string key)
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        query = query.TrimStart('?');
+        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pieces = part.Split('=', 2);
+            if (pieces.Length == 2 && pieces[0].Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pieces[1]);
+            }
+        }
+
+        return null;
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Contract saved.";
+        }
+
+        if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            var errorIndex = query.IndexOf("error=", StringComparison.OrdinalIgnoreCase);
+            var errorValue = errorIndex >= 0 ? query[(errorIndex + 6)..] : string.Empty;
+            var ampersandIndex = errorValue.IndexOf('&');
+            if (ampersandIndex >= 0)
+            {
+                errorValue = errorValue[..ampersandIndex];
+            }
+
+            return string.IsNullOrWhiteSpace(errorValue) ? "Save failed." : Uri.UnescapeDataString(errorValue);
+        }
+
+        return null;
+    }
+}

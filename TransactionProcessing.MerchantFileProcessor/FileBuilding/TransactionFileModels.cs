@@ -42,7 +42,7 @@ public interface ITransactionGenerator
 }
 
 public sealed class RandomTransactionGenerator(
-    MerchantProcessingOptions options) : ITransactionGenerator
+    IMerchantProcessingConfigurationState configurationState) : ITransactionGenerator
 {
     public IReadOnlyList<GeneratedTransaction> GenerateTransactions(
         MerchantOptions merchant,
@@ -59,6 +59,7 @@ public sealed class RandomTransactionGenerator(
                 $"Contract '{contract.ContractId}' for merchant '{merchant.MerchantId}' does not contain any fixed-value products.");
         }
 
+        var options = configurationState.Current;
         var transactionCount = Random.Shared.Next(
             options.TransactionGeneration.MinimumTransactionsPerContract,
             options.TransactionGeneration.MaximumTransactionsPerContract + 1);

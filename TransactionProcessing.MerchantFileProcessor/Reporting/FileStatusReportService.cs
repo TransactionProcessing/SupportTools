@@ -11,6 +11,10 @@ public interface IFileStatusReportService
 {
     Task<FileStatusReport> GetReportAsync(CancellationToken cancellationToken);
 
+    Task<MerchantDetailReport?> GetMerchantReportAsync(string merchantId, CancellationToken cancellationToken);
+
+    Task<FileDetailReport?> GetFileReportAsync(string merchantId, long fileId, CancellationToken cancellationToken);
+
     Task<string> RenderHtmlAsync(CancellationToken cancellationToken);
 
     Task<string?> RenderMerchantHtmlAsync(string merchantId, CancellationToken cancellationToken);
@@ -64,7 +68,7 @@ public sealed record FileLineStatusRow(int LineNumber,
 
 public sealed class FileStatusReportService(
     IDbContextFactory<MerchantFileProcessorDbContext> dbContextFactory,
-    MerchantProcessingOptions options) : IFileStatusReportService
+    IMerchantProcessingConfigurationState configurationState) : IFileStatusReportService
 {
     public async Task<FileStatusReport> GetReportAsync(CancellationToken cancellationToken)
     {
@@ -92,6 +96,7 @@ public sealed class FileStatusReportService(
 
         var aggregateLookup = aggregates.ToDictionary(item => item.MerchantId, StringComparer.OrdinalIgnoreCase);
 
+        var options = configurationState.Current;
         var merchantSummaries = options.Merchants
             .OrderBy(merchant => merchant.MerchantId, StringComparer.OrdinalIgnoreCase)
             .Select(merchant =>
@@ -264,7 +269,7 @@ public sealed class FileStatusReportService(
         return html.ToString();
     }
 
-    private async Task<MerchantDetailReport?> GetMerchantReportAsync(string merchantId, CancellationToken cancellationToken)
+    public async Task<MerchantDetailReport?> GetMerchantReportAsync(string merchantId, CancellationToken cancellationToken)
     {
         var summary = (await this.GetReportAsync(cancellationToken))
             .MerchantSummaries
@@ -303,7 +308,7 @@ public sealed class FileStatusReportService(
         return new MerchantDetailReport(DateTimeOffset.UtcNow, summary, recentFiles);
     }
 
-    private async Task<FileDetailReport?> GetFileReportAsync(string merchantId, long fileId, CancellationToken cancellationToken)
+    public async Task<FileDetailReport?> GetFileReportAsync(string merchantId, long fileId, CancellationToken cancellationToken)
     {
         var merchantReport = await this.GetMerchantReportAsync(merchantId, cancellationToken);
         if (merchantReport is null)

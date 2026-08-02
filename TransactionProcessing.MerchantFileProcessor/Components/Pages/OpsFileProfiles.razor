@@ -1,0 +1,299 @@
+@page "/ops/config/file-profiles"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+@inject NavigationManager Navigation
+
+<PageTitle>Merchant File Processor - File Profiles</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading file profiles...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <section class="panel notice-panel">@statusMessage</section>
+        }
+
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">File profiles</div>
+                <h1>Layouts and field tables</h1>
+                <p>Select a profile from the table to edit its metadata. Use the detail link to open the field tables for the selected profile.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Profiles</div>
+                    <div class="field-value">@snapshot.Options.FileProfiles.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Delimited</div>
+                    <div class="field-value">@snapshot.Options.FileProfiles.Count(profile => profile.Format.Equals(FileProfileFormats.Delimited, StringComparison.OrdinalIgnoreCase))</div>
+                </div>
+                <div>
+                    <div class="field-label">JSON</div>
+                    <div class="field-value">@snapshot.Options.FileProfiles.Count(profile => profile.Format.Equals(FileProfileFormats.Json, StringComparison.OrdinalIgnoreCase))</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="master-detail">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Existing profiles</h2>
+                    <p>Select a row to edit it.</p>
+                </div>
+                @if (snapshot.Options.FileProfiles.Count == 0)
+                {
+                    <div class="empty-state">No file profiles are configured yet.</div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table selector-table">
+                            <thead>
+                                <tr>
+                                    <th>File profile</th>
+                                    <th>Processor profile</th>
+                                    <th>Format</th>
+                                    <th>Layout</th>
+                                    <th>Fields</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var profile in snapshot.Options.FileProfiles)
+                                {
+                                    var isSelected = string.Equals(profile.FileProfileId, selectedProfileId, StringComparison.OrdinalIgnoreCase);
+                                    <tr class="@(isSelected ? "selected" : string.Empty)">
+                                        <td>
+                                            <a href="@BuildSelectionHref(profile.FileProfileId)"><strong>@profile.FileProfileId</strong></a>
+                                        </td>
+                                        <td class="mono">@profile.FileProcessorFileProfileId</td>
+                                        <td>@profile.Format</td>
+                                        <td>@DescribeLayout(profile)</td>
+                                        <td>@profile.Fields.Count</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
+
+            <div class="detail-stack">
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>@(selectedProfile?.FileProfileId ?? "Profile details")</h2>
+                        <p>@(selectedProfile is null ? "Select a profile on the left." : selectedProfile.FileProcessorFileProfileId)</p>
+                    </div>
+
+                    @if (selectedProfile is null)
+                    {
+                        <div class="empty-state">Pick a profile from the table to edit it here.</div>
+                    }
+                    else
+                    {
+                        <form method="post" action="/api/configuration/file-profiles" class="config-form">
+                            <input type="hidden" name="ReturnUrl" value="@BuildReturnUrl(selectedProfile.FileProfileId)" />
+                            <input type="hidden" name="OriginalFileProfileId" value="@selectedProfile.FileProfileId" />
+                            <div class="form-grid">
+                                <label>
+                                    <span>File profile ID</span>
+                                    <input class="text-input mono" value="@selectedProfile.FileProfileId" disabled />
+                                </label>
+                                <label>
+                                    <span>File processor profile ID</span>
+                                    <input name="FileProcessorFileProfileId" class="text-input mono" value="@selectedProfile.FileProcessorFileProfileId" />
+                                </label>
+                                <label>
+                                    <span>Format</span>
+                                    <select name="Format" class="text-input">
+                                        <option value="delimited" selected="@(selectedProfile.Format.Equals(FileProfileFormats.Delimited, StringComparison.OrdinalIgnoreCase))">Delimited</option>
+                                        <option value="json" selected="@(selectedProfile.Format.Equals(FileProfileFormats.Json, StringComparison.OrdinalIgnoreCase))">JSON</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>File extension</span>
+                                    <input name="FileExtension" class="text-input" value="@selectedProfile.FileExtension" />
+                                </label>
+                                <label>
+                                    <span>Delimiter</span>
+                                    <input name="Delimiter" class="text-input" value="@selectedProfile.Delimited.Delimiter" />
+                                </label>
+                                <label>
+                                    <span>Content type</span>
+                                    <input name="ContentType" class="text-input" value="@selectedProfile.ContentType" />
+                                </label>
+                                <label>
+                                    <span>File name pattern</span>
+                                    <input name="FileNamePattern" class="text-input" value="@selectedProfile.FileNamePattern" />
+                                </label>
+                                <label>
+                                    <span>Root property</span>
+                                    <input name="RootPropertyName" class="text-input" value="@selectedProfile.Json.RootPropertyName" />
+                                </label>
+                                <label>
+                                    <span>Include header</span>
+                                    <select name="IncludeHeader" class="text-input">
+                                        <option value="true" selected="@selectedProfile.Delimited.IncludeHeader">Yes</option>
+                                        <option value="false" selected="@(!selectedProfile.Delimited.IncludeHeader)">No</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Indented JSON</span>
+                                    <select name="WriteIndented" class="text-input">
+                                        <option value="true" selected="@selectedProfile.Json.WriteIndented">Yes</option>
+                                        <option value="false" selected="@(!selectedProfile.Json.WriteIndented)">No</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="primary-button">Save profile</button>
+                                <a class="secondary-button" href="@($"/ops/config/file-profiles/{Uri.EscapeDataString(selectedProfile.FileProfileId)}")">Open field tables</a>
+                            </div>
+                        </form>
+                    }
+                </section>
+
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>Add profile</h2>
+                        <p>Create a new profile, then open it to manage fields.</p>
+                    </div>
+                    <form method="post" action="/api/configuration/file-profiles" class="config-form">
+                        <input type="hidden" name="ReturnUrl" value="/ops/config/file-profiles" />
+                        <input type="hidden" name="OriginalFileProfileId" value="" />
+                        <div class="form-grid">
+                            <label>
+                                <span>File profile ID</span>
+                                <input name="FileProfileId" class="text-input mono" value="" />
+                            </label>
+                            <label>
+                                <span>File processor profile ID</span>
+                                <input name="FileProcessorFileProfileId" class="text-input mono" value="" />
+                            </label>
+                            <label>
+                                <span>Format</span>
+                                <select name="Format" class="text-input">
+                                    <option value="delimited">Delimited</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>File extension</span>
+                                <input name="FileExtension" class="text-input" value="csv" />
+                            </label>
+                            <label>
+                                <span>Delimiter</span>
+                                <input name="Delimiter" class="text-input" value="," />
+                            </label>
+                            <label>
+                                <span>Content type</span>
+                                <input name="ContentType" class="text-input" value="text/csv" />
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Add profile</button>
+                            <a class="secondary-button" href="/ops/config">Back to configuration hub</a>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private bool loaded;
+    private string? statusMessage;
+    private string selectedProfileId = string.Empty;
+
+    private FileProfileOptions? selectedProfile => snapshot.Options.FileProfiles.FirstOrDefault(profile =>
+        profile.FileProfileId.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        selectedProfileId = GetQueryValue("fileProfileId") ?? snapshot.Options.FileProfiles.FirstOrDefault()?.FileProfileId ?? string.Empty;
+        statusMessage = ResolveStatusMessage();
+        loaded = true;
+    }
+
+    private string BuildSelectionHref(string fileProfileId) =>
+        $"/ops/config/file-profiles?fileProfileId={Uri.EscapeDataString(fileProfileId)}";
+
+    private string BuildReturnUrl(string fileProfileId) =>
+        BuildSelectionHref(fileProfileId);
+
+    private string DescribeLayout(FileProfileOptions profile)
+    {
+        var parts = new List<string> { $"{profile.Format} / {profile.FileExtension}" };
+
+        if (profile.Format.Equals(FileProfileFormats.Delimited, StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add($"delimiter '{profile.Delimited.Delimiter}'");
+            parts.Add(profile.Delimited.IncludeHeader ? "header row" : "no header row");
+        }
+
+        if (profile.Format.Equals(FileProfileFormats.Json, StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add(profile.Json.WriteIndented ? "indented JSON" : "compact JSON");
+            if (!string.IsNullOrWhiteSpace(profile.Json.RootPropertyName))
+            {
+                parts.Add($"root '{profile.Json.RootPropertyName}'");
+            }
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    private string? GetQueryValue(string key)
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        query = query.TrimStart('?');
+        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pieces = part.Split('=', 2);
+            if (pieces.Length == 2 && pieces[0].Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pieces[1]);
+            }
+        }
+
+        return null;
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "File profile saved.";
+        }
+
+        if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            var errorIndex = query.IndexOf("error=", StringComparison.OrdinalIgnoreCase);
+            var errorValue = errorIndex >= 0 ? query[(errorIndex + 6)..] : string.Empty;
+            var ampersandIndex = errorValue.IndexOf('&');
+            if (ampersandIndex >= 0)
+            {
+                errorValue = errorValue[..ampersandIndex];
+            }
+
+            return string.IsNullOrWhiteSpace(errorValue) ? "Save failed." : Uri.UnescapeDataString(errorValue);
+        }
+
+        return null;
+    }
+}

@@ -12,7 +12,7 @@ public interface IAccessTokenProvider
 
 public sealed class SharedAccessTokenProvider(
     ISecurityServiceClient securityServiceClient,
-    MerchantProcessingOptions options) : IAccessTokenProvider
+    IMerchantProcessingConfigurationState configurationState) : IAccessTokenProvider
 {
     private readonly SemaphoreSlim refreshLock = new(1, 1);
     private CachedToken? currentToken;
@@ -53,7 +53,7 @@ public sealed class SharedAccessTokenProvider(
 
     private async Task<Result<CachedToken>> RequestToken(CancellationToken cancellationToken)
     {
-        var authentication = options.Authentication;
+        var authentication = configurationState.Current.Authentication;
         var tokenResult = await securityServiceClient.GetToken(
             authentication.ClientId,
             authentication.ClientSecret,

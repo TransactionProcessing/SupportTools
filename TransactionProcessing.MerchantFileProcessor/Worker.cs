@@ -3,15 +3,16 @@ using TransactionProcessing.MerchantFileProcessor.Services;
 
 namespace TransactionProcessing.MerchantFileProcessor;
 
-public sealed class Worker(MerchantProcessingOptions options,
+public sealed class Worker(IMerchantProcessingConfigurationState configurationState,
                            IMerchantProcessingService merchantProcessingService,
                            IFileStatusStore fileStatusStore) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         LocalLogger.Context logger = LocalLogger.For();
-        logger.LogInformation($"Merchant processor started with {options.Merchants.Count} merchant schedules");
+        logger.LogInformation("Merchant processor started");
 
         while (!stoppingToken.IsCancellationRequested) {
+            MerchantProcessingOptions options = configurationState.Current;
             MerchantOptions[] enabledMerchants = options.Merchants.Where(merchant => merchant.Enabled).ToArray();
 
             if (enabledMerchants.Length == 0) {

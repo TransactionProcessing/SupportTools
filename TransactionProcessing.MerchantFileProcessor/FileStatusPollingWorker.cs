@@ -5,7 +5,7 @@ using TransactionProcessing.MerchantFileProcessor.Services;
 namespace TransactionProcessing.MerchantFileProcessor;
 
 public sealed class FileStatusPollingWorker(
-    MerchantProcessingOptions options,
+    IMerchantProcessingConfigurationState configurationState,
     IAccessTokenProvider accessTokenProvider,
     IFileProcessingClient fileProcessingClient,
     IFileStatusStore fileStatusStore) : BackgroundService
@@ -13,7 +13,7 @@ public sealed class FileStatusPollingWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var logger = LocalLogger.For();
-        var pollInterval = options.FileStatusPolling.GetPollInterval();
+        var pollInterval = configurationState.Current.FileStatusPolling.GetPollInterval();
         logger.LogInformation($"File status polling worker started with interval of {pollInterval.TotalSeconds:0} seconds");
 
         while (!stoppingToken.IsCancellationRequested)

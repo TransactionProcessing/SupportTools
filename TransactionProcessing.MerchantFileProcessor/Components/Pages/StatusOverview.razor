@@ -1,0 +1,165 @@
+@page "/status"
+@inject IFileStatusReportService Reports
+
+<PageTitle>Merchant File Processor - Status</PageTitle>
+
+@if (report is null)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading status board...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Status board</div>
+                <h1>Merchant file activity</h1>
+                <p>Live operational view of merchant file processing, including merchant rollups and the latest file activity.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Generated</div>
+                    <div class="field-value mono">@report.GeneratedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Merchants</div>
+                    <div class="field-value">@report.MerchantSummaries.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Enabled</div>
+                    <div class="field-value">@report.MerchantSummaries.Count(merchant => merchant.Enabled)</div>
+                </div>
+                <div>
+                    <div class="field-label">Recent files</div>
+                    <div class="field-value">@report.RecentFiles.Count</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Merchants</h2>
+                <p>Success and failure counts are aggregated from the local file audit store.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Merchant</th>
+                            <th>Enabled</th>
+                            <th>Successful files</th>
+                            <th>Failed files</th>
+                            <th>Last processed</th>
+                            <th>Next scheduled send</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (report.MerchantSummaries.Count == 0)
+                        {
+                            <tr><td colspan="7"><div class="empty-state">No merchants are configured.</div></td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var merchant in report.MerchantSummaries)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@merchant.MerchantName</strong><br />
+                                        <span class="mono muted">@merchant.MerchantId</span>
+                                    </td>
+                                    <td><span class="@BadgeClass(merchant.Enabled ? "good" : "neutral")">@((merchant.Enabled) ? "Enabled" : "Disabled")</span></td>
+                                    <td>@merchant.SuccessfulFilesSent</td>
+                                    <td>@merchant.FailedFiles</td>
+                                    <td class="mono">@((merchant.LastProcessedUtc?.ToString("u")) ?? "Never")</td>
+                                    <td class="mono">@((merchant.NextScheduledUtc?.ToString("u")) ?? "Disabled")</td>
+                                    <td><a href="@($"/status/{Uri.EscapeDataString(merchant.MerchantId)}")">View details</a></td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Recent file activity</h2>
+                <p>Latest files recorded by the processor, sorted by processing time.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Processed</th>
+                            <th>Merchant</th>
+                            <th>Contract</th>
+                            <th>Status</th>
+                            <th>Profile</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (report.RecentFiles.Count == 0)
+                        {
+                            <tr><td colspan="6"><div class="empty-state">No recent file activity has been recorded yet.</div></td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var file in report.RecentFiles)
+                            {
+                                <tr>
+                                    <td class="mono">@file.ProcessedUtc.ToString("u")</td>
+                                    <td>
+                                        <strong>@file.MerchantName</strong><br />
+                                        <span class="mono muted">@file.MerchantId</span>
+                                    </td>
+                                    <td>
+                                        @file.ContractName<br />
+                                        <span class="mono muted">@file.ContractId</span>
+                                    </td>
+                                    <td><span class="@BadgeClass(FileTone(file.Status))">@RenderStatus(file)</span></td>
+                                    <td class="mono">@file.FileProfileId</td>
+                                    <td><a href="@($"/status/{Uri.EscapeDataString(file.MerchantId)}/files/{file.Id}")">View file</a></td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private FileStatusReport? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.report = await Reports.GetReportAsync(CancellationToken.None);
+    }
+
+    private static string BadgeClass(string tone) => $"badge {tone}";
+
+    private static string FileTone(string status)
+    {
+        if (status.Equals(FileSendStatuses.Succeeded, StringComparison.OrdinalIgnoreCase))
+        {
+            return "good";
+        }
+
+        if (status.Equals(FileSendStatuses.Failed, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bad";
+        }
+
+        return "neutral";
+    }
+
+    private static string RenderStatus(FileStatusRow file) =>
+        file.Status == FileSendStatuses.Succeeded
+            ? $"{file.Status} / {(file.ProcessingCompleted ? "Complete" : "Pending")}"
+            : file.Status;
+}

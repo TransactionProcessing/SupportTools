@@ -1,0 +1,261 @@
+@page "/ops/config/merchants"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+@inject NavigationManager Navigation
+
+<PageTitle>Merchant File Processor - Merchants</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading merchants...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <section class="panel notice-panel">@statusMessage</section>
+        }
+
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Merchants</div>
+                <h1>Schedule and estate management</h1>
+                <p>Select a merchant from the table to edit it in the detail pane. The table stays focused on scanning; the editor handles changes.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Merchants</div>
+                    <div class="field-value">@snapshot.Options.Merchants.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Enabled</div>
+                    <div class="field-value">@snapshot.Options.Merchants.Count(merchant => merchant.Enabled)</div>
+                </div>
+                <div>
+                    <div class="field-label">Updated</div>
+                    <div class="field-value mono">@snapshot.UpdatedUtc.ToString("u")</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="master-detail">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Existing merchants</h2>
+                    <p>Select a row to edit it.</p>
+                </div>
+                @if (snapshot.Options.Merchants.Count == 0)
+                {
+                    <div class="empty-state">No merchants are configured yet.</div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table selector-table">
+                            <thead>
+                                <tr>
+                                    <th>Merchant</th>
+                                    <th>Enabled</th>
+                                    <th>Estate</th>
+                                    <th>Run times</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var merchant in snapshot.Options.Merchants)
+                                {
+                                    var isSelected = string.Equals(merchant.MerchantId, selectedMerchantId, StringComparison.OrdinalIgnoreCase);
+                                    <tr class="@(isSelected ? "selected" : string.Empty)">
+                                        <td>
+                                            <a href="@BuildSelectionHref(merchant.MerchantId)"><strong>@merchant.Name</strong></a><br />
+                                            <span class="mono muted">@merchant.MerchantId</span>
+                                        </td>
+                                        <td><span class="@BadgeClass(merchant.Enabled ? "good" : "neutral")">@((merchant.Enabled) ? "Enabled" : "Disabled")</span></td>
+                                        <td class="mono">@merchant.EstateId</td>
+                                        <td class="mono smallwrap">@FormatRunTimes(merchant)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
+
+            <div class="detail-stack">
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>@(selectedMerchant?.Name ?? "Merchant details")</h2>
+                        <p>@(selectedMerchant is null ? "Select a merchant on the left." : selectedMerchant.MerchantId)</p>
+                    </div>
+
+                    @if (selectedMerchant is null)
+                    {
+                        <div class="empty-state">Pick a merchant from the table to edit it here.</div>
+                    }
+                    else
+                    {
+                        <form method="post" action="/api/configuration/merchants" class="config-form">
+                            <input type="hidden" name="ReturnUrl" value="@BuildReturnUrl(selectedMerchant.MerchantId)" />
+                            <input type="hidden" name="OriginalMerchantId" value="@selectedMerchant.MerchantId" />
+                            <div class="form-grid">
+                                <label>
+                                    <span>Display name</span>
+                                    <input name="Name" class="text-input" value="@selectedMerchant.Name" />
+                                </label>
+                                <label>
+                                    <span>Merchant ID</span>
+                                    <input name="MerchantId" class="text-input mono" value="@selectedMerchant.MerchantId" />
+                                </label>
+                                <label>
+                                    <span>Estate ID</span>
+                                    <input name="EstateId" class="text-input mono" value="@selectedMerchant.EstateId" />
+                                </label>
+                                <label>
+                                    <span>Enabled</span>
+                                    <select name="Enabled" class="text-input">
+                                        <option value="true" selected="@(selectedMerchant.Enabled)">Enabled</option>
+                                        <option value="false" selected="@(!selectedMerchant.Enabled)">Disabled</option>
+                                    </select>
+                                </label>
+                                <label class="span-2">
+                                    <span>Run times UTC</span>
+                                    <input name="RunTimesUtc" class="text-input mono" value="@FormatRunTimes(selectedMerchant)" />
+                                </label>
+                                <label>
+                                    <span>Fallback run time</span>
+                                    <input name="RunAtUtc" class="text-input mono" value="@selectedMerchant.RunAtUtc" />
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="primary-button">Save merchant</button>
+                            </div>
+                        </form>
+                    }
+                </section>
+
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>Add merchant</h2>
+                        <p>Create a new merchant entry.</p>
+                    </div>
+                    <form method="post" action="/api/configuration/merchants" class="config-form">
+                        <input type="hidden" name="ReturnUrl" value="/ops/config/merchants" />
+                        <input type="hidden" name="OriginalMerchantId" value="" />
+                        <div class="form-grid">
+                            <label>
+                                <span>Display name</span>
+                                <input name="Name" class="text-input" value="" />
+                            </label>
+                            <label>
+                                <span>Merchant ID</span>
+                                <input name="MerchantId" class="text-input mono" value="" />
+                            </label>
+                            <label>
+                                <span>Estate ID</span>
+                                <input name="EstateId" class="text-input mono" value="" />
+                            </label>
+                            <label>
+                                <span>Enabled</span>
+                                <select name="Enabled" class="text-input">
+                                    <option value="true">Enabled</option>
+                                    <option value="false">Disabled</option>
+                                </select>
+                            </label>
+                            <label class="span-2">
+                                <span>Run times UTC</span>
+                                <input name="RunTimesUtc" class="text-input mono" value="02:00:00" />
+                            </label>
+                            <label>
+                                <span>Fallback run time</span>
+                                <input name="RunAtUtc" class="text-input mono" value="02:00:00" />
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Add merchant</button>
+                            <a class="secondary-button" href="/ops/config">Back to configuration hub</a>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private bool loaded;
+    private string? statusMessage;
+    private string selectedMerchantId = string.Empty;
+
+    private MerchantOptions? selectedMerchant => snapshot.Options.Merchants.FirstOrDefault(merchant =>
+        merchant.MerchantId.Equals(selectedMerchantId, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        selectedMerchantId = GetQueryValue("merchantId") ?? snapshot.Options.Merchants.FirstOrDefault()?.MerchantId ?? string.Empty;
+        statusMessage = ResolveStatusMessage();
+        loaded = true;
+    }
+
+    private string BuildSelectionHref(string merchantId) =>
+        $"/ops/config/merchants?merchantId={Uri.EscapeDataString(merchantId)}";
+
+    private string BuildReturnUrl(string merchantId) =>
+        BuildSelectionHref(merchantId);
+
+    private string FormatRunTimes(MerchantOptions merchant)
+    {
+        var runTimes = merchant.RunTimesUtc.Count > 0 ? merchant.RunTimesUtc : [merchant.RunAtUtc];
+        return string.Join(", ", runTimes);
+    }
+
+    private string? GetQueryValue(string key)
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        query = query.TrimStart('?');
+        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pieces = part.Split('=', 2);
+            if (pieces.Length == 2 && pieces[0].Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(pieces[1]);
+            }
+        }
+
+        return null;
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Merchant saved.";
+        }
+
+        if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            var errorIndex = query.IndexOf("error=", StringComparison.OrdinalIgnoreCase);
+            var errorValue = errorIndex >= 0 ? query[(errorIndex + 6)..] : string.Empty;
+            var ampersandIndex = errorValue.IndexOf('&');
+            if (ampersandIndex >= 0)
+            {
+                errorValue = errorValue[..ampersandIndex];
+            }
+
+            return string.IsNullOrWhiteSpace(errorValue) ? "Save failed." : Uri.UnescapeDataString(errorValue);
+        }
+
+        return null;
+    }
+
+    private static string BadgeClass(string tone) => $"badge {tone}";
+}
