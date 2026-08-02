@@ -22,19 +22,26 @@ public interface IFileProcessingClient
                                                              CancellationToken cancellationToken);
 }
 
-public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClient, MerchantProcessingOptions options) : IFileProcessingClient {
+public sealed class FileProcessingClient(
+    IFileProcessorClient fileProcessorClient,
+    IMerchantProcessingConfigurationState configurationState) : IFileProcessingClient
+{
     public async Task<Result<Guid>> Upload(MerchantOptions merchant,
                                            ContractOptions contract,
                                            string accessToken,
                                            GeneratedFile file,
-                                           CancellationToken cancellationToken) {
+                                           CancellationToken cancellationToken)
+    {
+        var options = configurationState.Current;
         FileProfileOptions? fileProfile = options.FileProfiles.FirstOrDefault(profile => profile.FileProfileId.Equals(file.FileProfileId, StringComparison.OrdinalIgnoreCase));
 
-        if (fileProfile is null) {
+        if (fileProfile is null)
+        {
             return new Result<Guid> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"Generated file references unknown file profile '{file.FileProfileId}'." };
         }
 
-        UploadFileRequest request = new UploadFileRequest {
+        UploadFileRequest request = new UploadFileRequest
+        {
             EstateId = merchant.GetEstateGuid(),
             MerchantId = merchant.GetMerchantGuid(),
             UserId = options.FileProcessing.GetUserGuid(),
@@ -44,7 +51,8 @@ public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClien
 
         Result<Guid>? result = await fileProcessorClient.UploadFile(accessToken, file.FileName, file.Content, request, cancellationToken);
 
-        if (result.IsFailed) {
+        if (result.IsFailed)
+        {
             return new Result<Guid> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"File processor client failed to upload file '{file.FileName}'." };
         }
 
@@ -54,10 +62,12 @@ public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClien
     public async Task<Result<FileProcessingStatusSnapshot>> GetFileStatus(string accessToken,
                                                                           Guid estateId,
                                                                           Guid fileId,
-                                                                          CancellationToken cancellationToken) {
+                                                                          CancellationToken cancellationToken)
+    {
         Result<FileDetails>? result = await fileProcessorClient.GetFile(accessToken, estateId, fileId, cancellationToken);
 
-        if (result.IsFailed || result.Data is null) {
+        if (result.IsFailed || result.Data is null)
+        {
             return new Result<FileProcessingStatusSnapshot> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"File processor client failed to retrieve status for file '{fileId}'." };
         }
 
@@ -69,13 +79,16 @@ public sealed class FileProcessingClient(IFileProcessorClient fileProcessorClien
 
     private static FileProcessingLineStatusSnapshot MapLineStatus(FileLine line) => new(line.LineNumber, line.LineData, line.ProcessingResult.ToString(), string.IsNullOrWhiteSpace(line.RejectionReason) ? null : line.RejectionReason, line.TransactionId == Guid.Empty ? null : line.TransactionId);
 
-    private static bool AreAllLinesResolved(IEnumerable<FileProcessingLineStatusSnapshot> lines) {
+    private static bool AreAllLinesResolved(IEnumerable<FileProcessingLineStatusSnapshot> lines)
+    {
         bool hasLines = false;
 
-        foreach (FileProcessingLineStatusSnapshot line in lines) {
+        foreach (FileProcessingLineStatusSnapshot line in lines)
+        {
             hasLines = true;
 
-            if (line.ProcessingStatus.Equals(FileLineStatuses.Unknown, StringComparison.OrdinalIgnoreCase) || line.ProcessingStatus.Equals(FileLineStatuses.NotProcessed, StringComparison.OrdinalIgnoreCase)) {
+            if (line.ProcessingStatus.Equals(FileLineStatuses.Unknown, StringComparison.OrdinalIgnoreCase) || line.ProcessingStatus.Equals(FileLineStatuses.NotProcessed, StringComparison.OrdinalIgnoreCase))
+            {
                 return false;
             }
         }

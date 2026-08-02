@@ -22,7 +22,7 @@ public interface ITransactionFileBuilder
 }
 
 public sealed class TransactionFileGenerationService(
-    MerchantProcessingOptions options,
+    IMerchantProcessingConfigurationState configurationState,
     ITransactionGenerator transactionGenerator,
     IEnumerable<ITransactionFileBuilder> builders) : ITransactionFileGenerationService
 {
@@ -60,6 +60,7 @@ public sealed class TransactionFileGenerationService(
 
     private bool TryResolveFileProfile(string contractId, out FileProfileOptions? fileProfile)
     {
+        var options = configurationState.Current;
         var contractDefinition = options.ContractDefinitions.FirstOrDefault(definition =>
             definition.ContractId.Equals(contractId, StringComparison.OrdinalIgnoreCase));
 

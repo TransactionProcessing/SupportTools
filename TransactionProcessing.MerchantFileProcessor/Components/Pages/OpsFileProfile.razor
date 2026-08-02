@@ -1,0 +1,307 @@
+@page "/ops/config/file-profiles/{FileProfileId}"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+@inject NavigationManager Navigation
+
+<PageTitle>Merchant File Processor - File Profile</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading file profile...</p></div>
+    </div>
+}
+else if (profile is null)
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">File profile</div>
+                <h1>Profile not found</h1>
+                <p>The requested file profile does not exist.</p>
+                <p><a href="/ops/config/file-profiles">&larr; Back to file profiles</a></p>
+            </div>
+        </section>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <section class="panel notice-panel">@statusMessage</section>
+        }
+
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">File profile</div>
+                <h1>@profile.FileProfileId</h1>
+                <p class="mono muted">@profile.FileProcessorFileProfileId</p>
+                <p>Manage the file profile metadata and the three field tables that define the file layout.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Format</div>
+                    <div class="field-value">@profile.Format</div>
+                </div>
+                <div>
+                    <div class="field-label">Fields</div>
+                    <div class="field-value">@profile.Fields.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Updated</div>
+                    <div class="field-value mono">@snapshot.UpdatedUtc.ToString("u")</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel config-item">
+            <form method="post" action="/api/configuration/file-profiles" class="config-form">
+                <input type="hidden" name="ReturnUrl" value="@($"/ops/config/file-profiles/{Uri.EscapeDataString(profile.FileProfileId)}")" />
+                <input type="hidden" name="OriginalFileProfileId" value="@profile.FileProfileId" />
+                <div class="section-header">
+                    <h2>Profile metadata</h2>
+                    <p>The profile ID stays as the row key; update the layout properties as needed.</p>
+                </div>
+                <div class="form-grid">
+                    <label>
+                        <span>File profile ID</span>
+                        <input class="text-input mono" value="@profile.FileProfileId" disabled />
+                    </label>
+                    <label>
+                        <span>File processor profile ID</span>
+                        <input name="FileProcessorFileProfileId" class="text-input mono" value="@profile.FileProcessorFileProfileId" />
+                    </label>
+                    <label>
+                        <span>Format</span>
+                        <select name="Format" class="text-input">
+                            <option value="delimited" selected="@(profile.Format.Equals(FileProfileFormats.Delimited, StringComparison.OrdinalIgnoreCase))">Delimited</option>
+                            <option value="json" selected="@(profile.Format.Equals(FileProfileFormats.Json, StringComparison.OrdinalIgnoreCase))">JSON</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>File extension</span>
+                        <input name="FileExtension" class="text-input" value="@profile.FileExtension" />
+                    </label>
+                    <label>
+                        <span>Delimiter</span>
+                        <input name="Delimiter" class="text-input" value="@profile.Delimited.Delimiter" />
+                    </label>
+                    <label>
+                        <span>Content type</span>
+                        <input name="ContentType" class="text-input" value="@profile.ContentType" />
+                    </label>
+                    <label>
+                        <span>File name pattern</span>
+                        <input name="FileNamePattern" class="text-input" value="@profile.FileNamePattern" />
+                    </label>
+                    <label>
+                        <span>Root property</span>
+                        <input name="RootPropertyName" class="text-input" value="@profile.Json.RootPropertyName" />
+                    </label>
+                    <label>
+                        <span>Include header</span>
+                        <select name="IncludeHeader" class="text-input">
+                            <option value="true" selected="@profile.Delimited.IncludeHeader">Yes</option>
+                            <option value="false" selected="@(!profile.Delimited.IncludeHeader)">No</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Indented JSON</span>
+                        <select name="WriteIndented" class="text-input">
+                            <option value="true" selected="@profile.Json.WriteIndented">Yes</option>
+                            <option value="false" selected="@(!profile.Json.WriteIndented)">No</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="primary-button">Save profile metadata</button>
+                    <a class="secondary-button" href="/ops/config/file-profiles">Back to file profiles</a>
+                </div>
+            </form>
+        </section>
+
+        <section class="two-col">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Body fields</h2>
+                    <p>These are the file columns used by the main file layout.</p>
+                </div>
+                @RenderFieldSection("body", profile.Fields)
+            </article>
+
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Header fields</h2>
+                    <p>Header rows for delimited files.</p>
+                </div>
+                @RenderFieldSection("header", profile.Delimited.HeaderFields)
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Trailer fields</h2>
+                <p>Trailer rows for delimited files.</p>
+            </div>
+            @RenderFieldSection("trailer", profile.Delimited.TrailerFields)
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string FileProfileId { get; set; } = string.Empty;
+
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private FileProfileOptions? profile;
+    private bool loaded;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        profile = snapshot.Options.FileProfiles.FirstOrDefault(entry => entry.FileProfileId.Equals(FileProfileId, StringComparison.OrdinalIgnoreCase));
+        statusMessage = ResolveStatusMessage();
+        loaded = true;
+    }
+
+    private RenderFragment RenderFieldSection(string section, IReadOnlyList<FileFieldOptions> fields) => builder =>
+    {
+        if (fields.Count == 0)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "empty-state");
+            builder.AddContent(2, "No fields are configured for this section yet.");
+            builder.CloseElement();
+        }
+
+        var sequence = 0;
+        foreach (var field in fields.Select((field, index) => new { field, index }))
+        {
+            builder.OpenElement(sequence++, "article");
+            builder.AddAttribute(sequence++, "class", "field-card");
+
+            builder.OpenElement(sequence++, "form");
+            builder.AddAttribute(sequence++, "method", "post");
+            builder.AddAttribute(sequence++, "action", $"/api/configuration/file-profiles/{Uri.EscapeDataString(profile!.FileProfileId)}/fields/{section}");
+            builder.AddAttribute(sequence++, "class", "config-form");
+
+            builder.OpenElement(sequence++, "input");
+            builder.AddAttribute(sequence++, "type", "hidden");
+            builder.AddAttribute(sequence++, "name", "ReturnUrl");
+            builder.AddAttribute(sequence++, "value", $"/ops/config/file-profiles/{Uri.EscapeDataString(profile!.FileProfileId)}");
+            builder.CloseElement();
+
+            builder.OpenElement(sequence++, "input");
+            builder.AddAttribute(sequence++, "type", "hidden");
+            builder.AddAttribute(sequence++, "name", "OriginalSortOrder");
+            builder.AddAttribute(sequence++, "value", field.index);
+            builder.CloseElement();
+
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "form-grid");
+            AddFieldInput(builder, ref sequence, "Name", field.field.Name);
+            AddFieldInput(builder, ref sequence, "Source", field.field.Source);
+            AddFieldInput(builder, ref sequence, "Format", field.field.Format);
+            AddFieldInput(builder, ref sequence, "Value", field.field.Value);
+            builder.CloseElement();
+
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "form-actions");
+            builder.OpenElement(sequence++, "button");
+            builder.AddAttribute(sequence++, "type", "submit");
+            builder.AddAttribute(sequence++, "class", "primary-button");
+            builder.AddContent(sequence++, "Save field");
+            builder.CloseElement();
+            builder.OpenElement(sequence++, "button");
+            builder.AddAttribute(sequence++, "type", "submit");
+            builder.AddAttribute(sequence++, "name", "Delete");
+            builder.AddAttribute(sequence++, "value", "true");
+            builder.AddAttribute(sequence++, "class", "secondary-button");
+            builder.AddContent(sequence++, "Delete");
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(sequence++, "article");
+        builder.AddAttribute(sequence++, "class", "field-card");
+        builder.OpenElement(sequence++, "form");
+        builder.AddAttribute(sequence++, "method", "post");
+        builder.AddAttribute(sequence++, "action", $"/api/configuration/file-profiles/{Uri.EscapeDataString(profile!.FileProfileId)}/fields/{section}");
+        builder.AddAttribute(sequence++, "class", "config-form");
+
+        builder.OpenElement(sequence++, "input");
+        builder.AddAttribute(sequence++, "type", "hidden");
+        builder.AddAttribute(sequence++, "name", "ReturnUrl");
+        builder.AddAttribute(sequence++, "value", $"/ops/config/file-profiles/{Uri.EscapeDataString(profile!.FileProfileId)}");
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "input");
+        builder.AddAttribute(sequence++, "type", "hidden");
+        builder.AddAttribute(sequence++, "name", "OriginalSortOrder");
+        builder.AddAttribute(sequence++, "value", string.Empty);
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "form-grid");
+        AddFieldInput(builder, ref sequence, "Name", string.Empty);
+        AddFieldInput(builder, ref sequence, "Source", string.Empty);
+        AddFieldInput(builder, ref sequence, "Format", string.Empty);
+        AddFieldInput(builder, ref sequence, "Value", string.Empty);
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "form-actions");
+        builder.OpenElement(sequence++, "button");
+        builder.AddAttribute(sequence++, "type", "submit");
+        builder.AddAttribute(sequence++, "class", "primary-button");
+        builder.AddContent(sequence++, "Add field");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static void AddFieldInput(RenderTreeBuilder builder, ref int sequence, string label, string? value)
+    {
+        builder.OpenElement(sequence++, "label");
+        builder.OpenElement(sequence++, "span");
+        builder.AddContent(sequence++, label);
+        builder.CloseElement();
+        builder.OpenElement(sequence++, "input");
+        builder.AddAttribute(sequence++, "name", label);
+        builder.AddAttribute(sequence++, "class", "text-input");
+        builder.AddAttribute(sequence++, "value", value ?? string.Empty);
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "File profile saved.";
+        }
+
+        if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            var errorIndex = query.IndexOf("error=", StringComparison.OrdinalIgnoreCase);
+            var errorValue = errorIndex >= 0 ? query[(errorIndex + 6)..] : string.Empty;
+            var ampersandIndex = errorValue.IndexOf('&');
+            if (ampersandIndex >= 0)
+            {
+                errorValue = errorValue[..ampersandIndex];
+            }
+
+            return string.IsNullOrWhiteSpace(errorValue) ? "Save failed." : Uri.UnescapeDataString(errorValue);
+        }
+
+        return null;
+    }
+}

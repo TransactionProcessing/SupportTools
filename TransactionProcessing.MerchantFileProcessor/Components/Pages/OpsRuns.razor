@@ -1,0 +1,111 @@
+@page "/ops/runs"
+@inject IOperationsDashboardService Dashboard
+
+<PageTitle>Merchant File Processor - Run history</PageTitle>
+
+@if (model is null)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading run history...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Run history</div>
+                <h1>Merchant execution audit trail</h1>
+                <p>Each row captures the scheduled slot, completion time, and final outcome for a merchant processing cycle.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Generated</div>
+                    <div class="field-value mono">@model.GeneratedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Recent runs</div>
+                    <div class="field-value">@model.RecentRuns.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Successful</div>
+                    <div class="field-value">@SuccessfulRuns</div>
+                </div>
+                <div>
+                    <div class="field-label">Failed</div>
+                    <div class="field-value">@FailedRuns</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Run records</h2>
+                <p>Most recent entries appear first, with the latest processing outcome at the top.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Merchant</th>
+                            <th>Scheduled</th>
+                            <th>Completed</th>
+                            <th>Status</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var run in model.RecentRuns)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@run.MerchantName</strong><br />
+                                    <span class="mono muted">@run.MerchantId</span>
+                                </td>
+                                <td class="mono">@run.ScheduledRunUtc.ToString("u")</td>
+                                <td class="mono">@run.CompletedUtc.ToString("u")</td>
+                                <td><span class="@BadgeClass(RunTone(run.Status))">@run.Status</span></td>
+                                <td>@RenderError(run.ErrorMessage)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private OperationsDashboardModel? model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.model = await Dashboard.GetDashboardModelAsync(CancellationToken.None);
+    }
+
+    private static string BadgeClass(string tone) => $"badge {tone}";
+
+    private int SuccessfulRuns =>
+        model?.RecentRuns.Count(run => run.Status.Equals(MerchantRunStatuses.Succeeded, StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+    private int FailedRuns =>
+        model?.RecentRuns.Count(run => run.Status.Equals(MerchantRunStatuses.Failed, StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+    private static string RunTone(string status)
+    {
+        if (status.Equals(MerchantRunStatuses.Succeeded, StringComparison.OrdinalIgnoreCase))
+        {
+            return "good";
+        }
+
+        if (status.Equals(MerchantRunStatuses.Failed, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bad";
+        }
+
+        return "neutral";
+    }
+
+    private static string RenderError(string? errorMessage) =>
+        string.IsNullOrWhiteSpace(errorMessage) ? "No error recorded" : errorMessage;
+}

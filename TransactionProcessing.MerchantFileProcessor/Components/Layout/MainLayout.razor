@@ -1,0 +1,96 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">MF</div>
+            <div>
+                <div class="brand-title">Merchant File Processor</div>
+                <div class="brand-subtitle">Operations and status console</div>
+            </div>
+        </div>
+
+        <div class="sidebar-card sidebar-hero">
+            <div class="sidebar-card-label">Current area</div>
+            <div class="sidebar-hero-title">@CurrentAreaTitle</div>
+            <p>@CurrentAreaSummary</p>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Operations">
+            <div class="nav-group-label">Operations</div>
+            <NavLink class="nav-link" href="/ops" Match="NavLinkMatch.All">Overview</NavLink>
+            <NavLink class="nav-link" href="/ops/runs">Run history</NavLink>
+        </nav>
+
+        <nav class="sidebar-nav sidebar-nav-spaced" aria-label="Configuration">
+            <div class="nav-group-label">Configuration</div>
+            <NavLink class="nav-link" href="/ops/config" Match="NavLinkMatch.All">Hub</NavLink>
+            <NavLink class="nav-link" href="/ops/config/runtime">Runtime</NavLink>
+            <NavLink class="nav-link" href="/ops/config/merchants">Merchants</NavLink>
+            <NavLink class="nav-link" href="/ops/config/file-profiles">File profiles</NavLink>
+            <NavLink class="nav-link" href="/ops/config/contracts">Contracts</NavLink>
+        </nav>
+
+        <nav class="sidebar-nav sidebar-nav-spaced" aria-label="Status">
+            <div class="nav-group-label">Status</div>
+            <NavLink class="nav-link" href="/status" Match="NavLinkMatch.All">Merchant status</NavLink>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <header class="content-header">
+            <div>
+                <div class="eyebrow">@CurrentAreaTitle</div>
+                <h1>@CurrentPageTitle</h1>
+                <p>@CurrentPageSummary</p>
+            </div>
+
+            <div class="content-header-links" aria-label="Quick links">
+                <NavLink class="quick-link" href="/ops">Ops overview</NavLink>
+                <NavLink class="quick-link" href="/status">Status board</NavLink>
+            </div>
+        </header>
+
+        @Body
+    </main>
+</div>
+
+@code {
+    private string CurrentAreaTitle => IsStatusRoute ? "Status" : "Operations";
+
+    private string CurrentAreaSummary => IsStatusRoute
+        ? "Merchant rollups, file detail, and audit trail inspection."
+        : "Configuration, scheduling, and run monitoring.";
+
+    private string CurrentPageTitle => Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/') switch
+    {
+        "" or "ops" => "Merchant file processor overview",
+        "ops/config" => "Configuration hub",
+        "ops/config/runtime" => "Runtime settings",
+        "ops/config/merchants" => "Merchants",
+        "ops/config/file-profiles" => "File profiles",
+        "ops/runs" => "Run history",
+        "status" => "Merchant file activity",
+        _ when Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("status/", StringComparison.OrdinalIgnoreCase) => "Merchant file detail",
+        _ when Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("ops/config/file-profiles/", StringComparison.OrdinalIgnoreCase) => "File profile",
+        _ => "Merchant File Processor"
+    };
+
+    private string CurrentPageSummary => Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/') switch
+    {
+        "" or "ops" => "Live configuration, scheduling, and processing visibility.",
+        "ops/config" => "Section-based configuration management.",
+        "ops/config/runtime" => "Authentication, file-processing, generation, and polling settings.",
+        "ops/config/merchants" => "Merchant schedules, estates, and enabled flags.",
+        "ops/config/file-profiles" => "Profile metadata and field tables.",
+        "ops/config/file-profiles/" => "Profile detail and field editing.",
+        "ops/runs" => "Recent processing execution history.",
+        "status" => "Merchant rollups and latest file activity.",
+        _ when Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("status/", StringComparison.OrdinalIgnoreCase) => "Line-level file drilldown and error details.",
+        _ when Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("ops/config/file-profiles/", StringComparison.OrdinalIgnoreCase) => "Profile metadata and field editing.",
+        _ => "Live operational control surface."
+    };
+
+    private bool IsStatusRoute => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("status", StringComparison.OrdinalIgnoreCase);
+}

@@ -1,0 +1,129 @@
+@page "/ops/config/runtime"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+@inject NavigationManager Navigation
+
+<PageTitle>Merchant File Processor - Runtime Settings</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading runtime settings...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <section class="panel notice-panel">@statusMessage</section>
+        }
+
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Runtime settings</div>
+                <h1>Authentication and worker cadence</h1>
+                <p>These settings feed the service at startup and are stored as individual SQLite rows rather than a JSON blob.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Updated</div>
+                    <div class="field-value mono">@snapshot.UpdatedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Authentication</div>
+                    <div class="field-value">@snapshot.Options.Authentication.ClientId</div>
+                </div>
+                <div>
+                    <div class="field-label">Polling</div>
+                    <div class="field-value">@snapshot.Options.FileStatusPolling.PollIntervalSeconds seconds</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Edit runtime settings</h2>
+                <p>Saving replaces the runtime rows in SQLite and refreshes the live in-memory snapshot.</p>
+            </div>
+            <form method="post" action="/api/configuration/runtime" class="config-form">
+                <input type="hidden" name="ReturnUrl" value="/ops/config/runtime" />
+                <div class="form-grid">
+                    <label>
+                        <span>Client ID</span>
+                        <input name="ClientId" class="text-input" value="@snapshot.Options.Authentication.ClientId" />
+                    </label>
+                    <label>
+                        <span>Client secret</span>
+                        <input name="ClientSecret" class="text-input" value="@snapshot.Options.Authentication.ClientSecret" />
+                    </label>
+                    <label>
+                        <span>Scope</span>
+                        <input name="Scope" class="text-input" value="@snapshot.Options.Authentication.Scope" />
+                    </label>
+                    <label>
+                        <span>Audience</span>
+                        <input name="Audience" class="text-input" value="@snapshot.Options.Authentication.Audience" />
+                    </label>
+                    <label>
+                        <span>File-processing user ID</span>
+                        <input name="UserId" class="text-input mono" value="@snapshot.Options.FileProcessing.UserId" />
+                    </label>
+                    <label>
+                        <span>Minimum transactions</span>
+                        <input name="MinimumTransactionsPerContract" class="text-input" type="number" value="@snapshot.Options.TransactionGeneration.MinimumTransactionsPerContract" />
+                    </label>
+                    <label>
+                        <span>Maximum transactions</span>
+                        <input name="MaximumTransactionsPerContract" class="text-input" type="number" value="@snapshot.Options.TransactionGeneration.MaximumTransactionsPerContract" />
+                    </label>
+                    <label>
+                        <span>Polling interval seconds</span>
+                        <input name="PollIntervalSeconds" class="text-input" type="number" value="@snapshot.Options.FileStatusPolling.PollIntervalSeconds" />
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="primary-button">Save runtime settings</button>
+                    <a class="secondary-button" href="/ops/config">Back to configuration hub</a>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@code {
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private bool loaded;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        statusMessage = ResolveStatusMessage();
+        loaded = true;
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Runtime settings saved.";
+        }
+
+        if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            var errorIndex = query.IndexOf("error=", StringComparison.OrdinalIgnoreCase);
+            var errorValue = errorIndex >= 0 ? query[(errorIndex + 6)..] : string.Empty;
+            var ampersandIndex = errorValue.IndexOf('&');
+            if (ampersandIndex >= 0)
+            {
+                errorValue = errorValue[..ampersandIndex];
+            }
+
+            return string.IsNullOrWhiteSpace(errorValue) ? "Save failed." : Uri.UnescapeDataString(errorValue);
+        }
+
+        return null;
+    }
+}

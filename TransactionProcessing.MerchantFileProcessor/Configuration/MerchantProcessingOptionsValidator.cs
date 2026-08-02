@@ -4,10 +4,6 @@ namespace TransactionProcessing.MerchantFileProcessor.Configuration;
 
 public static class MerchantProcessingOptionsValidator {
     public static bool Validate(MerchantProcessingOptions options) {
-        if (options.Merchants.Count == 0) {
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(options.Authentication.ClientId) || string.IsNullOrWhiteSpace(options.Authentication.ClientSecret)) {
             return false;
         }

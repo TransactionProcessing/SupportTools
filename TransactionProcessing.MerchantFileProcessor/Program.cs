@@ -41,6 +41,7 @@ try
         .SetBasePath(contentRoot)
         .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+        .AddJsonFile("merchant-processing.bootstrap.json", optional: true, reloadOnChange: true)
         .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
         .AddCommandLine(args);
@@ -64,17 +65,9 @@ try
         options.ServiceName = "Merchant File Processor";
     });
 
-    var merchantProcessingOptions = builder.Configuration
-        .GetSection(MerchantProcessingOptions.SectionName)
-        .Get<MerchantProcessingOptions>() ?? new MerchantProcessingOptions();
-
-    if (!MerchantProcessingOptionsValidator.Validate(merchantProcessingOptions))
-    {
-        throw new InvalidOperationException("MerchantProcessing configuration is invalid.");
-    }
-
-    builder.Services.AddSingleton(merchantProcessingOptions);
     builder.Services.AddSingleton(frameworkLoggingOptions);
+    builder.Services.AddSingleton<IMerchantProcessingConfigurationState, MerchantProcessingConfigurationState>();
+    builder.Services.AddSingleton<IMerchantProcessingConfigurationStore, MerchantProcessingConfigurationStore>();
 
     builder.Services.AddSingleton<Func<string, string>>(sp =>
     {
@@ -94,12 +87,18 @@ try
         };
     });
 
-    var connectionString = BuildConnectionString(
-        builder.Configuration.GetConnectionString("MerchantFileProcessor"),
-        contentRoot);
+    var configuredConnectionString = builder.Configuration.GetConnectionString("MerchantFileProcessor");
+
+    if (string.IsNullOrWhiteSpace(configuredConnectionString))
+    {
+        throw new InvalidOperationException("ConnectionStrings:MerchantFileProcessor must be configured.");
+    }
+
+    var connectionString = BuildConnectionString(configuredConnectionString, contentRoot);
 
     builder.Services.AddHttpClient();
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddRazorComponents();
     builder.Services.AddDbContextFactory<MerchantFileProcessorDbContext>(options =>
         options.UseSqlite(connectionString));
     builder.Services.RegisterHttpClient<IFileProcessorClient, FileProcessorClient>();
@@ -124,6 +123,7 @@ try
     builder.Services.AddSingleton<Func<String, Type, Object>>(_ => (str, type) => StringSerialiser.DeserializeObject<Object>(str, type));
     var serialiserSettings = SystemTextJsonSerializer.GetDefaultJsonSerializerOptions();
     builder.Services.AddSingleton(serialiserSettings);
+    builder.Services.AddSingleton<IOperationsDashboardService, OperationsDashboardService>();
 
     var app = builder.Build();
 
@@ -139,6 +139,9 @@ try
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         await dbContext.Database.EnsureCreatedAsync();
         await EnsurePersistenceSchemaAsync(dbContext, CancellationToken.None);
+
+        var configurationStore = scope.ServiceProvider.GetRequiredService<IMerchantProcessingConfigurationStore>();
+        await configurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
     }
 
     var appSettingsPath = Path.Combine(contentRoot, "appsettings.json");
@@ -147,7 +150,11 @@ try
         SharedLogger.LogWarning($"appsettings.json was not found at {appSettingsPath}. Using environment-specific configuration and environment variables.");
     }
 
+    app.UseStaticFiles();
+    app.UseAntiforgery();
     app.MapReportingEndpoints();
+    app.MapConfigurationManagementEndpoints();
+    app.MapRazorComponents<App>();
 
     await app.RunAsync();
 }
@@ -161,18 +168,19 @@ finally
     LogManager.Shutdown();
 }
 
-static string BuildConnectionString(string? configuredConnectionString, string contentRoot)
+static string BuildConnectionString(string configuredConnectionString, string contentRoot)
 {
-    if (string.IsNullOrWhiteSpace(configuredConnectionString))
-    {
-        return $"Data Source={Path.Combine(contentRoot, "merchant-file-processor.db")}";
-    }
-
     const string dataSourcePrefix = "Data Source=";
+
+    if (!configuredConnectionString.StartsWith(dataSourcePrefix, StringComparison.OrdinalIgnoreCase) &&
+        !Path.IsPathRooted(configuredConnectionString))
+    {
+        configuredConnectionString = Path.Combine(contentRoot, configuredConnectionString);
+    }
 
     if (!configuredConnectionString.StartsWith(dataSourcePrefix, StringComparison.OrdinalIgnoreCase))
     {
-        return configuredConnectionString;
+        return $"{dataSourcePrefix}{configuredConnectionString}";
     }
 
     var filePath = configuredConnectionString[dataSourcePrefix.Length..].Trim();
@@ -314,6 +322,194 @@ static async Task EnsurePersistenceSchemaAsync(MerchantFileProcessorDbContext db
         cancellationToken);
 
     await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingAuthenticationRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingAuthenticationRecords PRIMARY KEY,
+            ClientId TEXT NOT NULL,
+            ClientSecret TEXT NOT NULL,
+            Scope TEXT NULL,
+            Audience TEXT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileProcessingRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProcessingRecords PRIMARY KEY,
+            UserId TEXT NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingTransactionGenerationRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingTransactionGenerationRecords PRIMARY KEY,
+            MinimumTransactionsPerContract INTEGER NOT NULL,
+            MaximumTransactionsPerContract INTEGER NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileStatusPollingRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileStatusPollingRecords PRIMARY KEY,
+            PollIntervalSeconds INTEGER NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfiles (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfiles PRIMARY KEY AUTOINCREMENT,
+            SortOrder INTEGER NOT NULL,
+            FileProfileId TEXT NOT NULL,
+            FileProcessorFileProfileId TEXT NOT NULL,
+            Format TEXT NOT NULL,
+            FileExtension TEXT NOT NULL,
+            FileNamePattern TEXT NULL,
+            ContentType TEXT NULL,
+            Delimiter TEXT NULL,
+            IncludeHeader INTEGER NOT NULL,
+            WriteIndented INTEGER NOT NULL,
+            RootPropertyName TEXT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileFields (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileFields PRIMARY KEY AUTOINCREMENT,
+            FileProfileRecordId INTEGER NOT NULL,
+            SortOrder INTEGER NOT NULL,
+            Name TEXT NOT NULL,
+            Source TEXT NULL,
+            Format TEXT NULL,
+            Value TEXT NULL,
+            UpdatedUtc TEXT NOT NULL,
+            CONSTRAINT FK_MerchantProcessingFileProfileFields_MerchantProcessingFileProfiles_FileProfileRecordId
+                FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileHeaderFields (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileHeaderFields PRIMARY KEY AUTOINCREMENT,
+            FileProfileRecordId INTEGER NOT NULL,
+            SortOrder INTEGER NOT NULL,
+            Name TEXT NOT NULL,
+            Source TEXT NULL,
+            Format TEXT NULL,
+            Value TEXT NULL,
+            UpdatedUtc TEXT NOT NULL,
+            CONSTRAINT FK_MerchantProcessingFileProfileHeaderFields_MerchantProcessingFileProfiles_FileProfileRecordId
+                FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileTrailerFields (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileTrailerFields PRIMARY KEY AUTOINCREMENT,
+            FileProfileRecordId INTEGER NOT NULL,
+            SortOrder INTEGER NOT NULL,
+            Name TEXT NOT NULL,
+            Source TEXT NULL,
+            Format TEXT NULL,
+            Value TEXT NULL,
+            UpdatedUtc TEXT NOT NULL,
+            CONSTRAINT FK_MerchantProcessingFileProfileTrailerFields_MerchantProcessingFileProfiles_FileProfileRecordId
+                FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingContractDefinitions (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingContractDefinitions PRIMARY KEY AUTOINCREMENT,
+            SortOrder INTEGER NOT NULL,
+            ContractId TEXT NOT NULL,
+            FileProfileId TEXT NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingMerchants (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchants PRIMARY KEY AUTOINCREMENT,
+            SortOrder INTEGER NOT NULL,
+            Name TEXT NOT NULL,
+            Enabled INTEGER NOT NULL,
+            EstateId TEXT NOT NULL,
+            MerchantId TEXT NOT NULL,
+            RunAtUtc TEXT NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingMerchantRunTimes (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchantRunTimes PRIMARY KEY AUTOINCREMENT,
+            MerchantRecordId INTEGER NOT NULL,
+            SortOrder INTEGER NOT NULL,
+            RunTimeUtc TEXT NOT NULL,
+            UpdatedUtc TEXT NOT NULL,
+            CONSTRAINT FK_MerchantProcessingMerchantRunTimes_MerchantProcessingMerchants_MerchantRecordId
+                FOREIGN KEY (MerchantRecordId) REFERENCES MerchantProcessingMerchants (Id) ON DELETE CASCADE
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingConfigurationRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingConfigurationRecords PRIMARY KEY AUTOINCREMENT,
+            ConfigurationJson TEXT NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS IX_MerchantRunRecords_MerchantId_ScheduledRunUtc_CompletedUtc ON MerchantRunRecords (MerchantId, ScheduledRunUtc, CompletedUtc);",
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfiles_FileProfileId ON MerchantProcessingFileProfiles (FileProfileId);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileHeaderFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileHeaderFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileTrailerFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileTrailerFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingContractDefinitions_ContractId ON MerchantProcessingContractDefinitions (ContractId);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingMerchants_MerchantId ON MerchantProcessingMerchants (MerchantId);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingMerchantRunTimes_MerchantRecordId_SortOrder ON MerchantProcessingMerchantRunTimes (MerchantRecordId, SortOrder);",
         cancellationToken);
 }

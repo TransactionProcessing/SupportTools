@@ -1,0 +1,121 @@
+@page "/ops/config"
+@inject IMerchantProcessingConfigurationStore ConfigurationStore
+
+<PageTitle>Merchant File Processor - Configuration</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading configuration data...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Configuration hub</div>
+                <h1>Relational configuration</h1>
+                <p>The app now stores configuration in SQLite tables instead of a single JSON document. Use the section screens to manage runtime settings, merchants, file profiles, and contract mappings.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Updated</div>
+                    <div class="field-value mono">@snapshot.UpdatedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Merchants</div>
+                    <div class="field-value">@snapshot.Options.Merchants.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">File profiles</div>
+                    <div class="field-value">@snapshot.Options.FileProfiles.Count</div>
+                </div>
+                <div>
+                    <div class="field-label">Contracts</div>
+                    <div class="field-value">@snapshot.Options.ContractDefinitions.Count</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="metric-grid">
+            <article class="metric-card">
+                <div class="metric-label">Runtime</div>
+                <div class="metric-value">4</div>
+                <div class="metric-detail">Authentication, file processing, transaction generation, and polling.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Merchants</div>
+                <div class="metric-value">@snapshot.Options.Merchants.Count</div>
+                <div class="metric-detail">Schedules, estates, and enabled flags.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">File profiles</div>
+                <div class="metric-value">@snapshot.Options.FileProfiles.Count</div>
+                <div class="metric-detail">Body, header, and trailer field tables.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Contracts</div>
+                <div class="metric-value">@snapshot.Options.ContractDefinitions.Count</div>
+                <div class="metric-detail">Contract-to-profile mappings.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">File status</div>
+                <div class="metric-value">@snapshot.Options.FileStatusPolling.PollIntervalSeconds s</div>
+                <div class="metric-detail">Polling cadence for completion checks.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Transactions</div>
+                <div class="metric-value">@($"{snapshot.Options.TransactionGeneration.MinimumTransactionsPerContract}-{snapshot.Options.TransactionGeneration.MaximumTransactionsPerContract}")</div>
+                <div class="metric-detail">Generated transaction range per contract.</div>
+            </article>
+        </section>
+
+        <section class="two-col">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Runtime settings</h2>
+                    <p>Authentication, file-processing, generation, and polling values.</p>
+                </div>
+                <p><a class="primary-button" href="/ops/config/runtime">Open runtime settings</a></p>
+            </article>
+
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Merchants</h2>
+                    <p>Schedule and estate definitions for each merchant.</p>
+                </div>
+                <p><a class="primary-button" href="/ops/config/merchants">Open merchants</a></p>
+            </article>
+        </section>
+
+        <section class="two-col">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>File profiles</h2>
+                    <p>Profiles and their field tables for file generation.</p>
+                </div>
+                <p><a class="primary-button" href="/ops/config/file-profiles">Open file profiles</a></p>
+            </article>
+
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Contract mappings</h2>
+                    <p>Contract IDs mapped to file profiles.</p>
+                </div>
+                <p><a class="primary-button" href="/ops/config/contracts">Open contracts</a></p>
+            </article>
+        </section>
+    </div>
+}
+
+@code {
+    private MerchantProcessingConfigurationSnapshot snapshot = new(new MerchantProcessingOptions(), string.Empty, DateTimeOffset.MinValue);
+    private bool loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        snapshot = await ConfigurationStore.GetCurrentSnapshotAsync(CancellationToken.None);
+        loaded = true;
+    }
+}

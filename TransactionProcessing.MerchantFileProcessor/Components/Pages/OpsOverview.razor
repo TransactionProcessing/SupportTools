@@ -1,0 +1,215 @@
+@page "/ops"
+@inject IOperationsDashboardService Dashboard
+
+<PageTitle>Merchant File Processor - Operations</PageTitle>
+
+@if (model is null)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading operations data...</p></div>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">Operations console</div>
+                <h1>Merchant File Processor</h1>
+                <p>Live configuration, scheduling, and processing visibility for the worker, driven directly from the loaded appsettings and database state.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Environment</div>
+                    <div class="field-value">@model.EnvironmentName</div>
+                </div>
+                <div>
+                    <div class="field-label">Generated</div>
+                    <div class="field-value mono">@model.GeneratedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Database</div>
+                    <div class="field-value">@model.ConnectionStringSummary</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="metric-grid">
+            @foreach (var metric in model.Metrics)
+            {
+                <article class="metric-card">
+                    <div class="metric-label">@metric.Label</div>
+                    <div class="metric-value">@metric.Value</div>
+                    <div class="metric-detail">@metric.Detail</div>
+                </article>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Merchant schedule</h2>
+                <p>Schedules are evaluated in UTC and aligned to the configured merchant run slots.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Merchant</th>
+                            <th>Enabled</th>
+                            <th>Estate</th>
+                            <th>Run times (UTC)</th>
+                            <th>Last merchant run</th>
+                            <th>Next run</th>
+                            <th>Success</th>
+                            <th>Failed</th>
+                            <th>Pending checks</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var merchant in model.Merchants)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@merchant.MerchantName</strong><br />
+                                    <span class="mono muted">@merchant.MerchantId</span>
+                                </td>
+                                <td><span class="@BadgeClass(merchant.Enabled ? "good" : "neutral")">@((merchant.Enabled) ? "Enabled" : "Disabled")</span></td>
+                                <td class="mono">@merchant.EstateId</td>
+                                <td class="mono">@merchant.RunTimesUtc</td>
+                                <td class="mono">@((merchant.LastMerchantRunUtc?.ToString("u")) ?? "Never")</td>
+                                <td class="mono">@((merchant.NextScheduledUtc?.ToString("u")) ?? "Disabled")</td>
+                                <td>@merchant.SuccessfulFiles</td>
+                                <td>@merchant.FailedFiles</td>
+                                <td>@merchant.PendingStatusChecks</td>
+                                <td><a href="@($"/status/{Uri.EscapeDataString(merchant.MerchantId)}")">View status</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="two-col">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>File profiles</h2>
+                    <p>These profiles drive file construction for each contract mapping.</p>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Profile</th>
+                                <th>Format</th>
+                                <th>Layout</th>
+                                <th>Fields</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var profile in model.FileProfiles)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@profile.FileProfileId</strong><br />
+                                        <span class="mono muted">@profile.FileProcessorFileProfileId</span>
+                                    </td>
+                                    <td><span class="badge neutral">@profile.Format</span></td>
+                                    <td>@profile.LayoutSummary<br /><span class="mono muted">.@profile.FileExtension@if (!string.IsNullOrWhiteSpace(profile.ContentType)) { <text> / @profile.ContentType</text> }</span></td>
+                                    <td>@profile.FieldCount total<br /><span class="mono muted">@profile.HeaderFieldCount header, @profile.TrailerFieldCount trailer</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Contract mappings</h2>
+                    <p>Each contract resolves to the file profile used at generation time.</p>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Contract</th>
+                                <th>File profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var contract in model.Contracts)
+                            {
+                                <tr>
+                                    <td class="mono">@contract.ContractId</td>
+                                    <td>@contract.FileProfileId</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Recent merchant runs</h2>
+                <p>Latest completed runs pulled from the local audit database.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Merchant</th>
+                            <th>Scheduled</th>
+                            <th>Completed</th>
+                            <th>Status</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var run in model.RecentRuns)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@run.MerchantName</strong><br />
+                                    <span class="mono muted">@run.MerchantId</span>
+                                </td>
+                                <td class="mono">@run.ScheduledRunUtc.ToString("u")</td>
+                                <td class="mono">@run.CompletedUtc.ToString("u")</td>
+                                <td><span class="@BadgeClass(RunTone(run.Status))">@run.Status</span></td>
+                                <td>@run.ErrorMessage</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private OperationsDashboardModel? model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.model = await Dashboard.GetDashboardModelAsync(CancellationToken.None);
+    }
+
+    private static string BadgeClass(string tone) => $"badge {tone}";
+
+    private static string RunTone(string status)
+    {
+        if (status.Equals(MerchantRunStatuses.Succeeded, StringComparison.OrdinalIgnoreCase))
+        {
+            return "good";
+        }
+
+        if (status.Equals(MerchantRunStatuses.Failed, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bad";
+        }
+
+        return "neutral";
+    }
+}

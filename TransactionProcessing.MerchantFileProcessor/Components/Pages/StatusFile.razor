@@ -1,0 +1,170 @@
+@page "/status/{MerchantId}/files/{FileId:long}"
+@inject IFileStatusReportService Reports
+
+<PageTitle>Merchant File Processor - File Status</PageTitle>
+
+@if (!loaded)
+{
+    <div class="page-shell">
+        <div class="hero-card"><p>Loading file details...</p></div>
+    </div>
+}
+else if (report is null)
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">File details</div>
+                <h1>File not found</h1>
+                <p>The selected file could not be found for the current merchant.</p>
+                <p><a href="/status">&larr; Back to all merchants</a></p>
+            </div>
+        </section>
+    </div>
+}
+else
+{
+    <div class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="eyebrow">File details</div>
+                <h1>@report.File.FileName</h1>
+                <p class="mono muted">@report.Merchant.MerchantName / @report.Merchant.MerchantId</p>
+                <p>This page shows the full audit trail for one generated merchant file and its individual line statuses.</p>
+            </div>
+            <div class="hero-panel">
+                <div>
+                    <div class="field-label">Processed</div>
+                    <div class="field-value mono">@report.File.ProcessedUtc.ToString("u")</div>
+                </div>
+                <div>
+                    <div class="field-label">Status</div>
+                    <div class="field-value">@report.File.Status</div>
+                </div>
+                <div>
+                    <div class="field-label">Processing</div>
+                    <div class="field-value">@((report.File.ProcessingCompleted) ? "Complete" : "Pending")</div>
+                </div>
+                <div>
+                    <div class="field-label">Lines</div>
+                    <div class="field-value">@report.FileLines.Count</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="two-col">
+            <article class="panel">
+                <div class="section-header">
+                    <h2>File summary</h2>
+                    <p>Generated file metadata and status tracking.</p>
+                </div>
+                <dl class="summary-grid">
+                    <dt>Merchant</dt><dd>@report.Merchant.MerchantName</dd>
+                    <dt>Contract</dt><dd>@report.File.ContractName</dd>
+                    <dt>File profile</dt><dd>@report.File.FileProfileId</dd>
+                    <dt>Format</dt><dd>@report.File.Format</dd>
+                    <dt>File name</dt><dd>@(string.IsNullOrWhiteSpace(report.File.FileName) ? "(not generated)" : report.File.FileName)</dd>
+                    <dt>Record count</dt><dd>@report.File.RecordCount</dd>
+                    <dt>Total amount</dt><dd>@report.File.TotalAmount.ToString("0.00")</dd>
+                    <dt>Last status check</dt><dd>@((report.File.LastStatusCheckUtc?.ToString("u")) ?? "Never")</dd>
+                </dl>
+            </article>
+
+            <article class="panel">
+                <div class="section-header">
+                    <h2>Navigation</h2>
+                    <p>Back out to the merchant or the overall status board.</p>
+                </div>
+                <p><a href="@($"/status/{Uri.EscapeDataString(report.Merchant.MerchantId)}")">&larr; Back to merchant</a></p>
+                <p><a href="/status">&larr; Back to all merchants</a></p>
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>File lines</h2>
+                <p>Line-level processing statuses captured by the polling worker.</p>
+            </div>
+            @if (report.FileLines.Count == 0)
+            {
+                <div class="empty-state">No file content has been recorded for this file yet.</div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Line</th>
+                                <th>Content</th>
+                                <th>Status</th>
+                                <th>Transaction</th>
+                                <th>Rejection</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in report.FileLines)
+                            {
+                                <tr>
+                                    <td class="mono">@line.LineNumber</td>
+                                    <td class="mono smallwrap">@line.Content</td>
+                                    <td><span class="@BadgeClass(LineTone(line.ProcessingStatus))">@line.ProcessingStatus</span></td>
+                                    <td class="mono">@line.TransactionId</td>
+                                    <td>@line.RejectionReason</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <h2>Error details</h2>
+            </div>
+            <pre class="error-block">@(string.IsNullOrWhiteSpace(report.File.ErrorMessage) ? "No error recorded." : report.File.ErrorMessage)</pre>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string MerchantId { get; set; } = string.Empty;
+
+    [Parameter]
+    public long FileId { get; set; }
+
+    private FileDetailReport? report;
+    private bool loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        this.loaded = false;
+        this.report = await Reports.GetFileReportAsync(MerchantId, FileId, CancellationToken.None);
+        this.loaded = true;
+    }
+
+    private static string BadgeClass(string tone) => $"badge {tone}";
+
+    private static string LineTone(string status)
+    {
+        if (status.Equals(FileLineStatuses.Successful, StringComparison.OrdinalIgnoreCase))
+        {
+            return "good";
+        }
+
+        if (status.Equals(FileLineStatuses.Failed, StringComparison.OrdinalIgnoreCase) ||
+            status.Equals(FileLineStatuses.Rejected, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bad";
+        }
+
+        if (status.Equals(FileLineStatuses.Ignored, StringComparison.OrdinalIgnoreCase))
+        {
+            return "neutral";
+        }
+
+        return "warn";
+    }
+}

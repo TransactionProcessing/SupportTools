@@ -1,31 +1,36 @@
+using TransactionProcessing.MerchantFileProcessor.Configuration;
+
 namespace TransactionProcessing.MerchantFileProcessor.Reporting;
 
 public static class ReportingEndpointRouteBuilderExtensions
 {
     public static IEndpointRouteBuilder MapReportingEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/", () => Results.Redirect("/status"));
+        endpoints.MapGet("/", () => Results.Redirect("/ops"));
 
         endpoints.MapGet("/api/status", async (IFileStatusReportService reportService, CancellationToken cancellationToken) =>
             Results.Json(await reportService.GetReportAsync(cancellationToken)));
 
-        endpoints.MapGet("/status", async (IFileStatusReportService reportService, CancellationToken cancellationToken) =>
-            Results.Content(await reportService.RenderHtmlAsync(cancellationToken), "text/html"));
-
-        endpoints.MapGet("/status/{merchantId}", async (string merchantId, IFileStatusReportService reportService, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/api/configuration", async (IMerchantProcessingConfigurationStore configurationStore, CancellationToken cancellationToken) =>
         {
-            var html = await reportService.RenderMerchantHtmlAsync(merchantId, cancellationToken);
-            return html is null
-                ? Results.NotFound($"Merchant '{merchantId}' was not found.")
-                : Results.Content(html, "text/html");
+            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+            return Results.Content(snapshot.Json, "application/json");
         });
 
-        endpoints.MapGet("/status/{merchantId}/files/{fileId:long}", async (string merchantId, long fileId, IFileStatusReportService reportService, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/configuration", async (HttpRequest request, IMerchantProcessingConfigurationStore configurationStore, CancellationToken cancellationToken) =>
         {
-            var html = await reportService.RenderFileHtmlAsync(merchantId, fileId, cancellationToken);
-            return html is null
-                ? Results.NotFound($"File '{fileId}' was not found for merchant '{merchantId}'.")
-                : Results.Content(html, "text/html");
+            var form = await request.ReadFormAsync(cancellationToken);
+            var configurationJson = form["configurationJson"].ToString();
+
+            try
+            {
+                await configurationStore.SaveJsonAsync(configurationJson, cancellationToken);
+                return Results.Redirect("/ops/config?saved=1");
+            }
+            catch (Exception)
+            {
+                return Results.Redirect($"/ops/config?error={Uri.EscapeDataString("Configuration save failed.")}");
+            }
         });
 
         return endpoints;
