@@ -11,6 +11,8 @@ public sealed class MerchantProcessingOptions {
 
     public FileStatusPollingOptions FileStatusPolling { get; init; } = new();
 
+    public int MerchantScanIntervalSeconds { get; init; } = 5;
+
     public List<ContractDefinitionOptions> ContractDefinitions { get; init; } = [];
 
     public List<FileProfileOptions> FileProfiles { get; init; } = [];

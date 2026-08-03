@@ -44,6 +44,15 @@ public sealed class MerchantProcessingFileStatusPollingRecord
     public DateTimeOffset UpdatedUtc { get; set; }
 }
 
+public sealed class MerchantProcessingMerchantScanRecord
+{
+    public int Id { get; set; }
+
+    public int MerchantScanIntervalSeconds { get; set; }
+
+    public DateTimeOffset UpdatedUtc { get; set; }
+}
+
 public sealed class MerchantProcessingFileProfileRecord
 {
     public int Id { get; set; }

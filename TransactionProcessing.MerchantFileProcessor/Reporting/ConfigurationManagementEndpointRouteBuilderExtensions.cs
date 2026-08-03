@@ -40,6 +40,7 @@ public static class ConfigurationManagementEndpointRouteBuilderExtensions
                 {
                     PollIntervalSeconds = ParseInt(form["PollIntervalSeconds"], 30)
                 },
+                MerchantScanIntervalSeconds = ParseInt(form["MerchantScanIntervalSeconds"], 5),
                 ContractDefinitions = options.ContractDefinitions,
                 FileProfiles = options.FileProfiles,
                 Merchants = options.Merchants
@@ -69,6 +70,26 @@ public static class ConfigurationManagementEndpointRouteBuilderExtensions
             var merchantId = GetRequired(form, "MerchantId");
             var merchantIndex = options.Merchants.FindIndex(entry =>
                 string.Equals(entry.MerchantId, originalMerchantId ?? merchantId, StringComparison.OrdinalIgnoreCase));
+
+            if (ParseBool(form["Delete"]))
+            {
+                if (merchantIndex < 0)
+                {
+                    return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString("Merchant not found.")}");
+                }
+
+                options.Merchants.RemoveAt(merchantIndex);
+
+                try
+                {
+                    await configurationStore.SaveAsync(options, cancellationToken);
+                    return Results.Redirect("/ops/config/merchants?removed=1");
+                }
+                catch (Exception ex)
+                {
+                    return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
+                }
+            }
 
             var merchant = new MerchantOptions
             {
@@ -308,6 +329,7 @@ public static class ConfigurationManagementEndpointRouteBuilderExtensions
             {
                 PollIntervalSeconds = options.FileStatusPolling.PollIntervalSeconds
             },
+            MerchantScanIntervalSeconds = options.MerchantScanIntervalSeconds,
             ContractDefinitions = options.ContractDefinitions
                 .Select(contract => new ContractDefinitionOptions
                 {

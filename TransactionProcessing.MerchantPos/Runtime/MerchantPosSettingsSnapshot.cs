@@ -23,6 +23,7 @@ public sealed class MerchantPosSettingsSnapshot
         WorkerSettings.ClientSecret ??= string.Empty;
         WorkerSettings.ServiceClientId ??= string.Empty;
         WorkerSettings.ServiceClientSecret ??= string.Empty;
+        WorkerSettings.MerchantScanIntervalSeconds = WorkerSettings.MerchantScanIntervalSeconds <= 0 ? 5 : WorkerSettings.MerchantScanIntervalSeconds;
         WorkerSettings.Merchants ??= new List<MerchantConfig>();
 
         ApiConfiguration ??= new ApiConfigurationSettings();

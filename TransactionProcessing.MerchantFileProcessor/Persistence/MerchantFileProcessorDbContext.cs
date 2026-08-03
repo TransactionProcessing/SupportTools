@@ -16,6 +16,8 @@ public sealed class MerchantFileProcessorDbContext(DbContextOptions<MerchantFile
 
     public DbSet<MerchantProcessingFileStatusPollingRecord> MerchantProcessingFileStatusPollingRecords => this.Set<MerchantProcessingFileStatusPollingRecord>();
 
+    public DbSet<MerchantProcessingMerchantScanRecord> MerchantProcessingMerchantScanRecords => this.Set<MerchantProcessingMerchantScanRecord>();
+
     public DbSet<MerchantProcessingFileProfileRecord> MerchantProcessingFileProfileRecords => this.Set<MerchantProcessingFileProfileRecord>();
 
     public DbSet<MerchantProcessingFileProfileFieldRecord> MerchantProcessingFileProfileFieldRecords => this.Set<MerchantProcessingFileProfileFieldRecord>();
@@ -100,6 +102,13 @@ public sealed class MerchantFileProcessorDbContext(DbContextOptions<MerchantFile
         modelBuilder.Entity<MerchantProcessingFileStatusPollingRecord>(entity =>
         {
             entity.ToTable("MerchantProcessingFileStatusPollingRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.UpdatedUtc);
+        });
+
+        modelBuilder.Entity<MerchantProcessingMerchantScanRecord>(entity =>
+        {
+            entity.ToTable("MerchantProcessingMerchantScanRecords");
             entity.HasKey(record => record.Id);
             entity.Property(record => record.UpdatedUtc);
         });

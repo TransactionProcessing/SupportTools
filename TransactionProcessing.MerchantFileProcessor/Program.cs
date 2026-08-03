@@ -367,6 +367,16 @@ static async Task EnsurePersistenceSchemaAsync(MerchantFileProcessorDbContext db
 
     await dbContext.Database.ExecuteSqlRawAsync(
         """
+        CREATE TABLE IF NOT EXISTS MerchantProcessingMerchantScanRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchantScanRecords PRIMARY KEY,
+            MerchantScanIntervalSeconds INTEGER NOT NULL,
+            UpdatedUtc TEXT NOT NULL
+        );
+        """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfiles (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfiles PRIMARY KEY AUTOINCREMENT,
             SortOrder INTEGER NOT NULL,
