@@ -128,8 +128,10 @@ else
                                 </label>
                             </div>
                             <div class="form-actions">
+                                <button type="submit" name="Delete" value="true" class="secondary-button" onclick="return confirm('Remove this merchant from processing?');">Remove merchant</button>
                                 <button type="submit" class="primary-button">Save merchant</button>
                             </div>
+                            <p class="muted" style="margin-top: 12px;">Removing a merchant stops future scheduling only. If a run is already in progress, it will finish normally.</p>
                         </form>
                     }
                 </section>
@@ -239,6 +241,11 @@ else
         if (query.Contains("saved=1", StringComparison.OrdinalIgnoreCase))
         {
             return "Merchant saved.";
+        }
+
+        if (query.Contains("removed=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Merchant removed.";
         }
 
         if (query.Contains("error=", StringComparison.OrdinalIgnoreCase))

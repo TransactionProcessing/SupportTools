@@ -46,6 +46,10 @@ public class MerchantRuntime
                 await StartupSequence(config, cancellationToken);
                 await RunMainLoop( config, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 Logger.LogError($"Runtime crashed for merchant {config.MerchantName}. Restarting in 5s...", ex);

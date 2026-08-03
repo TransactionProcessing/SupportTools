@@ -24,6 +24,10 @@ public static class MerchantProcessingOptionsValidator {
             return false;
         }
 
+        if (options.MerchantScanIntervalSeconds <= 0) {
+            return false;
+        }
+
         if (options.ContractDefinitions.Count == 0) {
             return false;
         }

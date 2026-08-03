@@ -4,5 +4,6 @@ public class WorkerSettings
     public string ClientSecret { get; set; } = string.Empty;
     public string ServiceClientId { get; set; } = string.Empty;
     public string ServiceClientSecret { get; set; } = string.Empty;
+    public int MerchantScanIntervalSeconds { get; set; } = 5;
     public List<MerchantConfig> Merchants { get; set; } = new();
 }

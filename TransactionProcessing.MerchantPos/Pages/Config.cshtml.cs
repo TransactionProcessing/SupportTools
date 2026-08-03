@@ -42,6 +42,7 @@ public sealed class ConfigModel : PageModel
         settings.WorkerSettings.ClientSecret = UnmaskSecret(Config.ClientSecret, settings.WorkerSettings.ClientSecret);
         settings.WorkerSettings.ServiceClientId = Config.ServiceClientId;
         settings.WorkerSettings.ServiceClientSecret = UnmaskSecret(Config.ServiceClientSecret, settings.WorkerSettings.ServiceClientSecret);
+        settings.WorkerSettings.MerchantScanIntervalSeconds = Math.Max(1, Config.MerchantScanIntervalSeconds);
 
         settings.ConnectionStrings.MerchantDb = MerchantPosSettingsStore.NormalizePath(Config.MerchantDb);
         settings.ConnectionStrings.SettingsDb = MerchantPosSettingsStore.NormalizePath(Config.SettingsDb);
@@ -66,6 +67,7 @@ public sealed class ConfigModel : PageModel
         public string ClientSecret { get; set; } = string.Empty;
         public string ServiceClientId { get; set; } = string.Empty;
         public string ServiceClientSecret { get; set; } = string.Empty;
+        public int MerchantScanIntervalSeconds { get; set; } = 5;
         public string MerchantDb { get; set; } = string.Empty;
         public string SettingsDb { get; set; } = string.Empty;
 
@@ -80,6 +82,7 @@ public sealed class ConfigModel : PageModel
                 ClientSecret = snapshot.WorkerSettings.ClientSecret,
                 ServiceClientId = snapshot.WorkerSettings.ServiceClientId,
                 ServiceClientSecret = snapshot.WorkerSettings.ServiceClientSecret,
+                MerchantScanIntervalSeconds = snapshot.WorkerSettings.MerchantScanIntervalSeconds,
                 MerchantDb = MerchantPosSettingsStore.NormalizePath(snapshot.ConnectionStrings.MerchantDb),
                 SettingsDb = MerchantPosSettingsStore.NormalizePath(snapshot.ConnectionStrings.SettingsDb)
             };

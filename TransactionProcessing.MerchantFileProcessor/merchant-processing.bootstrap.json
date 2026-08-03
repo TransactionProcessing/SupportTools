@@ -14,6 +14,7 @@
     "FileStatusPolling": {
       "PollIntervalSeconds": 30
     },
+    "MerchantScanIntervalSeconds": 5,
     "ContractDefinitions": [
       {
         "ContractId": "052A6CA5-47FC-4844-ADCA-7D44EFD8F21C",

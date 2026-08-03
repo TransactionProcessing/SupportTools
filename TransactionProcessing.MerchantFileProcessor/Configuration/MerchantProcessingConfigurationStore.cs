@@ -122,6 +122,7 @@ public sealed class MerchantProcessingConfigurationStore(
         var fileProcessing = await dbContext.MerchantProcessingFileProcessingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
         var transactionGeneration = await dbContext.MerchantProcessingTransactionGenerationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
         var fileStatusPolling = await dbContext.MerchantProcessingFileStatusPollingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
+        var merchantScan = await dbContext.MerchantProcessingMerchantScanRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
 
         var fileProfiles = await dbContext.MerchantProcessingFileProfileRecords.AsNoTracking()
             .OrderBy(record => record.SortOrder)
@@ -135,13 +136,13 @@ public sealed class MerchantProcessingConfigurationStore(
             .OrderBy(record => record.SortOrder)
             .ToListAsync(cancellationToken);
 
-        if (authentication is null && fileProcessing is null && transactionGeneration is null && fileStatusPolling is null &&
+        if (authentication is null && fileProcessing is null && transactionGeneration is null && fileStatusPolling is null && merchantScan is null &&
             fileProfiles.Count == 0 && contractDefinitions.Count == 0 && merchants.Count == 0)
         {
             return null;
         }
 
-        if (authentication is null || fileProcessing is null || transactionGeneration is null || fileStatusPolling is null)
+        if (authentication is null || fileProcessing is null || transactionGeneration is null || fileStatusPolling is null || merchantScan is null)
         {
             return null;
         }
@@ -173,7 +174,8 @@ public sealed class MerchantProcessingConfigurationStore(
             FileStatusPolling = new FileStatusPollingOptions
             {
                 PollIntervalSeconds = fileStatusPolling.PollIntervalSeconds
-            }
+            },
+            MerchantScanIntervalSeconds = merchantScan.MerchantScanIntervalSeconds
         };
 
         options.FileProfiles.AddRange(fileProfiles.Select(record =>
@@ -271,6 +273,7 @@ public sealed class MerchantProcessingConfigurationStore(
                await dbContext.MerchantProcessingFileProcessingRecords.AnyAsync(record => record.Id == 1, cancellationToken) ||
                await dbContext.MerchantProcessingTransactionGenerationRecords.AnyAsync(record => record.Id == 1, cancellationToken) ||
                await dbContext.MerchantProcessingFileStatusPollingRecords.AnyAsync(record => record.Id == 1, cancellationToken) ||
+               await dbContext.MerchantProcessingMerchantScanRecords.AnyAsync(record => record.Id == 1, cancellationToken) ||
                await dbContext.MerchantProcessingFileProfileRecords.AnyAsync(cancellationToken) ||
                await dbContext.MerchantProcessingContractDefinitionRecords.AnyAsync(cancellationToken) ||
                await dbContext.MerchantProcessingMerchantRecords.AnyAsync(cancellationToken);
@@ -355,6 +358,13 @@ public sealed class MerchantProcessingConfigurationStore(
         {
             Id = 1,
             PollIntervalSeconds = options.FileStatusPolling.PollIntervalSeconds,
+            UpdatedUtc = updatedUtc
+        });
+
+        dbContext.MerchantProcessingMerchantScanRecords.Add(new MerchantProcessingMerchantScanRecord
+        {
+            Id = 1,
+            MerchantScanIntervalSeconds = options.MerchantScanIntervalSeconds,
             UpdatedUtc = updatedUtc
         });
 
@@ -514,6 +524,7 @@ public sealed class MerchantProcessingConfigurationStore(
         await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM MerchantProcessingFileProcessingRecords;", cancellationToken);
         await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM MerchantProcessingTransactionGenerationRecords;", cancellationToken);
         await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM MerchantProcessingFileStatusPollingRecords;", cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM MerchantProcessingMerchantScanRecords;", cancellationToken);
     }
 
     private static DateTimeOffset MaxUtc(params IEnumerable<DateTimeOffset>?[] sources)

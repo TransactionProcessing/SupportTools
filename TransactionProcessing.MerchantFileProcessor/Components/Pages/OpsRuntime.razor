@@ -37,6 +37,10 @@ else
                     <div class="field-label">Polling</div>
                     <div class="field-value">@snapshot.Options.FileStatusPolling.PollIntervalSeconds seconds</div>
                 </div>
+                <div>
+                    <div class="field-label">Merchant scan</div>
+                    <div class="field-value">@snapshot.Options.MerchantScanIntervalSeconds seconds</div>
+                </div>
             </div>
         </section>
 
@@ -80,7 +84,12 @@ else
                         <span>Polling interval seconds</span>
                         <input name="PollIntervalSeconds" class="text-input" type="number" value="@snapshot.Options.FileStatusPolling.PollIntervalSeconds" />
                     </label>
+                    <label>
+                        <span>Merchant scan interval seconds</span>
+                        <input name="MerchantScanIntervalSeconds" class="text-input" type="number" min="1" value="@snapshot.Options.MerchantScanIntervalSeconds" />
+                    </label>
                 </div>
+                <p class="muted">Lower values make newly added or enabled merchants appear in the schedule faster. Higher values reduce how often the worker re-checks the configuration.</p>
                 <div class="form-actions">
                     <button type="submit" class="primary-button">Save runtime settings</button>
                     <a class="secondary-button" href="/ops/config">Back to configuration hub</a>

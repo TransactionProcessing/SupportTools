@@ -114,6 +114,9 @@ public sealed class MerchantPosSettingsStore
         snapshot.WorkerSettings.ClientSecret = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ClientSecret) ? defaults.WorkerSettings.ClientSecret : snapshot.WorkerSettings.ClientSecret;
         snapshot.WorkerSettings.ServiceClientId = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ServiceClientId) ? defaults.WorkerSettings.ServiceClientId : snapshot.WorkerSettings.ServiceClientId;
         snapshot.WorkerSettings.ServiceClientSecret = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ServiceClientSecret) ? defaults.WorkerSettings.ServiceClientSecret : snapshot.WorkerSettings.ServiceClientSecret;
+        snapshot.WorkerSettings.MerchantScanIntervalSeconds = snapshot.WorkerSettings.MerchantScanIntervalSeconds <= 0
+            ? defaults.WorkerSettings.MerchantScanIntervalSeconds
+            : snapshot.WorkerSettings.MerchantScanIntervalSeconds;
         if (snapshot.WorkerSettings.Merchants is null || snapshot.WorkerSettings.Merchants.Count == 0)
         {
             snapshot.WorkerSettings.Merchants = defaults.WorkerSettings.Merchants;

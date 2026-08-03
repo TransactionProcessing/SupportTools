@@ -30,7 +30,9 @@
                     <div class="field"><label asp-for="Config.ClientSecret"></label><input asp-for="Config.ClientSecret" type="text" autocomplete="off" spellcheck="false" /></div>
                     <div class="field"><label asp-for="Config.ServiceClientId"></label><input asp-for="Config.ServiceClientId" /></div>
                     <div class="field"><label asp-for="Config.ServiceClientSecret"></label><input asp-for="Config.ServiceClientSecret" type="text" autocomplete="off" spellcheck="false" /></div>
+                    <div class="field"><label asp-for="Config.MerchantScanIntervalSeconds"></label><input asp-for="Config.MerchantScanIntervalSeconds" type="number" min="1" step="1" /></div>
                 </div>
+                <p class="page-note" style="margin-top: 12px;">Smaller values check for added, enabled, disabled, or removed merchants more quickly. Larger values reduce how often the service re-scans the database.</p>
             </section>
 
             <section class="group">

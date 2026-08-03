@@ -41,8 +41,8 @@ else
         <section class="metric-grid">
             <article class="metric-card">
                 <div class="metric-label">Runtime</div>
-                <div class="metric-value">4</div>
-                <div class="metric-detail">Authentication, file processing, transaction generation, and polling.</div>
+                <div class="metric-value">5</div>
+                <div class="metric-detail">Authentication, file processing, transaction generation, polling, and merchant scan.</div>
             </article>
             <article class="metric-card">
                 <div class="metric-label">Merchants</div>
@@ -63,6 +63,11 @@ else
                 <div class="metric-label">File status</div>
                 <div class="metric-value">@snapshot.Options.FileStatusPolling.PollIntervalSeconds s</div>
                 <div class="metric-detail">Polling cadence for completion checks.</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Merchant scan</div>
+                <div class="metric-value">@snapshot.Options.MerchantScanIntervalSeconds s</div>
+                <div class="metric-detail">How often the worker re-checks for new or changed merchants.</div>
             </article>
             <article class="metric-card">
                 <div class="metric-label">Transactions</div>

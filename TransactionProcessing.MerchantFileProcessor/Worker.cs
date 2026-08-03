@@ -14,10 +14,16 @@ public sealed class Worker(IMerchantProcessingConfigurationState configurationSt
         while (!stoppingToken.IsCancellationRequested) {
             MerchantProcessingOptions options = configurationState.Current;
             MerchantOptions[] enabledMerchants = options.Merchants.Where(merchant => merchant.Enabled).ToArray();
+            TimeSpan scanInterval = TimeSpan.FromSeconds(Math.Max(1, options.MerchantScanIntervalSeconds));
 
             if (enabledMerchants.Length == 0) {
                 logger.LogWarning("No enabled merchants are configured for processing. Waiting before checking again.");
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                try {
+                    await Task.Delay(scanInterval, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+                    break;
+                }
                 continue;
             }
 
@@ -29,8 +35,23 @@ public sealed class Worker(IMerchantProcessingConfigurationState configurationSt
             LocalLogger.Context merchantLogger = LocalLogger.For(scheduledMerchant.Merchant.MerchantId);
             merchantLogger.LogInformation($"Next merchant processing run scheduled at {nextRun:O} for slot {scheduledMerchant.ScheduledRunUtc:O}");
 
+            if (delay > scanInterval) {
+                try {
+                    await Task.Delay(scanInterval, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+                    break;
+                }
+                continue;
+            }
+
             if (delay > TimeSpan.Zero) {
-                await Task.Delay(delay, stoppingToken);
+                try {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+                    break;
+                }
             }
 
             if (stoppingToken.IsCancellationRequested) {
