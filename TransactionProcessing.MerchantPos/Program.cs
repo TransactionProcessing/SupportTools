@@ -61,7 +61,7 @@ try
     builder.Services.RegisterHttpClient<ITransactionProcessorClient, TransactionProcessorClient>();
     builder.Services.AddScoped<IEfRepository, EfRepository>();
     builder.Services.AddScoped<MerchantRuntime>();
-    builder.Services.AddHttpClient<IApiClient, ApiClient>();
+    builder.Services.RegisterHttpClient<IApiClient, ApiClient>();
     builder.Services.AddSingleton<IMerchantRuntimeFactory, MerchantRuntimeFactory>();
 
     builder.Services.AddDbContext<MerchantDbContext>((sp, options) =>
