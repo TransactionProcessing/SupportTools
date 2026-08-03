@@ -69,10 +69,45 @@ jobs:
       with:
         name: scheduledtasks
         path: ScheduledTasks
+
+  buildsqlagentjobdeploymenttool:
+    name: "Build SQL Agent Job Deployment Tool"
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install NET 10
+      uses: actions/setup-dotnet@v4.0.1
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Publish SQL Agent Job Deployment Tool
+      shell: pwsh
+      run: |
+        dotnet publish SqlServerAgentJobDeploymentTool/SqlServerAgentJobDeploymentTool.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output SqlServerAgentJobDeploymentTool/publishOutput
+
+    - name: Build Release Package (SQL Agent Job Deployment Tool)
+      shell: pwsh
+      run: |
+        Compress-Archive `
+          -Path SqlServerAgentJobDeploymentTool/publishOutput/* `
+          -DestinationPath SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip `
+          -Force
+
+    - name: Upload the artifact (SQL Agent Job Deployment Tool)
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: sqlagentjobdeploymenttool
+        path: SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip
         
   deploystaging:
     runs-on: [stagingserver, windows]
-    needs: build
+    needs: [build, buildsqlagentjobdeploymenttool]
     environment: staging
     name: "Deploy to Staging"
     
@@ -119,6 +154,31 @@ jobs:
                 throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
               }
             }
+
+      - name: Download SQL Agent Job Deployment Tool
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: sqlagentjobdeploymenttool
+          path: ${{ runner.temp }}\sqlagentjobdeploymenttool
+
+      - name: Deploy SQL Agent Job
+        shell: powershell
+        env:
+          SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
+          SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
+        run: |
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
+          Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
+          $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
+
+          & $toolExe `
+            --manifest (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json') `
+            --connection-string $env:SQL_AGENT_JOB_CONNECTION_STRING `
+            --database-name $env:SQL_AGENT_JOB_DATABASE_NAME
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "SQL Agent job deployment failed."
+          }
       
       - name: Download the artifact (Merchant Pos) 
         uses: actions/download-artifact@v4.1.8
@@ -174,7 +234,7 @@ jobs:
 
   deployproduction:
     runs-on: [productionserver, windows]
-    needs: [build, deploystaging]
+    needs: [build, buildsqlagentjobdeploymenttool, deploystaging]
     environment: production
     name: "Deploy to Production"
     
@@ -221,6 +281,31 @@ jobs:
                 throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
               }
             }
+
+      - name: Download SQL Agent Job Deployment Tool
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: sqlagentjobdeploymenttool
+          path: ${{ runner.temp }}\sqlagentjobdeploymenttool
+
+      - name: Deploy SQL Agent Job
+        shell: powershell
+        env:
+          SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
+          SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
+        run: |
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
+          Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
+          $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
+
+          & $toolExe `
+            --manifest (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json') `
+            --connection-string $env:SQL_AGENT_JOB_CONNECTION_STRING `
+            --database-name $env:SQL_AGENT_JOB_DATABASE_NAME
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "SQL Agent job deployment failed."
+          }
                 
       - name: Remove existing Windows service (Merchant Pos)
         run: |

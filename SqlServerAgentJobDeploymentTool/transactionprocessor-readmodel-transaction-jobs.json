@@ -1,0 +1,39 @@
+{
+  "jobs": [
+    {
+      "name": "Transaction Summary Builder",
+      "description": "Builds today's and historic transactions for the TransactionProcessor read model.",
+      "enabled": true,
+      "replaceExisting": true,
+      "steps": [
+        {
+          "stepId": 1,
+          "name": "Build today's transactions",
+          "subsystem": "tSql",
+          "command": "EXEC dbo.spBuildTodaysTransactions;",
+          "onSuccessAction": "goToNextStep",
+          "onFailAction": "quitWithFailure"
+        },
+        {
+          "stepId": 2,
+          "name": "Build historic transactions",
+          "subsystem": "tSql",
+          "command": "EXEC dbo.spBuildHistoricTransactions;",
+          "onSuccessAction": "quitWithSuccess",
+          "onFailAction": "quitWithFailure"
+        }
+      ],
+      "schedules": [
+        {
+          "name": "Every 5 minutes",
+          "enabled": true,
+          "frequencyType": "daily",
+          "frequencyInterval": 1,
+          "frequencySubdayType": "minutes",
+          "frequencySubdayInterval": 5,
+          "activeStartTime": "00:00:00"
+        }
+      ]
+    }
+  ]
+}
