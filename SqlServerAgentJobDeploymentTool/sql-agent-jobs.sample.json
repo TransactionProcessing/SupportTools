@@ -1,0 +1,52 @@
+{
+  "jobs": [
+    {
+      "name": "Daily Settlement",
+      "description": "Runs the daily settlement PowerShell script.",
+      "enabled": true,
+      "replaceExisting": true,
+      "steps": [
+        {
+          "name": "Run daily settlement",
+          "subsystem": "cmdExec",
+          "command": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"C:\\txnproc\\transactionprocessing\\powershell\\Invoke-DailySettlementProcessing.ps1\" -EstateId \"435613ac-a468-47a3-ac4f-649d89764c22\" -BaseUrl \"http://localhost:5002\" -SecurityServiceUrl \"https://192.168.1.163:5001\" -ClientId \"serviceClient\" -ClientSecret \"REPLACE_ME\"",
+          "onSuccessAction": "quitWithSuccess",
+          "onFailAction": "quitWithFailure"
+        }
+      ],
+      "schedules": [
+        {
+          "name": "Daily Settlement - 2AM",
+          "enabled": true,
+          "frequencyType": "daily",
+          "frequencyInterval": 1,
+          "activeStartTime": "02:00:00"
+        }
+      ]
+    },
+    {
+      "name": "Scavenge",
+      "description": "Runs the weekly scavenge script.",
+      "enabled": true,
+      "replaceExisting": true,
+      "steps": [
+        {
+          "name": "Run scavenge",
+          "subsystem": "cmdExec",
+          "command": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"C:\\txnproc\\transactionprocessing\\powershell\\scavenge.ps1\" -BaseUrl \"http://localhost:2113\"",
+          "onSuccessAction": "quitWithSuccess",
+          "onFailAction": "quitWithFailure"
+        }
+      ],
+      "schedules": [
+        {
+          "name": "Scavenge - Sunday 1AM",
+          "enabled": true,
+          "frequencyType": "weekly",
+          "frequencyInterval": 1,
+          "activeStartTime": "01:00:00"
+        }
+      ]
+    }
+  ]
+}
