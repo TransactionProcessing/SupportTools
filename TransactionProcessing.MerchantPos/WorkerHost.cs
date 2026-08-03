@@ -59,11 +59,18 @@ public class WorkerHost : BackgroundService
                 continue;
             }
 
-            StartMerchantWorker(
-                (settings.ServiceClientId, settings.ServiceClientSecret),
-                (settings.ClientId, settings.ClientSecret),
-                merchant,
-                hostToken);
+            try
+            {
+                StartMerchantWorker(
+                    (settings.ServiceClientId, settings.ServiceClientSecret),
+                    (settings.ClientId, settings.ClientSecret),
+                    merchant,
+                    hostToken);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Failed to start merchant worker for {merchant.MerchantName} ({merchant.MerchantId})", ex);
+            }
         }
     }
 

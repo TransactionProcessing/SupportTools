@@ -59,10 +59,9 @@ try
 
     builder.Services.RegisterHttpClient<ISecurityServiceClient, SecurityServiceClient>();
     builder.Services.RegisterHttpClient<ITransactionProcessorClient, TransactionProcessorClient>();
-    builder.Services.AddHttpClient();
     builder.Services.AddScoped<IEfRepository, EfRepository>();
-    builder.Services.AddScoped<IApiClient, ApiClient>();
     builder.Services.AddScoped<MerchantRuntime>();
+    builder.Services.AddHttpClient<IApiClient, ApiClient>();
     builder.Services.AddSingleton<IMerchantRuntimeFactory, MerchantRuntimeFactory>();
 
     builder.Services.AddDbContext<MerchantDbContext>((sp, options) =>
