@@ -56,6 +56,24 @@ try
     builder.Services.AddSingleton(SystemTextJsonSerializer.GetDefaultJsonSerializerOptions());
     builder.Services.AddScoped<MerchantDashboardModelFactory>();
     builder.Services.AddRazorPages();
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton<Func<string, string>>(sp =>
+    {
+        var apiConfiguration = sp.GetRequiredService<IConfiguration>().GetSection("ApiConfiguration");
+
+        return configSetting =>
+        {
+            if (string.IsNullOrWhiteSpace(configSetting))
+            {
+                return string.Empty;
+            }
+
+            var child = apiConfiguration.GetChildren()
+                .FirstOrDefault(c => string.Equals(c.Key, configSetting, StringComparison.OrdinalIgnoreCase));
+
+            return child?.Value ?? string.Empty;
+        };
+    });
 
     builder.Services.RegisterHttpClient<ISecurityServiceClient, SecurityServiceClient>();
     builder.Services.RegisterHttpClient<ITransactionProcessorClient, TransactionProcessorClient>();
