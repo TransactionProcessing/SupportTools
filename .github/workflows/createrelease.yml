@@ -174,16 +174,29 @@ jobs:
           $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
           $stderrPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stderr.log'
 
+          function Quote-Argument {
+            param([string]$Value)
+            '"' + ($Value -replace '"', '\"') + '"'
+          }
+
           Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
           $arguments = @(
             '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
             '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
             '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
-          )
+          ) | ForEach-Object { Quote-Argument $_ }
 
-          & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
-          $exitCode = $LASTEXITCODE
+          $process = Start-Process `
+            -FilePath $toolExe `
+            -ArgumentList ($arguments -join ' ') `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+          $exitCode = $process.ExitCode
 
           Write-Host "Captured SQL Agent job deployment exit code: $exitCode"
 
@@ -335,16 +348,29 @@ jobs:
           $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
           $stderrPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stderr.log'
 
+          function Quote-Argument {
+            param([string]$Value)
+            '"' + ($Value -replace '"', '\"') + '"'
+          }
+
           Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
           $arguments = @(
             '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
             '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
             '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
-          )
+          ) | ForEach-Object { Quote-Argument $_ }
 
-          & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
-          $exitCode = $LASTEXITCODE
+          $process = Start-Process `
+            -FilePath $toolExe `
+            -ArgumentList ($arguments -join ' ') `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+          $exitCode = $process.ExitCode
 
           Write-Host "Captured SQL Agent job deployment exit code: $exitCode"
 
