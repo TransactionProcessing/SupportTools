@@ -162,7 +162,7 @@ jobs:
           path: ${{ runner.temp }}\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
-        shell: powershell
+        shell: pwsh
         env:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
@@ -170,15 +170,48 @@ jobs:
           $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
           Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
           $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
+          $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
+          $stderrPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stderr.log'
 
-          & $toolExe `
-            --manifest (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json') `
-            --connection-string $env:SQL_AGENT_JOB_CONNECTION_STRING `
-            --database-name $env:SQL_AGENT_JOB_DATABASE_NAME
+          Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "SQL Agent job deployment failed."
+          $arguments = @(
+            '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
+            '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
+            '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
+          )
+
+          $process = Start-Process `
+            -FilePath $toolExe `
+            -ArgumentList $arguments `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+          if (Test-Path $stdoutPath) {
+            Get-Content -LiteralPath $stdoutPath
           }
+
+          if (Test-Path $stderrPath) {
+            Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Error $_ }
+          }
+
+          Write-Host "SQL Agent job deployment exit code: $($process.ExitCode)"
+
+          if ($process.ExitCode -ne 0) {
+            throw "SQL Agent job deployment failed with exit code $($process.ExitCode). Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
+
+      - name: Upload SQL Agent deployment logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: sql-agent-job-deployment-logs-staging
+          path: |
+            ${{ runner.temp }}\sql-agent-job-deployment.stdout.log
+            ${{ runner.temp }}\sql-agent-job-deployment.stderr.log
       
       - name: Download the artifact (Merchant Pos) 
         uses: actions/download-artifact@v4.1.8
@@ -289,7 +322,7 @@ jobs:
           path: ${{ runner.temp }}\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
-        shell: powershell
+        shell: pwsh
         env:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
@@ -297,15 +330,48 @@ jobs:
           $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
           Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
           $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
+          $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
+          $stderrPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stderr.log'
 
-          & $toolExe `
-            --manifest (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json') `
-            --connection-string $env:SQL_AGENT_JOB_CONNECTION_STRING `
-            --database-name $env:SQL_AGENT_JOB_DATABASE_NAME
+          Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "SQL Agent job deployment failed."
+          $arguments = @(
+            '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
+            '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
+            '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
+          )
+
+          $process = Start-Process `
+            -FilePath $toolExe `
+            -ArgumentList $arguments `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+          if (Test-Path $stdoutPath) {
+            Get-Content -LiteralPath $stdoutPath
           }
+
+          if (Test-Path $stderrPath) {
+            Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Error $_ }
+          }
+
+          Write-Host "SQL Agent job deployment exit code: $($process.ExitCode)"
+
+          if ($process.ExitCode -ne 0) {
+            throw "SQL Agent job deployment failed with exit code $($process.ExitCode). Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
+
+      - name: Upload SQL Agent deployment logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: sql-agent-job-deployment-logs-production
+          path: |
+            ${{ runner.temp }}\sql-agent-job-deployment.stdout.log
+            ${{ runner.temp }}\sql-agent-job-deployment.stderr.log
                 
       - name: Remove existing Windows service (Merchant Pos)
         run: |
