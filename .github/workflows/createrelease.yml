@@ -185,6 +185,12 @@ jobs:
           & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
           $exitCode = $LASTEXITCODE
 
+          Write-Host "Captured SQL Agent job deployment exit code: $exitCode"
+
+          if ($null -eq $exitCode) {
+            throw "SQL Agent job deployment did not produce an exit code. Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
+
           if (Test-Path $stdoutPath) {
             Get-Content -LiteralPath $stdoutPath
           }
@@ -339,6 +345,12 @@ jobs:
 
           & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
           $exitCode = $LASTEXITCODE
+
+          Write-Host "Captured SQL Agent job deployment exit code: $exitCode"
+
+          if ($null -eq $exitCode) {
+            throw "SQL Agent job deployment did not produce an exit code. Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
 
           if (Test-Path $stdoutPath) {
             Get-Content -LiteralPath $stdoutPath
