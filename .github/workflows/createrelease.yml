@@ -162,7 +162,7 @@ jobs:
           path: ${{ runner.temp }}\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
-        shell: pwsh
+        shell: powershell
         env:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
@@ -322,7 +322,7 @@ jobs:
           path: ${{ runner.temp }}\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
-        shell: pwsh
+        shell: powershell
         env:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
