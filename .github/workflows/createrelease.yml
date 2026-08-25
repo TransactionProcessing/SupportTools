@@ -159,7 +159,7 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: sqlagentjobdeploymenttool
-          path: ${{ runner.temp }}\sqlagentjobdeploymenttool
+          path: C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
         shell: powershell
@@ -167,7 +167,8 @@ jobs:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
         run: |
-          $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
+          $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
+          New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
           Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
           $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
           $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
@@ -313,7 +314,7 @@ jobs:
         uses: actions/download-artifact@v4.1.8
         with:
           name: sqlagentjobdeploymenttool
-          path: ${{ runner.temp }}\sqlagentjobdeploymenttool
+          path: C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool
 
       - name: Deploy SQL Agent Job
         shell: powershell
@@ -321,7 +322,8 @@ jobs:
           SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
           SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
         run: |
-          $toolRoot = Join-Path $env:RUNNER_TEMP 'sqlagentjobdeploymenttool'
+          $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
+          New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
           Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
           $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
           $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
