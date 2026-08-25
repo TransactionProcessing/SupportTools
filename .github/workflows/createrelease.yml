@@ -181,14 +181,8 @@ jobs:
             '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
           )
 
-          $process = Start-Process `
-            -FilePath $toolExe `
-            -ArgumentList $arguments `
-            -Wait `
-            -PassThru `
-            -NoNewWindow `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath
+          & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
+          $exitCode = $LASTEXITCODE
 
           if (Test-Path $stdoutPath) {
             Get-Content -LiteralPath $stdoutPath
@@ -198,10 +192,10 @@ jobs:
             Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Error $_ }
           }
 
-          Write-Host "SQL Agent job deployment exit code: $($process.ExitCode)"
+          Write-Host "SQL Agent job deployment exit code: $exitCode"
 
-          if ($process.ExitCode -ne 0) {
-            throw "SQL Agent job deployment failed with exit code $($process.ExitCode). Stdout: $stdoutPath. Stderr: $stderrPath."
+          if ($exitCode -ne 0) {
+            throw "SQL Agent job deployment failed with exit code $exitCode. Stdout: $stdoutPath. Stderr: $stderrPath."
           }
 
       - name: Upload SQL Agent deployment logs on failure
@@ -341,14 +335,8 @@ jobs:
             '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
           )
 
-          $process = Start-Process `
-            -FilePath $toolExe `
-            -ArgumentList $arguments `
-            -Wait `
-            -PassThru `
-            -NoNewWindow `
-            -RedirectStandardOutput $stdoutPath `
-            -RedirectStandardError $stderrPath
+          & $toolExe @arguments 1> $stdoutPath 2> $stderrPath
+          $exitCode = $LASTEXITCODE
 
           if (Test-Path $stdoutPath) {
             Get-Content -LiteralPath $stdoutPath
@@ -358,10 +346,10 @@ jobs:
             Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Error $_ }
           }
 
-          Write-Host "SQL Agent job deployment exit code: $($process.ExitCode)"
+          Write-Host "SQL Agent job deployment exit code: $exitCode"
 
-          if ($process.ExitCode -ne 0) {
-            throw "SQL Agent job deployment failed with exit code $($process.ExitCode). Stdout: $stdoutPath. Stderr: $stderrPath."
+          if ($exitCode -ne 0) {
+            throw "SQL Agent job deployment failed with exit code $exitCode. Stdout: $stdoutPath. Stderr: $stderrPath."
           }
 
       - name: Upload SQL Agent deployment logs on failure
