@@ -52,6 +52,7 @@ internal static class Program
             if (options.ShowHelp)
             {
                 PrintUsage();
+                logger.LogInformation("Program completed with exit code 0.");
                 return 0;
             }
 
@@ -85,22 +86,38 @@ internal static class Program
                     logger.LogInformation("Dry run job: {JobName}", job.Name);
                 }
 
+                logger.LogInformation("Program completed with exit code 0.");
                 return 0;
             }
 
             currentOperation = "opening SQL connection";
             currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
-            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(manifest.ConnectionString);
-            logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
-            await connection.OpenAsync(CancellationToken.None);
-            logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
+            Microsoft.Data.SqlClient.SqlConnection connection = new(manifest.ConnectionString);
 
-            currentOperation = "deploying SQL Agent jobs";
-            var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
-            await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
-            logger.LogInformation("Deployment completed successfully.");
+            try
+            {
+                logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
+                await connection.OpenAsync(CancellationToken.None);
+                logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
 
-            return 0;
+                currentOperation = "deploying SQL Agent jobs";
+                var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
+                await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
+                logger.LogInformation("Deployment completed successfully.");
+                logger.LogInformation("Program completed with exit code 0.");
+                return 0;
+            }
+            finally
+            {
+                try
+                {
+                    await connection.DisposeAsync();
+                }
+                catch (Exception disposeEx)
+                {
+                    logger.LogWarning(disposeEx, "Failed to dispose SQL connection after {Operation}.", currentOperation);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -109,7 +126,14 @@ internal static class Program
         }
         finally
         {
-            LogManager.Shutdown();
+            try
+            {
+                LogManager.Shutdown();
+            }
+            catch (Exception shutdownEx)
+            {
+                logger.LogWarning(shutdownEx, "NLog shutdown failed.");
+            }
         }
     }
 

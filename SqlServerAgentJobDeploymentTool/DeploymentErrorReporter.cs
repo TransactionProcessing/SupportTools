@@ -41,26 +41,41 @@ internal static class DeploymentErrorReporter
 
     public static void ReportCli(Exception exception, ILogger logger, TextWriter errorWriter, string operation, string? context = null)
     {
+        string userMessage = GetUserMessage(exception, operation, context);
+        string failureLine = string.IsNullOrWhiteSpace(context)
+            ? $"Deployment failed while {operation}."
+            : $"Deployment failed while {operation} for {context}.";
         logger.LogError(exception, "{Operation} failed. {Context}", operation, context ?? string.Empty);
-        errorWriter.WriteLine(GetUserMessage(exception, operation, context));
+        errorWriter.WriteLine(failureLine);
+        errorWriter.WriteLine(userMessage);
+        Console.Out.WriteLine(failureLine);
+        Console.Out.WriteLine(userMessage);
+        errorWriter.Flush();
+        Console.Out.Flush();
     }
 
     public static void ReportUi(Exception exception, ILogger logger, Action<string> appendOutput, string operation, string? context = null)
     {
+        string failureLine = string.IsNullOrWhiteSpace(context)
+            ? $"Deployment failed while {operation}."
+            : $"Deployment failed while {operation} for {context}.";
+        string userMessage = GetUserMessage(exception, operation, context);
         logger.LogError(exception, "{Operation} failed. {Context}", operation, context ?? string.Empty);
-        appendOutput(GetUserMessage(exception, operation, context));
+        appendOutput(failureLine);
+        appendOutput(userMessage);
     }
 
     private static string BuildSqlMessage(SqlException exception, string operation, string? context)
     {
         string contextSuffix = string.IsNullOrWhiteSpace(context) ? string.Empty : $" for {context}";
+        string details = $" (number {exception.Number}, state {exception.State}, server {exception.Server}, line {exception.LineNumber})";
 
         return exception.Number switch
         {
-            18456 => $"SQL authentication failed{contextSuffix} while {operation}.",
-            53 => $"SQL Server was not found or was not accessible{contextSuffix} while {operation}.",
-            2 => $"A network-related or instance-specific error occurred{contextSuffix} while {operation}.",
-            _ => $"SQL Server reported an error{contextSuffix} while {operation}: {exception.Message}"
+            18456 => $"SQL authentication failed{contextSuffix} while {operation}.{details}",
+            53 => $"SQL Server was not found or was not accessible{contextSuffix} while {operation}.{details}",
+            2 => $"A network-related or instance-specific error occurred{contextSuffix} while {operation}.{details}",
+            _ => $"SQL Server reported an error{contextSuffix} while {operation}.{details}: {exception.Message}"
         };
     }
 }

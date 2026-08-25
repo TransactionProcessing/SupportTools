@@ -386,10 +386,8 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, manifestPath);
-            AppendOutput(userMessage);
-            _logger.LogError(ex, "Failed to load manifest from {ManifestPath}.", manifestPath);
-            MessageBox.Show(this, userMessage, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, currentOperation, manifestPath);
+            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, currentOperation, manifestPath), "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -446,12 +444,10 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, currentContext);
-            AppendOutput(userMessage);
-            _logger.LogError(ex, "{Operation} failed. {Context}", currentOperation, currentContext ?? string.Empty);
+            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, currentOperation, currentContext);
             UpdateValidationSummary();
             SetStatus("Deployment failed");
-            MessageBox.Show(this, userMessage, "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, currentOperation, currentContext), "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -499,11 +495,10 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, _manifestPathTextBox.Text.Trim());
-            AppendOutput(userMessage);
-            _logger.LogError(ex, "Failed to save manifest.");
+            string manifestPath = _manifestPathTextBox.Text.Trim();
+            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, currentOperation, manifestPath);
             SetStatus("Save failed");
-            MessageBox.Show(this, userMessage, "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, currentOperation, manifestPath), "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -523,10 +518,8 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, "formatting manifest JSON");
-            AppendOutput(userMessage);
-            _logger.LogError(ex, "Failed to format manifest JSON.");
-            MessageBox.Show(this, userMessage, "Format failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, "formatting manifest JSON");
+            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, "formatting manifest JSON"), "Format failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -731,10 +724,9 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, "validating manifest");
             _validationSummaryTextBox.Text = $"""
                 Manifest status: invalid
-                Error: {userMessage}
+                Error: {DeploymentErrorReporter.GetUserMessage(ex, "validating manifest")}
                 """;
         }
     }
