@@ -15,6 +15,8 @@ Optional overrides:
 - `--dry-run`
 - `--help`
 
+Logging is written through NLog to the console and to `%LOCALAPPDATA%\SqlServerAgentJobDeploymentTool\Logs\sql-agent-job-deployment.log`.
+
 ## Manifest shape
 
 - `connectionString`: SQL Server connection string for `msdb`.

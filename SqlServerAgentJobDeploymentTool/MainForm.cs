@@ -3,9 +3,12 @@ namespace SqlServerAgentJobDeploymentTool;
 using System.Drawing;
 using System.Text;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 internal sealed class MainForm : Form
 {
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<MainForm> _logger;
     private readonly TextBox _manifestPathTextBox;
     private readonly TextBox _serverTextBox;
     private readonly TextBox _connectionDatabaseTextBox;
@@ -28,8 +31,11 @@ internal sealed class MainForm : Form
     private readonly ToolStripStatusLabel _statusLabel;
     private readonly TextBox _validationSummaryTextBox;
 
-    public MainForm()
+    public MainForm(ILoggerFactory loggerFactory)
     {
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<MainForm>();
+
         Text = "SQL Agent Job Deployment Tool";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1280, 820);
@@ -321,6 +327,7 @@ internal sealed class MainForm : Form
     {
         string samplePath = Path.Combine(AppContext.BaseDirectory, "transactionprocessor-readmodel-transaction-jobs.json");
         _manifestPathTextBox.Text = samplePath;
+        _logger.LogInformation("UI loaded. Sample manifest path: {SamplePath}.", samplePath);
 
         if (File.Exists(samplePath))
         {
@@ -372,12 +379,14 @@ internal sealed class MainForm : Form
             _manifestPathTextBox.Text = manifestPath;
             _manifestTextBox.Text = DeploymentManifestLoader.Format(manifestText);
             AppendOutput($"Loaded manifest from '{manifestPath}'.");
+            _logger.LogInformation("Loaded manifest from {ManifestPath}.", manifestPath);
             SetStatus($"Loaded {Path.GetFileName(manifestPath)}");
             UpdateValidationSummary();
         }
         catch (Exception ex)
         {
             AppendOutput(ex.Message);
+            _logger.LogError(ex, "Failed to load manifest from {ManifestPath}.", manifestPath);
             MessageBox.Show(this, ex.Message, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -394,6 +403,10 @@ internal sealed class MainForm : Form
             string overrideDatabaseName = _databaseNameTextBox.Text.Trim();
 
             ManifestValidator.Validate(manifest);
+            _logger.LogInformation("Starting {Mode} deployment for {JobCount} job(s). Database override: {DatabaseOverride}.",
+                dryRun ? "dry-run" : "live",
+                manifest.Jobs.Count,
+                string.IsNullOrWhiteSpace(overrideDatabaseName) ? "<none>" : overrideDatabaseName);
 
             if (dryRun)
             {
@@ -405,6 +418,7 @@ internal sealed class MainForm : Form
 
                 UpdateValidationSummary(manifest);
                 SetStatus("Dry run completed");
+                _logger.LogInformation("Dry run completed.");
                 return;
             }
 
@@ -413,15 +427,18 @@ internal sealed class MainForm : Form
             await connection.OpenAsync();
 
             AppendOutput("Connecting to SQL Server...");
-            SqlAgentDeploymentService deployer = new(connection, new TextBoxWriter(_outputTextBox));
+            _logger.LogInformation("Connecting to SQL Server.");
+            SqlAgentDeploymentService deployer = new(connection, new TextBoxWriter(_outputTextBox), _loggerFactory.CreateLogger<SqlAgentDeploymentService>());
             await deployer.DeployAsync(manifest, overrideDatabaseName, CancellationToken.None);
             AppendOutput("Deployment completed.");
             UpdateValidationSummary(manifest);
             SetStatus("Deployment completed");
+            _logger.LogInformation("Deployment completed.");
         }
         catch (Exception ex)
         {
             AppendOutput(ex.Message);
+            _logger.LogError(ex, "Deployment failed.");
             UpdateValidationSummary();
             SetStatus("Deployment failed");
             MessageBox.Show(this, ex.Message, "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -437,6 +454,7 @@ internal sealed class MainForm : Form
         try
         {
             string manifestPath = _manifestPathTextBox.Text.Trim();
+            _logger.LogInformation("Saving manifest. SaveAs: {SaveAs}. Path: {ManifestPath}.", saveAs, string.IsNullOrWhiteSpace(manifestPath) ? "<empty>" : manifestPath);
             if (saveAs || string.IsNullOrWhiteSpace(manifestPath))
             {
                 using SaveFileDialog dialog = new()
@@ -464,12 +482,14 @@ internal sealed class MainForm : Form
             _manifestTextBox.Text = formattedManifest;
             await File.WriteAllTextAsync(manifestPath, formattedManifest);
             AppendOutput($"Saved manifest to '{manifestPath}'.");
+            _logger.LogInformation("Saved manifest to {ManifestPath}.", manifestPath);
             SetStatus($"Saved {Path.GetFileName(manifestPath)}");
             UpdateValidationSummary();
         }
         catch (Exception ex)
         {
             AppendOutput(ex.Message);
+            _logger.LogError(ex, "Failed to save manifest.");
             SetStatus("Save failed");
             MessageBox.Show(this, ex.Message, "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -486,11 +506,13 @@ internal sealed class MainForm : Form
         {
             _manifestTextBox.Text = DeploymentManifestLoader.Format(_manifestTextBox.Text);
             AppendOutput("Formatted manifest JSON.");
+            _logger.LogInformation("Formatted manifest JSON.");
             SetStatus("JSON formatted");
         }
         catch (Exception ex)
         {
             AppendOutput(ex.Message);
+            _logger.LogError(ex, "Failed to format manifest JSON.");
             MessageBox.Show(this, ex.Message, "Format failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

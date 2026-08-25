@@ -1,35 +1,50 @@
 namespace SqlServerAgentJobDeploymentTool;
 
+using System.Diagnostics;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 internal sealed class SqlAgentDeploymentService
 {
     private readonly SqlConnection _connection;
     private readonly TextWriter _writer;
+    private readonly ILogger<SqlAgentDeploymentService> _logger;
 
-    public SqlAgentDeploymentService(SqlConnection connection, TextWriter writer)
+    public SqlAgentDeploymentService(SqlConnection connection, TextWriter writer, ILogger<SqlAgentDeploymentService> logger)
     {
         _connection = connection;
         _writer = writer;
+        _logger = logger;
     }
 
     public async Task DeployAsync(DeploymentManifest manifest, string? databaseNameOverride, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Starting deployment for {JobCount} job(s). Database override: {DatabaseOverride}.",
+            manifest.Jobs.Count,
+            string.IsNullOrWhiteSpace(databaseNameOverride) ? "<none>" : databaseNameOverride);
+
         foreach (JobDefinition job in manifest.Jobs)
         {
             await DeployJobAsync(job, databaseNameOverride, cancellationToken);
         }
+
+        _logger.LogInformation("Completed deployment for {JobCount} job(s).", manifest.Jobs.Count);
     }
 
     private async Task DeployJobAsync(JobDefinition job, string? databaseNameOverride, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Evaluating job {JobName}.", job.Name);
+
         if (await JobExistsAsync(job.Name, cancellationToken))
         {
+            _logger.LogInformation("Job {JobName} already exists.", job.Name);
             if (!job.ReplaceExisting)
             {
+                _logger.LogWarning("Job {JobName} exists and ReplaceExisting is false.", job.Name);
                 throw new InvalidOperationException($"Job '{job.Name}' already exists and ReplaceExisting is false.");
             }
 
+            _logger.LogInformation("Replacing existing job {JobName}.", job.Name);
             await ExecuteProcedureAsync(
                 "msdb.dbo.sp_delete_job",
                 cancellationToken,
@@ -38,6 +53,10 @@ internal sealed class SqlAgentDeploymentService
         }
 
         _writer.WriteLine($"Deploying job '{job.Name}'.");
+        _logger.LogInformation("Deploying job {JobName} with {StepCount} step(s) and {ScheduleCount} schedule(s).",
+            job.Name,
+            job.Steps.Count,
+            job.Schedules.Count);
 
         int deleteLevel = job.DeleteLevel ?? 0;
         SqlParameter jobIdParameter = new("@job_id", System.Data.SqlDbType.UniqueIdentifier)
@@ -59,6 +78,7 @@ internal sealed class SqlAgentDeploymentService
         await ExecuteProcedureAsync("msdb.dbo.sp_add_job", jobParameters, cancellationToken);
 
         Guid jobId = (Guid)jobIdParameter.Value;
+        _logger.LogInformation("Created job {JobName} with job id {JobId}.", job.Name, jobId);
 
         int nextStepId = 1;
         foreach (JobStepDefinition step in job.Steps)
@@ -76,6 +96,7 @@ internal sealed class SqlAgentDeploymentService
 
         if (!string.IsNullOrWhiteSpace(job.TargetServerName))
         {
+            _logger.LogInformation("Binding job {JobName} to target server {TargetServer}.", job.Name, job.TargetServerName);
             await ExecuteProcedureAsync(
                 "msdb.dbo.sp_add_jobserver",
                 cancellationToken,
@@ -84,15 +105,20 @@ internal sealed class SqlAgentDeploymentService
         }
         else
         {
+            _logger.LogInformation("Binding job {JobName} to the local server.", job.Name);
             await ExecuteProcedureAsync(
                 "msdb.dbo.sp_add_jobserver",
                 cancellationToken,
                 new SqlParameter("@job_id", jobId));
         }
+
+        _logger.LogInformation("Finished job {JobName}.", job.Name);
     }
 
     private async Task AddJobStepAsync(Guid jobId, JobStepDefinition step, int stepId, string? databaseNameOverride, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Adding step {StepId} for job {JobId}: {StepName}.", stepId, jobId, step.Name);
+
         List<SqlParameter> parameters =
         [
             new SqlParameter("@job_id", jobId),
@@ -119,10 +145,13 @@ internal sealed class SqlAgentDeploymentService
         await ExecuteProcedureAsync("msdb.dbo.sp_add_jobstep", parameters, cancellationToken);
 
         _writer.WriteLine($"  Added step {stepId}: {step.Name}");
+        _logger.LogInformation("Added step {StepId} for job {JobId}: {StepName}.", stepId, jobId, step.Name);
     }
 
     private async Task AddJobScheduleAsync(Guid jobId, JobScheduleDefinition schedule, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Adding schedule {ScheduleName} for job {JobId}.", schedule.Name, jobId);
+
         List<SqlParameter> parameters =
         [
             new SqlParameter("@job_id", jobId),
@@ -143,6 +172,7 @@ internal sealed class SqlAgentDeploymentService
         await ExecuteProcedureAsync("msdb.dbo.sp_add_jobschedule", parameters, cancellationToken);
 
         _writer.WriteLine($"  Added schedule: {schedule.Name}");
+        _logger.LogInformation("Added schedule {ScheduleName} for job {JobId}.", schedule.Name, jobId);
     }
 
     private static string ToSubsystemName(JobSubsystem subsystem) => subsystem switch
@@ -157,12 +187,16 @@ internal sealed class SqlAgentDeploymentService
 
     private async Task<bool> JobExistsAsync(string jobName, CancellationToken cancellationToken)
     {
+        _logger.LogTrace("Checking whether job {JobName} exists.", jobName);
+
         await using SqlCommand command = _connection.CreateCommand();
         command.CommandText = "select count_big(1) from msdb.dbo.sysjobs where name = @jobName;";
         command.Parameters.Add(new SqlParameter("@jobName", jobName));
 
         object? result = await command.ExecuteScalarAsync(cancellationToken);
-        return Convert.ToInt64(result) > 0;
+        bool exists = Convert.ToInt64(result) > 0;
+        _logger.LogTrace("Job {JobName} exists: {Exists}.", jobName, exists);
+        return exists;
     }
 
     private async Task ExecuteProcedureAsync(string procedureName, CancellationToken cancellationToken, params SqlParameter[] parameters)
@@ -181,7 +215,11 @@ internal sealed class SqlAgentDeploymentService
             command.Parameters.Add(parameter);
         }
 
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        _logger.LogTrace("Executing stored procedure {ProcedureName}.", procedureName);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        stopwatch.Stop();
+        _logger.LogTrace("Executed stored procedure {ProcedureName} in {ElapsedMilliseconds} ms.", procedureName, stopwatch.ElapsedMilliseconds);
     }
 
     private static int ToDateInt(DateOnly date) => date.Year * 10000 + date.Month * 100 + date.Day;

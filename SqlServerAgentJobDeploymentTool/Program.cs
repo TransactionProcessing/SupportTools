@@ -2,22 +2,48 @@ namespace SqlServerAgentJobDeploymentTool;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using NLog;
+using NLog.Extensions.Logging;
 
 internal static class Program
 {
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        string contentRoot = AppContext.BaseDirectory;
+        string nlogConfigPath = Path.Combine(contentRoot, "NLog.config");
+        Logger bootstrapLogger = LogManager.Setup()
+            .LoadConfigurationFromFile(nlogConfigPath)
+            .GetCurrentClassLogger();
+
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.ClearProviders();
+            builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+            builder.AddNLog(new NLogProviderOptions
+            {
+                RemoveLoggerFactoryFilter = false
+            });
+        });
+
         try
         {
+            Microsoft.Extensions.Logging.ILogger logger = loggerFactory.CreateLogger(nameof(Program));
+            logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
+
             if (ShouldLaunchUi(args))
             {
                 ApplicationConfiguration.Initialize();
-                Application.Run(new MainForm());
+                Application.Run(new MainForm(loggerFactory));
                 return 0;
             }
 
             DeploymentOptions options = DeploymentOptions.Parse(args);
+            logger.LogInformation("Command-line mode selected. Manifest path: {ManifestPath}. Dry run: {DryRun}. Database override: {DatabaseOverride}.",
+                options.ManifestPath,
+                options.WhatIf,
+                string.IsNullOrWhiteSpace(options.DatabaseName) ? "<none>" : options.DatabaseName);
 
             if (options.ShowHelp)
             {
@@ -26,10 +52,12 @@ internal static class Program
             }
 
             DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
+            logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
 
             if (!string.IsNullOrWhiteSpace(options.ConnectionString))
             {
                 manifest.ConnectionString = options.ConnectionString;
+                logger.LogInformation("Using connection string override from command line.");
             }
 
             if (string.IsNullOrWhiteSpace(manifest.ConnectionString))
@@ -39,30 +67,39 @@ internal static class Program
             }
 
             ManifestValidator.Validate(manifest);
+            logger.LogInformation("Manifest validation succeeded.");
 
             if (options.WhatIf)
             {
-                Console.WriteLine("Dry run. The following jobs would be deployed:");
+                logger.LogInformation("Dry run requested. The following jobs would be deployed:");
                 foreach (JobDefinition job in manifest.Jobs)
                 {
-                    Console.WriteLine($"- {job.Name}");
+                    logger.LogInformation("Dry run job: {JobName}", job.Name);
                 }
 
                 return 0;
             }
 
             await using var connection = new Microsoft.Data.SqlClient.SqlConnection(manifest.ConnectionString);
+            logger.LogInformation("Opening SQL connection.");
             await connection.OpenAsync(CancellationToken.None);
+            logger.LogInformation("SQL connection opened.");
 
-            var deployer = new SqlAgentDeploymentService(connection, Console.Out);
+            var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
             await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
+            logger.LogInformation("Deployment completed successfully.");
 
             return 0;
         }
         catch (Exception ex)
         {
+            bootstrapLogger.Error(ex, "SQL Server Agent Job Deployment Tool terminated unexpectedly.");
             Console.Error.WriteLine(ex.Message);
             return 1;
+        }
+        finally
+        {
+            LogManager.Shutdown();
         }
     }
 
