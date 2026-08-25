@@ -373,6 +373,7 @@ internal sealed class MainForm : Form
 
     private async Task LoadManifestFromPathAsync(string manifestPath)
     {
+        string currentOperation = "loading manifest";
         try
         {
             string manifestText = await File.ReadAllTextAsync(manifestPath);
@@ -385,15 +386,18 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendOutput(ex.Message);
+            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, manifestPath);
+            AppendOutput(userMessage);
             _logger.LogError(ex, "Failed to load manifest from {ManifestPath}.", manifestPath);
-            MessageBox.Show(this, ex.Message, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, userMessage, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private async Task RunDeploymentAsync(bool dryRun)
     {
         SetBusyState(true);
+        string currentOperation = "preparing deployment";
+        string? currentContext = null;
 
         try
         {
@@ -402,6 +406,7 @@ internal sealed class MainForm : Form
 
             string overrideDatabaseName = _databaseNameTextBox.Text.Trim();
 
+            currentOperation = "validating manifest";
             ManifestValidator.Validate(manifest);
             _logger.LogInformation("Starting {Mode} deployment for {JobCount} job(s). Database override: {DatabaseOverride}.",
                 dryRun ? "dry-run" : "live",
@@ -422,12 +427,16 @@ internal sealed class MainForm : Form
                 return;
             }
 
+            currentOperation = "opening SQL connection";
             string connectionString = BuildConnectionString();
+            currentContext = DeploymentErrorReporter.DescribeConnectionTarget(connectionString);
             await using SqlConnection connection = new(connectionString);
+            AppendOutput($"Connecting to SQL Server at {currentContext}...");
+            _logger.LogInformation("Connecting to SQL Server at {ConnectionTarget}.", currentContext);
             await connection.OpenAsync();
 
-            AppendOutput("Connecting to SQL Server...");
-            _logger.LogInformation("Connecting to SQL Server.");
+            _logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
+            currentOperation = "deploying SQL Agent jobs";
             SqlAgentDeploymentService deployer = new(connection, new TextBoxWriter(_outputTextBox), _loggerFactory.CreateLogger<SqlAgentDeploymentService>());
             await deployer.DeployAsync(manifest, overrideDatabaseName, CancellationToken.None);
             AppendOutput("Deployment completed.");
@@ -437,11 +446,12 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendOutput(ex.Message);
-            _logger.LogError(ex, "Deployment failed.");
+            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, currentContext);
+            AppendOutput(userMessage);
+            _logger.LogError(ex, "{Operation} failed. {Context}", currentOperation, currentContext ?? string.Empty);
             UpdateValidationSummary();
             SetStatus("Deployment failed");
-            MessageBox.Show(this, ex.Message, "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, userMessage, "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -451,6 +461,7 @@ internal sealed class MainForm : Form
 
     private async Task SaveManifestAsync(bool saveAs)
     {
+        string currentOperation = "saving manifest";
         try
         {
             string manifestPath = _manifestPathTextBox.Text.Trim();
@@ -488,10 +499,11 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendOutput(ex.Message);
+            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, currentOperation, _manifestPathTextBox.Text.Trim());
+            AppendOutput(userMessage);
             _logger.LogError(ex, "Failed to save manifest.");
             SetStatus("Save failed");
-            MessageBox.Show(this, ex.Message, "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, userMessage, "Save failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -511,9 +523,10 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendOutput(ex.Message);
+            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, "formatting manifest JSON");
+            AppendOutput(userMessage);
             _logger.LogError(ex, "Failed to format manifest JSON.");
-            MessageBox.Show(this, ex.Message, "Format failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, userMessage, "Format failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -718,9 +731,10 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            string userMessage = DeploymentErrorReporter.GetUserMessage(ex, "validating manifest");
             _validationSummaryTextBox.Text = $"""
                 Manifest status: invalid
-                Error: {ex.Message}
+                Error: {userMessage}
                 """;
         }
     }

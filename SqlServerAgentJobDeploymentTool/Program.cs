@@ -2,6 +2,7 @@ namespace SqlServerAgentJobDeploymentTool;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
@@ -13,7 +14,7 @@ internal static class Program
     {
         string contentRoot = AppContext.BaseDirectory;
         string nlogConfigPath = Path.Combine(contentRoot, "NLog.config");
-        Logger bootstrapLogger = LogManager.Setup()
+        LogManager.Setup()
             .LoadConfigurationFromFile(nlogConfigPath)
             .GetCurrentClassLogger();
 
@@ -27,9 +28,12 @@ internal static class Program
             });
         });
 
+        Microsoft.Extensions.Logging.ILogger logger = loggerFactory.CreateLogger(nameof(Program));
+        string currentOperation = "starting";
+        string? currentContext = null;
+
         try
         {
-            Microsoft.Extensions.Logging.ILogger logger = loggerFactory.CreateLogger(nameof(Program));
             logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
 
             if (ShouldLaunchUi(args))
@@ -51,6 +55,8 @@ internal static class Program
                 return 0;
             }
 
+            currentOperation = "loading manifest";
+            currentContext = options.ManifestPath;
             DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
             logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
 
@@ -66,6 +72,8 @@ internal static class Program
                 return 1;
             }
 
+            currentOperation = "validating manifest";
+            currentContext = options.ManifestPath;
             ManifestValidator.Validate(manifest);
             logger.LogInformation("Manifest validation succeeded.");
 
@@ -80,11 +88,14 @@ internal static class Program
                 return 0;
             }
 
+            currentOperation = "opening SQL connection";
+            currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
             await using var connection = new Microsoft.Data.SqlClient.SqlConnection(manifest.ConnectionString);
-            logger.LogInformation("Opening SQL connection.");
+            logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
             await connection.OpenAsync(CancellationToken.None);
-            logger.LogInformation("SQL connection opened.");
+            logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
 
+            currentOperation = "deploying SQL Agent jobs";
             var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
             await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
             logger.LogInformation("Deployment completed successfully.");
@@ -93,8 +104,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            bootstrapLogger.Error(ex, "SQL Server Agent Job Deployment Tool terminated unexpectedly.");
-            Console.Error.WriteLine(ex.Message);
+            DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, currentOperation, currentContext);
             return 1;
         }
         finally
@@ -228,7 +238,8 @@ internal static class DeploymentManifestLoader
         }
 
         await using FileStream stream = File.OpenRead(manifestPath);
-        string json = await new StreamReader(stream).ReadToEndAsync(cancellationToken);
+        using StreamReader reader = new(stream);
+        string json = await reader.ReadToEndAsync(cancellationToken);
         DeploymentManifest manifest = Parse(json);
 
         return manifest;
