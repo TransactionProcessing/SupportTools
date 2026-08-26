@@ -616,7 +616,7 @@ public sealed class OperationsDashboardService(
         }
 
         html.AppendLine("      </dl>");
-        html.AppendLine("    </section>");
+        html.AppendLine(SectionEnd);
     }
 
     private static void AppendMerchantConfigPanel(StringBuilder html)
@@ -629,7 +629,7 @@ public sealed class OperationsDashboardService(
         html.AppendLine("        <li>SQLite is used for the local audit trail and status tables.</li>");
         html.AppendLine("        <li>Merchant schedules are interpreted in UTC and backed by the worker loop.</li>");
         html.AppendLine("      </ul>");
-        html.AppendLine("    </section>");
+        html.AppendLine(SectionEnd);
     }
 
     private static void AppendFileProfilesSection(StringBuilder html, IReadOnlyList<FileProfileRow> fileProfiles)
@@ -658,7 +658,7 @@ public sealed class OperationsDashboardService(
 
         html.AppendLine(TableBodyEnd);
         html.AppendLine(TableEnd);
-        html.AppendLine("    </section>");
+        html.AppendLine(SectionEnd);
     }
 
     private static void AppendContractsSection(StringBuilder html, IReadOnlyList<ContractMappingRow> contracts)
@@ -684,7 +684,7 @@ public sealed class OperationsDashboardService(
 
         html.AppendLine(TableBodyEnd);
         html.AppendLine(TableEnd);
-        html.AppendLine("    </section>");
+        html.AppendLine(SectionEnd);
     }
 
     private static void AppendDocumentStart(StringBuilder html, string title, string subtitle)
