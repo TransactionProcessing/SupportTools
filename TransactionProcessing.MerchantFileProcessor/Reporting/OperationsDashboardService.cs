@@ -79,6 +79,7 @@ public sealed class OperationsDashboardService(
     IConfiguration configuration) : IOperationsDashboardService
 {
     private const string SectionEnd = "  </section>";
+    private const string SectionPanelStart = "  <section class=\"panel\">";
     private const string TableStart = "      <table>";
     private const string TableEnd = "      </table>";
     private const string TableBodyStart = "      <tbody>";
@@ -112,7 +113,7 @@ public sealed class OperationsDashboardService(
 
         AppendMetrics(html, model.Metrics);
 
-        html.AppendLine("  <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("    <div class=\"section-title\">Merchant schedule</div>");
         html.AppendLine(TableStart);
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Enabled</th><th>Estate</th><th>Run times (UTC)</th><th>Last merchant run</th><th>Next run</th><th>Success</th><th>Failed</th><th>Pending checks</th><th>Status</th></tr></thead>");
@@ -148,9 +149,9 @@ public sealed class OperationsDashboardService(
         AppendContractsSection(html, model.Contracts);
         html.AppendLine(SectionEnd);
 
-        html.AppendLine("  <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("    <div class=\"section-title\">Recent merchant runs</div>");
-        html.AppendLine("    <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Scheduled</th><th>Completed</th><th>Status</th><th>Error</th></tr></thead>");
         html.AppendLine(TableBodyStart);
 
@@ -631,11 +632,11 @@ public sealed class OperationsDashboardService(
 
     private static void AppendFileProfilesSection(StringBuilder html, IReadOnlyList<FileProfileRow> fileProfiles)
     {
-        html.AppendLine("    <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("      <div class=\"section-title\">File profiles</div>");
-        html.AppendLine("      <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("        <thead><tr><th>Profile</th><th>Format</th><th>Layout</th><th>Fields</th><th>Mapping</th></tr></thead>");
-        html.AppendLine("        <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var profile in fileProfiles)
         {
@@ -660,11 +661,11 @@ public sealed class OperationsDashboardService(
 
     private static void AppendContractsSection(StringBuilder html, IReadOnlyList<ContractMappingRow> contracts)
     {
-        html.AppendLine("    <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("      <div class=\"section-title\">Contract mappings</div>");
-        html.AppendLine("      <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("        <thead><tr><th>Contract</th><th>File profile</th></tr></thead>");
-        html.AppendLine("        <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var contract in contracts)
         {

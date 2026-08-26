@@ -39,9 +39,6 @@ public class MerchantRuntime
             try
             {
                 // Get the service client token here (can manage the expiry/caching at this level)
-                //Result<TokenResponse> serviceToken = await this.GetToken(this.CurrentServiceToken, serviceClient, cancellationToken);
-                //this.CurrentServiceToken = serviceToken.Data;
-
                 await StartupSequence(config, cancellationToken);
                 await RunMainLoop( config, cancellationToken);
             }

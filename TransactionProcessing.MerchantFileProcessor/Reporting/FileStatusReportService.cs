@@ -70,6 +70,11 @@ public sealed class FileStatusReportService(
     IDbContextFactory<MerchantFileProcessorDbContext> dbContextFactory,
     IMerchantProcessingConfigurationState configurationState) : IFileStatusReportService
 {
+    private const string TableStart = "  <table>";
+    private const string TableEnd = "  </table>";
+    private const string TableBodyStart = "    <tbody>";
+    private const string TableBodyEnd = "    </tbody>";
+
     public async Task<FileStatusReport> GetReportAsync(CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -87,9 +92,9 @@ public sealed class FileStatusReportService(
         html.AppendLine("  <h1>Merchant File Status</h1>");
         html.AppendLine($"  <p>Generated at {Encode(report.GeneratedUtc.ToString("u"))}. Auto-refreshes every 30 seconds.</p>");
         html.AppendLine("  <h2>Merchants</h2>");
-        html.AppendLine("  <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("    <thead><tr><th>Merchant</th><th>Enabled</th><th>Successful Files</th><th>Failed Files</th><th>Last Processed (UTC)</th><th>Next Scheduled Send (UTC)</th><th>Details</th></tr></thead>");
-        html.AppendLine("    <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var merchant in report.MerchantSummaries)
         {
@@ -97,8 +102,8 @@ public sealed class FileStatusReportService(
                 $"      <tr><td>{Encode(merchant.MerchantName)}<br /><span class=\"mono\">{Encode(merchant.MerchantId)}</span></td><td>{(merchant.Enabled ? "Yes" : "No")}</td><td>{merchant.SuccessfulFilesSent}</td><td>{merchant.FailedFiles}</td><td>{Encode(merchant.LastProcessedUtc?.ToString("u") ?? "Never")}</td><td>{Encode(merchant.NextScheduledUtc?.ToString("u") ?? "Disabled")}</td><td><a href=\"/status/{Uri.EscapeDataString(merchant.MerchantId)}\">View details</a></td></tr>");
         }
 
-        html.AppendLine("    </tbody>");
-        html.AppendLine("  </table>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
         AppendDocumentEnd(html);
 
         return html.ToString();
@@ -119,18 +124,18 @@ public sealed class FileStatusReportService(
         html.AppendLine($"  <p class=\"mono\">{Encode(report.Merchant.MerchantId)}</p>");
         html.AppendLine($"  <p>Generated at {Encode(report.GeneratedUtc.ToString("u"))}. Auto-refreshes every 30 seconds.</p>");
         html.AppendLine("  <h2>Summary</h2>");
-        html.AppendLine("  <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("    <thead><tr><th>Enabled</th><th>Successful Files</th><th>Failed Files</th><th>Last Processed (UTC)</th><th>Next Scheduled Send (UTC)</th></tr></thead>");
-        html.AppendLine("    <tbody>");
+        html.AppendLine(TableBodyStart);
         html.AppendLine(
             $"      <tr><td>{(report.Merchant.Enabled ? "Yes" : "No")}</td><td>{report.Merchant.SuccessfulFilesSent}</td><td>{report.Merchant.FailedFiles}</td><td>{Encode(report.Merchant.LastProcessedUtc?.ToString("u") ?? "Never")}</td><td>{Encode(report.Merchant.NextScheduledUtc?.ToString("u") ?? "Disabled")}</td></tr>");
-        html.AppendLine("    </tbody>");
-        html.AppendLine("  </table>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
 
         html.AppendLine("  <h2>Recent File Activity</h2>");
-        html.AppendLine("  <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("    <thead><tr><th>Processed (UTC)</th><th>Contract</th><th>Status</th><th>Profile</th><th>Details</th></tr></thead>");
-        html.AppendLine("    <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var file in report.RecentFiles)
         {
@@ -143,8 +148,8 @@ public sealed class FileStatusReportService(
             html.AppendLine("      <tr><td colspan=\"5\">No file activity recorded yet.</td></tr>");
         }
 
-        html.AppendLine("    </tbody>");
-        html.AppendLine("  </table>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
         AppendDocumentEnd(html);
 
         return html.ToString();
@@ -163,22 +168,22 @@ public sealed class FileStatusReportService(
         html.AppendLine($"  <p><a href=\"/status/{Uri.EscapeDataString(report.Merchant.MerchantId)}\">&larr; Back to merchant</a></p>");
         html.AppendLine("  <h1>File Details</h1>");
         html.AppendLine($"  <p>Merchant {Encode(report.Merchant.MerchantName)}<br /><span class=\"mono\">{Encode(report.Merchant.MerchantId)}</span></p>");
-        html.AppendLine("  <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("    <thead><tr><th>Processed (UTC)</th><th>Contract</th><th>Upload Status</th><th>Processing</th><th>Profile</th><th>Format</th></tr></thead>");
-        html.AppendLine("    <tbody>");
+        html.AppendLine(TableBodyStart);
         html.AppendLine(
             $"      <tr><td>{Encode(report.File.ProcessedUtc.ToString("u"))}</td><td>{Encode(report.File.ContractName)}<br /><span class=\"mono\">{Encode(report.File.ContractId)}</span></td><td class=\"status-{Encode(report.File.Status)}\">{Encode(report.File.Status)}</td><td>{Encode(report.File.ProcessingCompleted ? "Complete" : "Pending")}{(report.File.LastStatusCheckUtc.HasValue ? $"<br /><span class=\"mono\">Last checked {Encode(report.File.LastStatusCheckUtc.Value.ToString("u"))}</span>" : string.Empty)}</td><td>{Encode(report.File.FileProfileId)}</td><td>{Encode(report.File.Format)}</td></tr>");
-        html.AppendLine("    </tbody>");
-        html.AppendLine("  </table>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
 
         html.AppendLine("  <h2>File Data</h2>");
-        html.AppendLine("  <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("    <thead><tr><th>File Name</th><th>Records</th><th>Total Amount</th></tr></thead>");
-        html.AppendLine("    <tbody>");
+        html.AppendLine(TableBodyStart);
         html.AppendLine(
             $"      <tr><td>{Encode(string.IsNullOrWhiteSpace(report.File.FileName) ? "(not generated)" : report.File.FileName)}</td><td>{report.File.RecordCount}</td><td>{report.File.TotalAmount:0.00}</td></tr>");
-        html.AppendLine("    </tbody>");
-        html.AppendLine("  </table>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
 
         html.AppendLine("  <h2>File Lines</h2>");
         if (report.FileLines.Count == 0)
@@ -189,15 +194,15 @@ public sealed class FileStatusReportService(
         {
             html.AppendLine("  <table>");
             html.AppendLine("    <thead><tr><th>Line</th><th>Content</th><th>Status</th><th>Transaction</th><th>Rejection</th></tr></thead>");
-            html.AppendLine("    <tbody>");
+            html.AppendLine(TableBodyStart);
 
             foreach (var line in report.FileLines)
             {
                 html.AppendLine($"      <tr><td>{line.LineNumber}</td><td class=\"mono\">{Encode(line.Content)}</td><td>{Encode(line.ProcessingStatus)}</td><td class=\"mono\">{Encode(line.TransactionId ?? string.Empty)}</td><td>{Encode(line.RejectionReason ?? string.Empty)}</td></tr>");
             }
 
-            html.AppendLine("    </tbody>");
-            html.AppendLine("  </table>");
+            html.AppendLine(TableBodyEnd);
+            html.AppendLine(TableEnd);
         }
 
         html.AppendLine("  <h2>Error Details</h2>");
