@@ -108,9 +108,15 @@ public static class TransactionFileFieldResolver
             throw new InvalidOperationException($"Field '{field.Name}' must define either a source or a literal value.");
         }
 
-        var transaction = context.Transaction;
+        return ResolveFieldSourceValue(field.Source.Trim(), field.Format, context);
+    }
 
-        var source = field.Source.Trim();
+    private static GeneratedTransaction GetTransaction(GeneratedTransaction? transaction) =>
+        transaction ?? throw new InvalidOperationException("The requested field requires a transaction record, but no transaction context was supplied.");
+
+    private static object ResolveFieldSourceValue(string source, string? format, TransactionFileContext context)
+    {
+        var transaction = context.Transaction;
 
         if (source.Equals(TransactionFileFieldSources.MerchantId, StringComparison.OrdinalIgnoreCase))
         {
@@ -144,17 +150,17 @@ public static class TransactionFileFieldResolver
 
         if (source.Equals(TransactionFileFieldSources.Quantity, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyFormat(GetTransaction(transaction).Quantity, field.Format);
+            return ApplyFormat(GetTransaction(transaction).Quantity, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.UnitAmount, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyFormat(GetTransaction(transaction).UnitAmount, field.Format);
+            return ApplyFormat(GetTransaction(transaction).UnitAmount, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.TotalAmount, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyFormat(GetTransaction(transaction).TotalAmount, field.Format);
+            return ApplyFormat(GetTransaction(transaction).TotalAmount, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.Currency, StringComparison.OrdinalIgnoreCase))
@@ -164,29 +170,26 @@ public static class TransactionFileFieldResolver
 
         if (source.Equals(TransactionFileFieldSources.TransactionDateUtc, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyDateFormat(GetTransaction(transaction).TransactionDateUtc, field.Format);
+            return ApplyDateFormat(GetTransaction(transaction).TransactionDateUtc, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.ProcessingDateUtc, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyDateFormat(context.ProcessingTimestampUtc, field.Format);
+            return ApplyDateFormat(context.ProcessingTimestampUtc, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.RecordCount, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyFormat(context.RecordCount, field.Format);
+            return ApplyFormat(context.RecordCount, format);
         }
 
         if (source.Equals(TransactionFileFieldSources.FileTotalAmount, StringComparison.OrdinalIgnoreCase))
         {
-            return ApplyFormat(context.FileTotalAmount, field.Format ?? "0.00");
+            return ApplyFormat(context.FileTotalAmount, format ?? "0.00");
         }
 
-        throw new InvalidOperationException($"Unsupported field source '{field.Source}'.");
+        throw new InvalidOperationException($"Unsupported field source '{source}'.");
     }
-
-    private static GeneratedTransaction GetTransaction(GeneratedTransaction? transaction) =>
-        transaction ?? throw new InvalidOperationException("The requested field requires a transaction record, but no transaction context was supplied.");
 
     private static object ApplyFormat<T>(T value, string? format)
         where T : IFormattable

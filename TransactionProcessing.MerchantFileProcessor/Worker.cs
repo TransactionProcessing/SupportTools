@@ -11,7 +11,9 @@ public sealed class Worker(IMerchantProcessingConfigurationState configurationSt
         LocalLogger.Context logger = LocalLogger.For();
         logger.LogInformation("Merchant processor started");
 
-        while (await RunIterationAsync(stoppingToken)) {
+        while (await RunIterationAsync(stoppingToken))
+        {
+            continue;
         }
     }
 

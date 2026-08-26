@@ -78,6 +78,14 @@ public sealed class OperationsDashboardService(
     IHostEnvironment hostEnvironment,
     IConfiguration configuration) : IOperationsDashboardService
 {
+    private const string SectionEnd = "  </section>";
+    private const string TableStart = "      <table>";
+    private const string TableEnd = "      </table>";
+    private const string TableBodyStart = "      <tbody>";
+    private const string TableBodyEnd = "      </tbody>";
+    private const string TableRowStart = "        <tr>";
+    private const string TableRowEnd = "        </tr>";
+
     public Task<OperationsDashboardModel> GetDashboardModelAsync(CancellationToken cancellationToken) =>
         this.BuildDashboardModelAsync(cancellationToken);
 
@@ -100,19 +108,19 @@ public sealed class OperationsDashboardService(
         html.AppendLine($"      <div class=\"hero-label\">Generated</div><div class=\"hero-value mono\">{Encode(model.GeneratedUtc.ToString("u"))}</div>");
         html.AppendLine($"      <div class=\"hero-label\">Connection</div><div class=\"hero-value\">{Encode(model.ConnectionStringSummary)}</div>");
         html.AppendLine("    </div>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         AppendMetrics(html, model.Metrics);
 
         html.AppendLine("  <section class=\"panel\">");
         html.AppendLine("    <div class=\"section-title\">Merchant schedule</div>");
-        html.AppendLine("    <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Enabled</th><th>Estate</th><th>Run times (UTC)</th><th>Last merchant run</th><th>Next run</th><th>Success</th><th>Failed</th><th>Pending checks</th><th>Status</th></tr></thead>");
-        html.AppendLine("      <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var merchant in model.Merchants)
         {
-            html.AppendLine("        <tr>");
+            html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(merchant.MerchantName)}</strong><br /><span class=\"mono muted\">{Encode(merchant.MerchantId)}</span></td>");
             html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : "neutral")}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.EstateId)}</td>");
@@ -123,7 +131,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine($"          <td>{merchant.FailedFiles}</td>");
             html.AppendLine($"          <td>{merchant.PendingStatusChecks}</td>");
             html.AppendLine($"          <td><a href=\"/status/{Uri.EscapeDataString(merchant.MerchantId)}\">View status</a></td>");
-            html.AppendLine("        </tr>");
+            html.AppendLine(TableRowEnd);
         }
 
         if (model.Merchants.Count == 0)
@@ -131,30 +139,30 @@ public sealed class OperationsDashboardService(
             html.AppendLine("        <tr><td colspan=\"10\">No merchants are configured.</td></tr>");
         }
 
-        html.AppendLine("      </tbody>");
-        html.AppendLine("    </table>");
-        html.AppendLine("  </section>");
+        html.AppendLine(TableBodyEnd);
+        html.AppendLine(TableEnd);
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"grid-2\">");
         AppendFileProfilesSection(html, model.FileProfiles);
         AppendContractsSection(html, model.Contracts);
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"panel\">");
         html.AppendLine("    <div class=\"section-title\">Recent merchant runs</div>");
         html.AppendLine("    <table>");
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Scheduled</th><th>Completed</th><th>Status</th><th>Error</th></tr></thead>");
-        html.AppendLine("      <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var run in model.RecentRuns)
         {
-            html.AppendLine("        <tr>");
+            html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(run.MerchantName)}</strong><br /><span class=\"mono muted\">{Encode(run.MerchantId)}</span></td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(run.ScheduledRunUtc.ToString("u"))}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(run.CompletedUtc.ToString("u"))}</td>");
             html.AppendLine($"          <td>{RenderBadge(run.Status, RunTone(run.Status))}</td>");
             html.AppendLine($"          <td>{Encode(run.ErrorMessage ?? string.Empty)}</td>");
-            html.AppendLine("        </tr>");
+            html.AppendLine(TableRowEnd);
         }
 
         if (model.RecentRuns.Count == 0)
@@ -164,7 +172,7 @@ public sealed class OperationsDashboardService(
 
         html.AppendLine("      </tbody>");
         html.AppendLine("    </table>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         AppendDocumentEnd(html);
         return html.ToString();
@@ -189,7 +197,7 @@ public sealed class OperationsDashboardService(
         html.AppendLine($"      <div class=\"hero-label\">File processing</div><div class=\"hero-value\">{Encode(model.FileProcessingSummary)}</div>");
         html.AppendLine($"      <div class=\"hero-label\">Polling</div><div class=\"hero-value\">{Encode(model.PollingSummary)}</div>");
         html.AppendLine("    </div>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"grid-2\">");
         AppendSummaryPanel(html, "Runtime summary", new[]
@@ -204,28 +212,28 @@ public sealed class OperationsDashboardService(
         });
 
         AppendMerchantConfigPanel(html);
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"grid-2\">");
         AppendFileProfilesSection(html, model.FileProfiles);
         AppendContractsSection(html, model.Contracts);
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"panel\">");
         html.AppendLine("    <div class=\"section-title\">Merchant definitions</div>");
         html.AppendLine("    <table>");
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Enabled</th><th>Estate</th><th>Merchant ID</th><th>Run schedule</th></tr></thead>");
-        html.AppendLine("      <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var merchant in model.Merchants)
         {
-            html.AppendLine("        <tr>");
+            html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(merchant.MerchantName)}</strong></td>");
             html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : "neutral")}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.EstateId)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.MerchantId)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.RunTimesUtc)}</td>");
-            html.AppendLine("        </tr>");
+            html.AppendLine(TableRowEnd);
         }
 
         if (model.Merchants.Count == 0)
@@ -235,7 +243,7 @@ public sealed class OperationsDashboardService(
 
         html.AppendLine("      </tbody>");
         html.AppendLine("    </table>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         AppendDocumentEnd(html);
         return html.ToString();
@@ -255,22 +263,22 @@ public sealed class OperationsDashboardService(
         html.AppendLine("      <h1>Merchant execution audit trail</h1>");
         html.AppendLine("      <p>Each record shows the scheduled slot, completion time, and final outcome for a merchant processing cycle.</p>");
         html.AppendLine("    </div>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"panel\">");
         html.AppendLine("    <table>");
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Scheduled</th><th>Completed</th><th>Status</th><th>Error</th></tr></thead>");
-        html.AppendLine("      <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var run in model.RecentRuns)
         {
-            html.AppendLine("        <tr>");
+            html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(run.MerchantName)}</strong><br /><span class=\"mono muted\">{Encode(run.MerchantId)}</span></td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(run.ScheduledRunUtc.ToString("u"))}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(run.CompletedUtc.ToString("u"))}</td>");
             html.AppendLine($"          <td>{RenderBadge(run.Status, RunTone(run.Status))}</td>");
             html.AppendLine($"          <td>{Encode(run.ErrorMessage ?? string.Empty)}</td>");
-            html.AppendLine("        </tr>");
+            html.AppendLine(TableRowEnd);
         }
 
         if (model.RecentRuns.Count == 0)
@@ -280,7 +288,7 @@ public sealed class OperationsDashboardService(
 
         html.AppendLine("      </tbody>");
         html.AppendLine("    </table>");
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
 
         AppendDocumentEnd(html);
         return html.ToString();
@@ -589,7 +597,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine($"      <div class=\"metric-detail\">{Encode(metric.Detail)}</div>");
             html.AppendLine("    </div>");
         }
-        html.AppendLine("  </section>");
+        html.AppendLine(SectionEnd);
     }
 
     private static void AppendSummaryPanel(StringBuilder html, string title, IEnumerable<(string Label, string Value)> items)
@@ -646,7 +654,7 @@ public sealed class OperationsDashboardService(
         }
 
         html.AppendLine("        </tbody>");
-        html.AppendLine("      </table>");
+        html.AppendLine(TableEnd);
         html.AppendLine("    </section>");
     }
 
@@ -672,7 +680,7 @@ public sealed class OperationsDashboardService(
         }
 
         html.AppendLine("        </tbody>");
-        html.AppendLine("      </table>");
+        html.AppendLine(TableEnd);
         html.AppendLine("    </section>");
     }
 

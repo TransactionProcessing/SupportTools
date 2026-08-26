@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using Microsoft.Extensions.Primitives;
@@ -186,7 +185,6 @@ public static class ConfigurationManagementEndpointRouteBuilderExtensions
         string section,
         HttpRequest request,
         IMerchantProcessingConfigurationStore configurationStore,
-        JsonSerializerOptions jsonSerializerOptions,
         CancellationToken cancellationToken)
     {
         var form = await request.ReadFormAsync(cancellationToken);

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 internal sealed class SqlAgentDeploymentService
 {
+    private const string JobIdParameterName = "@job_id";
     private readonly SqlConnection _connection;
     private readonly TextWriter _writer;
     private readonly ILogger<SqlAgentDeploymentService> _logger;
@@ -55,7 +56,7 @@ internal sealed class SqlAgentDeploymentService
             job.Schedules.Count);
 
         int deleteLevel = job.DeleteLevel ?? 0;
-        SqlParameter jobIdParameter = new("@job_id", System.Data.SqlDbType.UniqueIdentifier)
+        SqlParameter jobIdParameter = new(JobIdParameterName, System.Data.SqlDbType.UniqueIdentifier)
         {
             Direction = System.Data.ParameterDirection.Output
         };
@@ -110,7 +111,7 @@ internal sealed class SqlAgentDeploymentService
 
         List<SqlParameter> parameters =
         [
-            new SqlParameter("@job_id", jobId),
+            new SqlParameter(JobIdParameterName, jobId),
             new SqlParameter("@step_id", stepId),
             new SqlParameter("@step_name", step.Name),
             new SqlParameter("@subsystem", ToSubsystemName(step.Subsystem)),
@@ -143,7 +144,7 @@ internal sealed class SqlAgentDeploymentService
 
         List<SqlParameter> parameters =
         [
-            new SqlParameter("@job_id", jobId),
+            new SqlParameter(JobIdParameterName, jobId),
             new SqlParameter("@name", schedule.Name),
             new SqlParameter("@enabled", schedule.Enabled),
             new SqlParameter("@freq_type", (int)schedule.FrequencyType),
@@ -233,7 +234,7 @@ internal sealed class SqlAgentDeploymentService
     {
         List<SqlParameter> parameters =
         [
-            new SqlParameter("@job_id", jobId)
+            new SqlParameter(JobIdParameterName, jobId)
         ];
 
         if (!string.IsNullOrWhiteSpace(targetServerName))

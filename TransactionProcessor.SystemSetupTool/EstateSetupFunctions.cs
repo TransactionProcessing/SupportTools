@@ -419,7 +419,7 @@ public class EstateSetupFunctions {
             return ResultHelpers.CreateFailure(ensureUserResult);
         }
 
-        var ensureOperatorsResult = await EnsureMerchantOperatorsAsync(merchant, existingMerchant, cancellationToken);
+        var ensureOperatorsResult = await EnsureMerchantOperatorsAsync(existingMerchant, cancellationToken);
         if (ensureOperatorsResult.IsFailed)
         {
             return ResultHelpers.CreateFailure(ensureOperatorsResult);
@@ -470,7 +470,7 @@ public class EstateSetupFunctions {
         return createMerchantUserResult.IsFailed ? ResultHelpers.CreateFailure(createMerchantUserResult) : Result.Success();
     }
 
-    private async Task<Result> EnsureMerchantOperatorsAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken)
+    private async Task<Result> EnsureMerchantOperatorsAsync(MerchantResponse existingMerchant, CancellationToken cancellationToken)
     {
         var getEstateResult = await this.TransactionProcessorClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
         if (getEstateResult.IsFailed)
