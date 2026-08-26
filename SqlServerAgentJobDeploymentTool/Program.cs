@@ -57,88 +57,100 @@ internal static class Program
         ILoggerFactory loggerFactory,
         Microsoft.Extensions.Logging.ILogger logger)
     {
-        logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
-
-        if (ShouldLaunchUi(args))
-        {
-            ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm(loggerFactory));
-            return 0;
-        }
-
-        DeploymentOptions options = DeploymentOptions.Parse(args);
-        logger.LogInformation("Command-line mode selected. Manifest path: {ManifestPath}. Dry run: {DryRun}. Database override: {DatabaseOverride}.",
-            options.ManifestPath,
-            options.WhatIf,
-            string.IsNullOrWhiteSpace(options.DatabaseName) ? "<none>" : options.DatabaseName);
-
-        if (options.ShowHelp)
-        {
-            PrintUsage();
-            logger.LogInformation("Program completed with exit code 0.");
-            return 0;
-        }
-
-        string currentOperation = "loading manifest";
-        string? currentContext = options.ManifestPath;
-        DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
-        logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
-
-        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
-        {
-            manifest.ConnectionString = options.ConnectionString;
-            logger.LogInformation("Using connection string override from command line.");
-        }
-
-        if (string.IsNullOrWhiteSpace(manifest.ConnectionString))
-        {
-            Console.Error.WriteLine("A connection string must be supplied in the manifest or with --connection-string.");
-            return 1;
-        }
-
-        currentOperation = "validating manifest";
-        ManifestValidator.Validate(manifest);
-        logger.LogInformation("Manifest validation succeeded.");
-
-        if (options.WhatIf)
-        {
-            logger.LogInformation("Dry run requested. The following jobs would be deployed:");
-            foreach (JobDefinition job in manifest.Jobs)
-            {
-                logger.LogInformation("Dry run job: {JobName}", job.Name);
-            }
-
-            logger.LogInformation("Program completed with exit code 0.");
-            return 0;
-        }
-
-        currentOperation = "opening SQL connection";
-        currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
-        Microsoft.Data.SqlClient.SqlConnection connection = new(manifest.ConnectionString);
+        string currentOperation = "starting";
+        string? currentContext = null;
 
         try
         {
-            logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
-            await connection.OpenAsync(CancellationToken.None);
-            logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
+            logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
 
-            currentOperation = "deploying SQL Agent jobs";
-            var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
-            await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
-            logger.LogInformation("Deployment completed successfully.");
-            logger.LogInformation("Program completed with exit code 0.");
-            return 0;
-        }
-        finally
-        {
+            if (ShouldLaunchUi(args))
+            {
+                currentOperation = "starting UI";
+                ApplicationConfiguration.Initialize();
+                Application.Run(new MainForm(loggerFactory));
+                return 0;
+            }
+
+            DeploymentOptions options = DeploymentOptions.Parse(args);
+            logger.LogInformation("Command-line mode selected. Manifest path: {ManifestPath}. Dry run: {DryRun}. Database override: {DatabaseOverride}.",
+                options.ManifestPath,
+                options.WhatIf,
+                string.IsNullOrWhiteSpace(options.DatabaseName) ? "<none>" : options.DatabaseName);
+
+            if (options.ShowHelp)
+            {
+                PrintUsage();
+                logger.LogInformation("Program completed with exit code 0.");
+                return 0;
+            }
+
+            currentOperation = "loading manifest";
+            currentContext = options.ManifestPath;
+            DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
+            logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
+
+            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                manifest.ConnectionString = options.ConnectionString;
+                logger.LogInformation("Using connection string override from command line.");
+            }
+
+            if (string.IsNullOrWhiteSpace(manifest.ConnectionString))
+            {
+                Console.Error.WriteLine("A connection string must be supplied in the manifest or with --connection-string.");
+                return 1;
+            }
+
+            currentOperation = "validating manifest";
+            ManifestValidator.Validate(manifest);
+            logger.LogInformation("Manifest validation succeeded.");
+
+            if (options.WhatIf)
+            {
+                logger.LogInformation("Dry run requested. The following jobs would be deployed:");
+                foreach (JobDefinition job in manifest.Jobs)
+                {
+                    logger.LogInformation("Dry run job: {JobName}", job.Name);
+                }
+
+                logger.LogInformation("Program completed with exit code 0.");
+                return 0;
+            }
+
+            currentOperation = "opening SQL connection";
+            currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
+            Microsoft.Data.SqlClient.SqlConnection connection = new(manifest.ConnectionString);
+
             try
             {
-                await connection.DisposeAsync();
+                logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
+                await connection.OpenAsync(CancellationToken.None);
+                logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
+
+                currentOperation = "deploying SQL Agent jobs";
+                var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
+                await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
+                logger.LogInformation("Deployment completed successfully.");
+                logger.LogInformation("Program completed with exit code 0.");
+                return 0;
             }
-            catch (Exception disposeEx)
+            finally
             {
-                logger.LogWarning(disposeEx, "Failed to dispose SQL connection after {Operation}.", currentOperation);
+                try
+                {
+                    await connection.DisposeAsync();
+                }
+                catch (Exception disposeEx)
+                {
+                    logger.LogWarning(disposeEx, "Failed to dispose SQL connection after {Operation}.", currentOperation);
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, currentOperation, currentContext);
+            return 1;
         }
     }
 
