@@ -9,27 +9,27 @@ internal sealed class MainForm : Form
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<MainForm> _logger;
-    private readonly TextBox _manifestPathTextBox;
-    private readonly TextBox _serverTextBox;
-    private readonly TextBox _connectionDatabaseTextBox;
-    private readonly TextBox _databaseNameTextBox;
-    private readonly CheckBox _useSslCheckBox;
-    private readonly ComboBox _authenticationTypeComboBox;
-    private readonly TextBox _usernameTextBox;
-    private readonly TextBox _passwordTextBox;
-    private readonly Label _usernameLabel;
-    private readonly Label _passwordLabel;
-    private readonly TextBox _manifestTextBox;
-    private readonly TextBox _outputTextBox;
-    private readonly Button _loadManifestButton;
-    private readonly Button _browseButton;
-    private readonly Button _saveButton;
-    private readonly Button _saveAsButton;
-    private readonly Button _formatButton;
-    private readonly Button _dryRunButton;
-    private readonly Button _deployButton;
-    private readonly ToolStripStatusLabel _statusLabel;
-    private readonly TextBox _validationSummaryTextBox;
+    private TextBox _manifestPathTextBox = null!;
+    private TextBox _serverTextBox = null!;
+    private TextBox _connectionDatabaseTextBox = null!;
+    private TextBox _databaseNameTextBox = null!;
+    private CheckBox _useSslCheckBox = null!;
+    private ComboBox _authenticationTypeComboBox = null!;
+    private TextBox _usernameTextBox = null!;
+    private TextBox _passwordTextBox = null!;
+    private Label _usernameLabel = null!;
+    private Label _passwordLabel = null!;
+    private TextBox _manifestTextBox = null!;
+    private TextBox _outputTextBox = null!;
+    private Button _loadManifestButton = null!;
+    private Button _browseButton = null!;
+    private Button _saveButton = null!;
+    private Button _saveAsButton = null!;
+    private Button _formatButton = null!;
+    private Button _dryRunButton = null!;
+    private Button _deployButton = null!;
+    private ToolStripStatusLabel _statusLabel = null!;
+    private TextBox _validationSummaryTextBox = null!;
 
     public MainForm(ILoggerFactory loggerFactory)
     {
@@ -42,10 +42,31 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 9F);
         BackColor = Color.FromArgb(245, 247, 250);
 
+        var statusStrip = CreateStatusStrip();
+        var headerPanel = CreateHeaderPanel();
+        var split = CreateSplitContainer();
+        split.Panel1.Controls.Add(CreateLeftPanel());
+        split.Panel2.Controls.Add(CreateRightPanel());
+
+        Controls.Add(split);
+        Controls.Add(headerPanel);
+        Controls.Add(statusStrip);
+
+        Load += MainForm_Load;
+        _manifestTextBox.TextChanged += ManifestTextBox_TextChanged;
+        UpdateAuthenticationVisibility();
+    }
+
+    private StatusStrip CreateStatusStrip()
+    {
         StatusStrip statusStrip = new();
         _statusLabel = new ToolStripStatusLabel("Ready");
         statusStrip.Items.Add(_statusLabel);
+        return statusStrip;
+    }
 
+    private Panel CreateHeaderPanel()
+    {
         Panel headerPanel = new()
         {
             Dock = DockStyle.Top,
@@ -79,14 +100,21 @@ internal sealed class MainForm : Form
         }, 0, 1);
 
         headerPanel.Controls.Add(headerLayout);
+        return headerPanel;
+    }
 
-        SplitContainer split = new()
+    private SplitContainer CreateSplitContainer()
+    {
+        return new SplitContainer
         {
             Dock = DockStyle.Fill,
             SplitterDistance = 820,
             FixedPanel = FixedPanel.Panel2
         };
+    }
 
+    private Panel CreateLeftPanel()
+    {
         Label manifestPathLabel = new() { Text = "Manifest", AutoSize = true };
         _manifestPathTextBox = new TextBox { Dock = DockStyle.Fill };
         _browseButton = new Button { Text = "Browse..." };
@@ -102,7 +130,38 @@ internal sealed class MainForm : Form
         _formatButton.Click += FormatButton_Click;
 
         TableLayoutPanel manifestPathRow = CreateRow(_manifestPathTextBox, _browseButton, _loadManifestButton, _saveButton, _saveAsButton, _formatButton);
+        Panel connectionGroup = CreateConnectionGroup();
+        TableLayoutPanel databaseRow = CreateLabeledPanel(
+            new Label { Text = "Step database override", AutoSize = true },
+            CreateSingleRow(_databaseNameTextBox = new TextBox { Dock = DockStyle.Fill }));
+        Panel manifestWorkArea = CreateManifestWorkArea();
 
+        TableLayoutPanel leftLayout = new()
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4
+        };
+        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        leftLayout.Controls.Add(CreateLabeledPanel(manifestPathLabel, manifestPathRow), 0, 0);
+        leftLayout.Controls.Add(connectionGroup, 0, 1);
+        leftLayout.Controls.Add(databaseRow, 0, 2);
+        leftLayout.Controls.Add(manifestWorkArea, 0, 3);
+
+        Panel leftPanel = new()
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(10)
+        };
+        leftPanel.Controls.Add(leftLayout);
+        return leftPanel;
+    }
+
+    private Panel CreateConnectionGroup()
+    {
         Panel connectionGroup = new()
         {
             AutoSize = true,
@@ -123,7 +182,7 @@ internal sealed class MainForm : Form
 
         _serverTextBox = new TextBox { Dock = DockStyle.Fill, Text = "localhost", Margin = new Padding(0) };
         _connectionDatabaseTextBox = new TextBox { Dock = DockStyle.Fill, Text = "msdb", Margin = new Padding(0) };
-        _useSslCheckBox = new CheckBox { Text = "Use SSL", AutoSize = true, Margin = new Padding(0) };
+        _useSslCheckBox = new CheckBox { Text = "Encrypt connection", AutoSize = true, Margin = new Padding(0) };
         _authenticationTypeComboBox = new ComboBox
         {
             Dock = DockStyle.Fill,
@@ -136,6 +195,8 @@ internal sealed class MainForm : Form
 
         _usernameTextBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(0) };
         _passwordTextBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true, Margin = new Padding(0) };
+        _usernameLabel = CreateCompactLabel("Username");
+        _passwordLabel = CreateCompactLabel("Password");
 
         TableLayoutPanel connectionLayout = new()
         {
@@ -159,11 +220,8 @@ internal sealed class MainForm : Form
         connectionLayout.Controls.Add(_connectionDatabaseTextBox, 3, 0);
         connectionLayout.Controls.Add(CreateCompactLabel("Authentication"), 0, 1);
         connectionLayout.Controls.Add(_authenticationTypeComboBox, 1, 1);
-        _useSslCheckBox.Text = "Encrypt connection";
         connectionLayout.Controls.Add(_useSslCheckBox, 2, 1);
         connectionLayout.SetColumnSpan(_useSslCheckBox, 2);
-        _usernameLabel = CreateCompactLabel("Username");
-        _passwordLabel = CreateCompactLabel("Password");
         connectionLayout.Controls.Add(_usernameLabel, 0, 2);
         connectionLayout.Controls.Add(_usernameTextBox, 1, 2);
         connectionLayout.Controls.Add(_passwordLabel, 2, 2);
@@ -171,13 +229,11 @@ internal sealed class MainForm : Form
 
         connectionGroup.Controls.Add(connectionLayout);
         connectionGroup.Controls.Add(connectionTitle);
+        return connectionGroup;
+    }
 
-        _databaseNameTextBox = new TextBox { Dock = DockStyle.Fill };
-
-        TableLayoutPanel databaseRow = CreateLabeledPanel(
-            new Label { Text = "Step database override", AutoSize = true },
-            CreateSingleRow(_databaseNameTextBox));
-
+    private Panel CreateManifestWorkArea()
+    {
         GroupBox manifestGroup = new()
         {
             Dock = DockStyle.Fill,
@@ -217,17 +273,9 @@ internal sealed class MainForm : Form
         _deployButton = new Button { Text = "Deploy", Width = 84, Margin = new Padding(0) };
         _dryRunButton.Click += async (_, _) => await RunDeploymentAsync(true);
         _deployButton.Click += async (_, _) => await RunDeploymentAsync(false);
-
         buttons.Controls.Add(_dryRunButton);
         buttons.Controls.Add(_deployButton);
-
         actionsGroup.Controls.Add(buttons);
-
-        Panel leftPanel = new()
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(10)
-        };
 
         Panel manifestWorkArea = new()
         {
@@ -237,23 +285,11 @@ internal sealed class MainForm : Form
         };
         manifestWorkArea.Controls.Add(manifestGroup);
         manifestWorkArea.Controls.Add(actionsGroup);
+        return manifestWorkArea;
+    }
 
-        TableLayoutPanel leftLayout = new()
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 4
-        };
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        leftLayout.Controls.Add(CreateLabeledPanel(manifestPathLabel, manifestPathRow), 0, 0);
-        leftLayout.Controls.Add(connectionGroup, 0, 1);
-        leftLayout.Controls.Add(databaseRow, 0, 2);
-        leftLayout.Controls.Add(manifestWorkArea, 0, 3);
-        leftPanel.Controls.Add(leftLayout);
-
+    private Panel CreateRightPanel()
+    {
         GroupBox outputGroup = new()
         {
             Dock = DockStyle.Fill,
@@ -270,21 +306,6 @@ internal sealed class MainForm : Form
             WordWrap = false
         };
         outputGroup.Controls.Add(_outputTextBox);
-
-        Panel rightPanel = new()
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(10)
-        };
-
-        TableLayoutPanel rightLayout = new()
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2
-        };
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         GroupBox validationGroup = new()
         {
@@ -303,24 +324,24 @@ internal sealed class MainForm : Form
         };
         validationGroup.Controls.Add(_validationSummaryTextBox);
 
-        rightLayout.RowStyles.Clear();
+        TableLayoutPanel rightLayout = new()
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2
+        };
         rightLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        rightLayout.Controls.Clear();
         rightLayout.Controls.Add(validationGroup, 0, 0);
         rightLayout.Controls.Add(outputGroup, 0, 1);
+
+        Panel rightPanel = new()
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(10)
+        };
         rightPanel.Controls.Add(rightLayout);
-
-        split.Panel1.Controls.Add(leftPanel);
-        split.Panel2.Controls.Add(rightPanel);
-
-        Controls.Add(split);
-        Controls.Add(headerPanel);
-        Controls.Add(statusStrip);
-
-        Load += MainForm_Load;
-        _manifestTextBox.TextChanged += ManifestTextBox_TextChanged;
-        UpdateAuthenticationVisibility();
+        return rightPanel;
     }
 
     private async void MainForm_Load(object? sender, EventArgs e)

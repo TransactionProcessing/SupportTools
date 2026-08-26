@@ -1,7 +1,7 @@
 param(
     [string]$BaseUrl = "http://localhost:2113",
     [string]$Username,
-    [string]$Password,
+    [System.Security.SecureString]$Password,
     [System.Management.Automation.PSCredential]$Credential
 )
 
@@ -20,7 +20,8 @@ if ($Credential) {
     $headers['Authorization'] = "Basic $encoded"
 }
 elseif (-not [string]::IsNullOrWhiteSpace($Username) -and -not [string]::IsNullOrWhiteSpace($Password)) {
-    $pair = "$Username`:$Password"
+    $usernameCredential = [System.Management.Automation.PSCredential]::new($Username, $Password)
+    $pair = "$($usernameCredential.UserName)`:$($usernameCredential.GetNetworkCredential().Password)"
     $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
     $encoded = [Convert]::ToBase64String($bytes)
     $headers['Authorization'] = "Basic $encoded"

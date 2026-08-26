@@ -130,35 +130,65 @@ public sealed class MerchantProcessingConfigurationStore(
 
     private async Task<RelationalConfigurationSnapshot?> LoadRelationalConfigurationAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
     {
-        var authentication = await dbContext.MerchantProcessingAuthenticationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
-        var fileProcessing = await dbContext.MerchantProcessingFileProcessingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
-        var transactionGeneration = await dbContext.MerchantProcessingTransactionGenerationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
-        var fileStatusPolling = await dbContext.MerchantProcessingFileStatusPollingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
-        var merchantScan = await dbContext.MerchantProcessingMerchantScanRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
-
-        var fileProfiles = await dbContext.MerchantProcessingFileProfileRecords.AsNoTracking()
-            .OrderBy(record => record.SortOrder)
-            .ToListAsync(cancellationToken);
-
-        var contractDefinitions = await dbContext.MerchantProcessingContractDefinitionRecords.AsNoTracking()
-            .OrderBy(record => record.SortOrder)
-            .ToListAsync(cancellationToken);
-
-        var merchants = await dbContext.MerchantProcessingMerchantRecords.AsNoTracking()
-            .OrderBy(record => record.SortOrder)
-            .ToListAsync(cancellationToken);
-
-        if (authentication is null && fileProcessing is null && transactionGeneration is null && fileStatusPolling is null && merchantScan is null &&
-            fileProfiles.Count == 0 && contractDefinitions.Count == 0 && merchants.Count == 0)
+        RelationalConfigurationData data = await LoadRelationalConfigurationDataAsync(dbContext, cancellationToken);
+        if (!HasRelationalConfiguration(data))
         {
             return null;
         }
 
-        if (authentication is null || fileProcessing is null || transactionGeneration is null || fileStatusPolling is null || merchantScan is null)
+        if (!HasRequiredSingletons(data))
         {
             return null;
         }
 
+        var options = await BuildRelationalOptions(dbContext, data, cancellationToken);
+        if (!MerchantProcessingOptionsValidator.Validate(options.Options))
+        {
+            return null;
+        }
+
+        return new RelationalConfigurationSnapshot(options.Options, options.UpdatedUtc);
+    }
+
+    private async Task<RelationalConfigurationData> LoadRelationalConfigurationDataAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        return new RelationalConfigurationData(
+            await dbContext.MerchantProcessingAuthenticationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken),
+            await dbContext.MerchantProcessingFileProcessingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken),
+            await dbContext.MerchantProcessingTransactionGenerationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken),
+            await dbContext.MerchantProcessingFileStatusPollingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken),
+            await dbContext.MerchantProcessingMerchantScanRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken),
+            await dbContext.MerchantProcessingFileProfileRecords.AsNoTracking().OrderBy(record => record.SortOrder).ToListAsync(cancellationToken),
+            await dbContext.MerchantProcessingContractDefinitionRecords.AsNoTracking().OrderBy(record => record.SortOrder).ToListAsync(cancellationToken),
+            await dbContext.MerchantProcessingMerchantRecords.AsNoTracking().OrderBy(record => record.SortOrder).ToListAsync(cancellationToken));
+    }
+
+    private static bool HasRelationalConfiguration(RelationalConfigurationData data)
+    {
+        return data.Authentication is not null ||
+               data.FileProcessing is not null ||
+               data.TransactionGeneration is not null ||
+               data.FileStatusPolling is not null ||
+               data.MerchantScan is not null ||
+               data.FileProfiles.Count > 0 ||
+               data.ContractDefinitions.Count > 0 ||
+               data.Merchants.Count > 0;
+    }
+
+    private static bool HasRequiredSingletons(RelationalConfigurationData data)
+    {
+        return data.Authentication is not null &&
+               data.FileProcessing is not null &&
+               data.TransactionGeneration is not null &&
+               data.FileStatusPolling is not null &&
+               data.MerchantScan is not null;
+    }
+
+    private async Task<RelationalConfigurationSnapshot> BuildRelationalOptions(
+        MerchantFileProcessorDbContext dbContext,
+        RelationalConfigurationData data,
+        CancellationToken cancellationToken)
+    {
         var fileProfileFields = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileFieldRecords, cancellationToken);
         var headerFieldRecords = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileHeaderFieldRecords, cancellationToken);
         var trailerFieldRecords = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileTrailerFieldRecords, cancellationToken);
@@ -168,28 +198,28 @@ public sealed class MerchantProcessingConfigurationStore(
         {
             Authentication = new AuthenticationOptions
             {
-                ClientId = authentication.ClientId,
-                ClientSecret = authentication.ClientSecret,
-                Scope = authentication.Scope,
-                Audience = authentication.Audience
+                ClientId = data.Authentication!.ClientId,
+                ClientSecret = data.Authentication.ClientSecret,
+                Scope = data.Authentication.Scope,
+                Audience = data.Authentication.Audience
             },
             FileProcessing = new FileProcessingOptions
             {
-                UserId = fileProcessing.UserId
+                UserId = data.FileProcessing!.UserId
             },
             TransactionGeneration = new TransactionGenerationOptions
             {
-                MinimumTransactionsPerContract = transactionGeneration.MinimumTransactionsPerContract,
-                MaximumTransactionsPerContract = transactionGeneration.MaximumTransactionsPerContract
+                MinimumTransactionsPerContract = data.TransactionGeneration!.MinimumTransactionsPerContract,
+                MaximumTransactionsPerContract = data.TransactionGeneration.MaximumTransactionsPerContract
             },
             FileStatusPolling = new FileStatusPollingOptions
             {
-                PollIntervalSeconds = fileStatusPolling.PollIntervalSeconds
+                PollIntervalSeconds = data.FileStatusPolling!.PollIntervalSeconds
             },
-            MerchantScanIntervalSeconds = merchantScan.MerchantScanIntervalSeconds
+            MerchantScanIntervalSeconds = data.MerchantScan!.MerchantScanIntervalSeconds
         };
 
-        options.FileProfiles.AddRange(fileProfiles.Select(record =>
+        options.FileProfiles.AddRange(data.FileProfiles.Select(record =>
         {
             fileProfileFields.TryGetValue(record.Id, out var bodyFields);
             headerFieldRecords.TryGetValue(record.Id, out var headerFields);
@@ -219,13 +249,13 @@ public sealed class MerchantProcessingConfigurationStore(
             };
         }));
 
-        options.ContractDefinitions.AddRange(contractDefinitions.Select(record => new ContractDefinitionOptions
+        options.ContractDefinitions.AddRange(data.ContractDefinitions.Select(record => new ContractDefinitionOptions
         {
             ContractId = record.ContractId,
             FileProfileId = record.FileProfileId
         }));
 
-        options.Merchants.AddRange(merchants.Select(record =>
+        options.Merchants.AddRange(data.Merchants.Select(record =>
         {
             merchantRunTimes.TryGetValue(record.Id, out var runTimes);
 
@@ -240,19 +270,14 @@ public sealed class MerchantProcessingConfigurationStore(
             };
         }));
 
-        if (!MerchantProcessingOptionsValidator.Validate(options))
-        {
-            return null;
-        }
-
         var updatedUtc = MaxUtc(
-            [authentication.UpdatedUtc],
-            [fileProcessing.UpdatedUtc],
-            [transactionGeneration.UpdatedUtc],
-            [fileStatusPolling.UpdatedUtc],
-            fileProfiles.Select(record => record.UpdatedUtc),
-            contractDefinitions.Select(record => record.UpdatedUtc),
-            merchants.Select(record => record.UpdatedUtc));
+            [data.Authentication!.UpdatedUtc],
+            [data.FileProcessing!.UpdatedUtc],
+            [data.TransactionGeneration!.UpdatedUtc],
+            [data.FileStatusPolling!.UpdatedUtc],
+            data.FileProfiles.Select(record => record.UpdatedUtc),
+            data.ContractDefinitions.Select(record => record.UpdatedUtc),
+            data.Merchants.Select(record => record.UpdatedUtc));
 
         return new RelationalConfigurationSnapshot(options, updatedUtc);
     }
@@ -278,6 +303,16 @@ public sealed class MerchantProcessingConfigurationStore(
     }
 
     private sealed record RelationalConfigurationSnapshot(MerchantProcessingOptions Options, DateTimeOffset UpdatedUtc);
+
+    private sealed record RelationalConfigurationData(
+        MerchantProcessingAuthenticationRecord? Authentication,
+        MerchantProcessingFileProcessingRecord? FileProcessing,
+        MerchantProcessingTransactionGenerationRecord? TransactionGeneration,
+        MerchantProcessingFileStatusPollingRecord? FileStatusPolling,
+        MerchantProcessingMerchantScanRecord? MerchantScan,
+        List<MerchantProcessingFileProfileRecord> FileProfiles,
+        List<MerchantProcessingContractDefinitionRecord> ContractDefinitions,
+        List<MerchantProcessingMerchantRecord> Merchants);
 
     private async Task<bool> HasNormalizedConfigurationAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
     {

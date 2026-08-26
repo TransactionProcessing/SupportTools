@@ -29,6 +29,34 @@ internal static class Program
         });
 
         Microsoft.Extensions.Logging.ILogger logger = loggerFactory.CreateLogger(nameof(Program));
+
+        try
+        {
+            return await RunAsync(args, loggerFactory, logger);
+        }
+        catch (Exception ex)
+        {
+            DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, "starting", null);
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                LogManager.Shutdown();
+            }
+            catch (Exception shutdownEx)
+            {
+                logger.LogWarning(shutdownEx, "NLog shutdown failed.");
+            }
+        }
+    }
+
+    private static async Task<int> RunAsync(
+        string[] args,
+        ILoggerFactory loggerFactory,
+        Microsoft.Extensions.Logging.ILogger logger)
+    {
         string currentOperation = "starting";
         string? currentContext = null;
 
@@ -38,6 +66,7 @@ internal static class Program
 
             if (ShouldLaunchUi(args))
             {
+                currentOperation = "starting UI";
                 ApplicationConfiguration.Initialize();
                 Application.Run(new MainForm(loggerFactory));
                 return 0;
@@ -74,7 +103,6 @@ internal static class Program
             }
 
             currentOperation = "validating manifest";
-            currentContext = options.ManifestPath;
             ManifestValidator.Validate(manifest);
             logger.LogInformation("Manifest validation succeeded.");
 
@@ -123,17 +151,6 @@ internal static class Program
         {
             DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, currentOperation, currentContext);
             return 1;
-        }
-        finally
-        {
-            try
-            {
-                LogManager.Shutdown();
-            }
-            catch (Exception shutdownEx)
-            {
-                logger.LogWarning(shutdownEx, "NLog shutdown failed.");
-            }
         }
     }
 
@@ -310,55 +327,75 @@ internal static class ManifestValidator
 
         foreach (JobDefinition job in manifest.Jobs)
         {
-            if (string.IsNullOrWhiteSpace(job.Name))
+            ValidateJob(job);
+        }
+    }
+
+    private static void ValidateJob(JobDefinition job)
+    {
+        if (string.IsNullOrWhiteSpace(job.Name))
+        {
+            throw new InvalidOperationException("Each job must have a name.");
+        }
+
+        if (job.Steps.Count == 0)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' does not contain any steps.");
+        }
+
+        ValidateSteps(job);
+        ValidateSchedules(job);
+    }
+
+    private static void ValidateSteps(JobDefinition job)
+    {
+        var stepIds = new HashSet<int>();
+        int nextStepId = 1;
+
+        foreach (JobStepDefinition step in job.Steps)
+        {
+            if (string.IsNullOrWhiteSpace(step.Name))
             {
-                throw new InvalidOperationException("Each job must have a name.");
+                throw new InvalidOperationException($"Job '{job.Name}' contains a step with no name.");
             }
 
-            if (job.Steps.Count == 0)
+            if (string.IsNullOrWhiteSpace(step.Command))
             {
-                throw new InvalidOperationException($"Job '{job.Name}' does not contain any steps.");
+                throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' does not contain a command.");
             }
 
-            var stepIds = new HashSet<int>();
-            int nextStepId = 1;
-            foreach (JobStepDefinition step in job.Steps)
+            int stepId = step.StepId ?? nextStepId;
+            nextStepId = stepId + 1;
+
+            if (!stepIds.Add(stepId))
             {
-                if (string.IsNullOrWhiteSpace(step.Name))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains a step with no name.");
-                }
-
-                if (string.IsNullOrWhiteSpace(step.Command))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' does not contain a command.");
-                }
-
-                int stepId = step.StepId ?? nextStepId;
-                nextStepId = stepId + 1;
-
-                if (!stepIds.Add(stepId))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains duplicate step id '{stepId}'.");
-                }
-
-                if (step.OnSuccessAction == JobStepAction.GoToStep && step.OnSuccessStepId is null)
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnSuccessStepId when OnSuccessAction is GoToStep.");
-                }
-
-                if (step.OnFailAction == JobStepAction.GoToStep && step.OnFailStepId is null)
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnFailStepId when OnFailAction is GoToStep.");
-                }
+                throw new InvalidOperationException($"Job '{job.Name}' contains duplicate step id '{stepId}'.");
             }
 
-            foreach (JobScheduleDefinition schedule in job.Schedules)
+            ValidateStepReferences(job, step);
+        }
+    }
+
+    private static void ValidateStepReferences(JobDefinition job, JobStepDefinition step)
+    {
+        if (step.OnSuccessAction == JobStepAction.GoToStep && step.OnSuccessStepId is null)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnSuccessStepId when OnSuccessAction is GoToStep.");
+        }
+
+        if (step.OnFailAction == JobStepAction.GoToStep && step.OnFailStepId is null)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnFailStepId when OnFailAction is GoToStep.");
+        }
+    }
+
+    private static void ValidateSchedules(JobDefinition job)
+    {
+        foreach (JobScheduleDefinition schedule in job.Schedules)
+        {
+            if (string.IsNullOrWhiteSpace(schedule.Name))
             {
-                if (string.IsNullOrWhiteSpace(schedule.Name))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains a schedule with no name.");
-                }
+                throw new InvalidOperationException($"Job '{job.Name}' contains a schedule with no name.");
             }
         }
     }
