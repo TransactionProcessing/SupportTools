@@ -11,71 +11,70 @@ public sealed class Worker(IMerchantProcessingConfigurationState configurationSt
         LocalLogger.Context logger = LocalLogger.For();
         logger.LogInformation("Merchant processor started");
 
-        while (!stoppingToken.IsCancellationRequested) {
-            MerchantProcessingOptions options = configurationState.Current;
-            MerchantOptions[] enabledMerchants = options.Merchants.Where(merchant => merchant.Enabled).ToArray();
-            TimeSpan scanInterval = TimeSpan.FromSeconds(Math.Max(1, options.MerchantScanIntervalSeconds));
+        while (await RunIterationAsync(stoppingToken)) {
+        }
+    }
 
-            if (enabledMerchants.Length == 0) {
-                logger.LogWarning("No enabled merchants are configured for processing. Waiting before checking again.");
-                try {
-                    await Task.Delay(scanInterval, stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
-                    break;
-                }
-                continue;
-            }
+    private async Task<bool> RunIterationAsync(CancellationToken stoppingToken) {
+        LocalLogger.Context logger = LocalLogger.For();
+        MerchantProcessingOptions options = configurationState.Current;
+        MerchantOptions[] enabledMerchants = options.Merchants.Where(merchant => merchant.Enabled).ToArray();
+        TimeSpan scanInterval = TimeSpan.FromSeconds(Math.Max(1, options.MerchantScanIntervalSeconds));
 
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            ScheduledMerchant scheduledMerchant = await this.GetNextScheduledMerchantAsync(now, enabledMerchants, stoppingToken);
-            DateTimeOffset nextRun = scheduledMerchant.TriggerUtc;
-            TimeSpan delay = nextRun - now;
+        if (enabledMerchants.Length == 0) {
+            logger.LogWarning("No enabled merchants are configured for processing. Waiting before checking again.");
+            return await DelayAsync(scanInterval, stoppingToken);
+        }
 
-            LocalLogger.Context merchantLogger = LocalLogger.For(scheduledMerchant.Merchant.MerchantId);
-            merchantLogger.LogInformation($"Next merchant processing run scheduled at {nextRun:O} for slot {scheduledMerchant.ScheduledRunUtc:O}");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        ScheduledMerchant scheduledMerchant = await this.GetNextScheduledMerchantAsync(now, enabledMerchants, stoppingToken);
+        DateTimeOffset nextRun = scheduledMerchant.TriggerUtc;
+        TimeSpan delay = nextRun - now;
 
-            if (delay > scanInterval) {
-                try {
-                    await Task.Delay(scanInterval, stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
-                    break;
-                }
-                continue;
-            }
+        LocalLogger.Context merchantLogger = LocalLogger.For(scheduledMerchant.Merchant.MerchantId);
+        merchantLogger.LogInformation($"Next merchant processing run scheduled at {nextRun:O} for slot {scheduledMerchant.ScheduledRunUtc:O}");
 
-            if (delay > TimeSpan.Zero) {
-                try {
-                    await Task.Delay(delay, stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
-                    break;
-                }
-            }
+        if (delay > scanInterval) {
+            return await DelayAsync(scanInterval, stoppingToken);
+        }
 
-            if (stoppingToken.IsCancellationRequested) {
-                break;
-            }
+        if (delay > TimeSpan.Zero && !await DelayAsync(delay, stoppingToken)) {
+            return false;
+        }
 
-            Guid? runId = null;
+        if (stoppingToken.IsCancellationRequested) {
+            return false;
+        }
 
-            try {
-                runId = Guid.NewGuid();
-                Guid currentRunId = runId.Value;
+        Guid? runId = null;
 
-                merchantLogger.WithRun(currentRunId).LogInformation("Starting merchant processing run");
+        try {
+            runId = Guid.NewGuid();
+            Guid currentRunId = runId.Value;
 
-                await merchantProcessingService.ProcessAsync(scheduledMerchant.Merchant, scheduledMerchant.ScheduledRunUtc, currentRunId, stoppingToken);
+            merchantLogger.WithRun(currentRunId).LogInformation("Starting merchant processing run");
 
-                merchantLogger.WithRun(currentRunId).LogInformation("Merchant processing run completed successfully");
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
-                break;
-            }
-            catch (Exception ex) {
-                merchantLogger.WithRun(runId).LogError(runId is null ? "Merchant processing run failed before a run identifier was assigned." : "Merchant processing run failed", ex);
-            }
+            await merchantProcessingService.ProcessAsync(scheduledMerchant.Merchant, scheduledMerchant.ScheduledRunUtc, currentRunId, stoppingToken);
+
+            merchantLogger.WithRun(currentRunId).LogInformation("Merchant processing run completed successfully");
+            return true;
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+            return false;
+        }
+        catch (Exception ex) {
+            merchantLogger.WithRun(runId).LogError(runId is null ? "Merchant processing run failed before a run identifier was assigned." : "Merchant processing run failed", ex);
+            return true;
+        }
+    }
+
+    private static async Task<bool> DelayAsync(TimeSpan delay, CancellationToken cancellationToken) {
+        try {
+            await Task.Delay(delay, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            return false;
         }
     }
 

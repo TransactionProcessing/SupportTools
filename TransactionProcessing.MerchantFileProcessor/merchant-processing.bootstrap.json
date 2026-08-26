@@ -2,7 +2,7 @@
   "MerchantProcessing": {
     "Authentication": {
       "ClientId": "serviceClient",
-      "ClientSecret": "d192cbc46d834d0da90e8a9d50ded543"
+      "ClientSecret": ""
     },
     "FileProcessing": {
       "UserId": "a51791a8-2731-490c-a8ac-639461f2a41f"

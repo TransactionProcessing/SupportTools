@@ -95,7 +95,7 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static async Task<Result> SetupFileProcessors(FileProcessingOptions fileProcessingOptions,
                                                               CancellationToken cancellationToken) {
-            Result<TokenResponse> tokenResult = await SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
+            Result<TokenResponse> tokenResult = await SecurityServiceClient.GetToken("serviceClient", ResolveServiceClientSecret(), CancellationToken.None);
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
             foreach (FileProfile fileProfile in fileProcessingOptions.FileProfiles) {
@@ -153,8 +153,54 @@ namespace TransactionProcessor.SystemSetupTool
 
 
             IdentityServerConfiguration identityServerConfiguration = StringSerialiser.Deserialise<IdentityServerConfiguration>(identityServerJsonData);
+            ApplyIdentityServerSecrets(identityServerConfiguration);
 
             return identityServerConfiguration;
+        }
+
+        private static void ApplyIdentityServerSecrets(IdentityServerConfiguration identityServerConfiguration)
+        {
+            foreach (var apiResource in identityServerConfiguration.apiresources)
+            {
+                apiResource.secret = ResolveRequiredSecret(GetIdentityServerSecretEnvironmentVariable(apiResource.name), $"api resource '{apiResource.name}'");
+            }
+
+            foreach (var client in identityServerConfiguration.clients)
+            {
+                client.secret = ResolveRequiredSecret(GetIdentityServerSecretEnvironmentVariable(client.client_id), $"client '{client.client_id}'");
+            }
+        }
+
+        private static string ResolveServiceClientSecret()
+        {
+            return ResolveRequiredSecret("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET", "service client");
+        }
+
+        private static string ResolveRequiredSecret(string environmentVariableName, string description)
+        {
+            string? secret = Environment.GetEnvironmentVariable(environmentVariableName);
+            if (!string.IsNullOrWhiteSpace(secret))
+            {
+                return secret;
+            }
+
+            throw new InvalidOperationException($"Missing required secret for {description}. Set the {environmentVariableName} environment variable.");
+        }
+
+        private static string GetIdentityServerSecretEnvironmentVariable(string identifier)
+        {
+            return identifier switch
+            {
+                "estateReporting" => "TRANSACTIONPROCESSOR_ESTATEREPORTING_SECRET",
+                "messagingService" => "TRANSACTIONPROCESSOR_MESSAGINGSERVICE_SECRET",
+                "transactionProcessor" => "TRANSACTIONPROCESSOR_TRANSACTIONPROCESSOR_SECRET",
+                "transactionProcessorACL" => "TRANSACTIONPROCESSOR_TRANSACTIONPROCESSORACL_SECRET",
+                "fileProcessor" => "TRANSACTIONPROCESSOR_FILEPROCESSOR_SECRET",
+                "serviceClient" => "TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET",
+                "managementUIClient" => "TRANSACTIONPROCESSOR_MANAGEMENTUICLIENT_SECRET",
+                "mobileAppClient" => "TRANSACTIONPROCESSOR_MOBILEAPPCLIENT_SECRET",
+                _ => $"TRANSACTIONPROCESSOR_{identifier.ToUpperInvariant()}_SECRET"
+            };
         }
 
         private static async Task<FileProcessingOptions> GetFileProfileConfig(CancellationToken cancellationToken)

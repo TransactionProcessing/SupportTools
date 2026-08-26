@@ -118,6 +118,18 @@ public sealed class MerchantProcessingConfigurationStore(
 
     private async Task<MerchantProcessingConfigurationSnapshot?> TryLoadFromRelationalTablesAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
     {
+        var snapshot = await LoadRelationalConfigurationAsync(dbContext, cancellationToken);
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var json = JsonSerializer.Serialize(snapshot.Options, jsonSerializerOptions);
+        return new MerchantProcessingConfigurationSnapshot(snapshot.Options, json, snapshot.UpdatedUtc);
+    }
+
+    private async Task<RelationalConfigurationSnapshot?> LoadRelationalConfigurationAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
+    {
         var authentication = await dbContext.MerchantProcessingAuthenticationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
         var fileProcessing = await dbContext.MerchantProcessingFileProcessingRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
         var transactionGeneration = await dbContext.MerchantProcessingTransactionGenerationRecords.AsNoTracking().FirstOrDefaultAsync(record => record.Id == 1, cancellationToken);
@@ -147,7 +159,6 @@ public sealed class MerchantProcessingConfigurationStore(
             return null;
         }
 
-        var profileIds = fileProfiles.ToDictionary(record => record.Id);
         var fileProfileFields = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileFieldRecords, cancellationToken);
         var headerFieldRecords = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileHeaderFieldRecords, cancellationToken);
         var trailerFieldRecords = await LoadFieldRecordsAsync(dbContext.MerchantProcessingFileProfileTrailerFieldRecords, cancellationToken);
@@ -243,8 +254,7 @@ public sealed class MerchantProcessingConfigurationStore(
             contractDefinitions.Select(record => record.UpdatedUtc),
             merchants.Select(record => record.UpdatedUtc));
 
-        var json = JsonSerializer.Serialize(options, jsonSerializerOptions);
-        return new MerchantProcessingConfigurationSnapshot(options, json, updatedUtc);
+        return new RelationalConfigurationSnapshot(options, updatedUtc);
     }
 
     private async Task<MerchantProcessingConfigurationSnapshot?> TryLoadFromLegacyConfigurationAsync(
@@ -266,6 +276,8 @@ public sealed class MerchantProcessingConfigurationStore(
         var json = JsonSerializer.Serialize(options, jsonSerializerOptions);
         return new MerchantProcessingConfigurationSnapshot(options, json, updatedUtc);
     }
+
+    private sealed record RelationalConfigurationSnapshot(MerchantProcessingOptions Options, DateTimeOffset UpdatedUtc);
 
     private async Task<bool> HasNormalizedConfigurationAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
     {

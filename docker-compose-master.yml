@@ -9,7 +9,7 @@ services:
       - E:/home/txnproc/docker/master/db/log:/var/opt/mssql/log
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=thisisalongpassword123!
+      - SA_PASSWORD=${SQLSERVER_SA_PASSWORD}
 
   kurrentdb:
     image: kurrentplatform/kurrentdb:26.1
@@ -36,10 +36,10 @@ services:
     environment: 
       - ServiceOptions:PublicOrigin=https://securityservice:5001
       - ServiceOptions:IssuerUrl=https://securityservice:5001
-      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore;Encrypt=false
-      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration;Encrypt=false
-      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
+      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=PersistedGrantStore;Encrypt=false
+      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=Configuration;Encrypt=false
+      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=AuthenticationDbContext;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false
       - urls=https://*:5001
     restart: on-failure
     depends_on:
@@ -73,7 +73,7 @@ services:
     ports:
       - "5002:5002"
     environment:
-      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=TransactionProcessorReadModel;Encrypt=false
       - EventStoreSettings:ConnectionString=esdb://admin:changeit@kurrentdb:2113?tls=false&tlsVerifyCert=false
       - EventStoreSettings:Insecure=true
       - AppSettings:SecurityService=https://securityservice:5001
@@ -81,7 +81,7 @@ services:
       - urls=http://*:5002
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
       - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
       - OperatorConfiguration:PataPawaPrePay:ApiLogonRequired=true
@@ -106,7 +106,7 @@ services:
       - urls=http://*:5003
       - AppSettings:TransactionProcessorApi=http://transactionprocessor:5002
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
     depends_on:
       - securityservice
       - transactionprocessor 
@@ -117,9 +117,9 @@ services:
     volumes:
       - E:/home/txnproc/docker/master/trace:/home/txnproc/trace
     environment:
-      - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel;Encrypt=false
-      - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PataPawaReadModel;Encrypt=false
-      - ConnectionStrings:AgencyBankingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AgencyBankingReadModel;Encrypt=false
+      - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=TestBankReadModel;Encrypt=false
+      - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=PataPawaReadModel;Encrypt=false
+      - ConnectionStrings:AgencyBankingReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=AgencyBankingReadModel;Encrypt=false
     ports: 
       - "9000:9000"
     restart: on-failure
@@ -143,9 +143,9 @@ services:
       - AppSettings:TransactionProcessorApi=http://transactionprocessor:5002
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=TransactionProcessorReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false
       - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
       - AppSettings:FileProfiles__0__ListeningDirectory=/home/txnproc/bulkfiles/safaricom
       - AppSettings:FileProfiles__1__ListeningDirectory=/home/txnproc/bulkfiles/voucher
@@ -180,8 +180,8 @@ services:
       - AppSettings:SecurityService=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5011
-      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TransactionProcessorReadModel;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false
+      - ConnectionStrings:TransactionProcessorReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=TransactionProcessorReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false
     depends_on:
       - sqlserver
       - kurrentdb

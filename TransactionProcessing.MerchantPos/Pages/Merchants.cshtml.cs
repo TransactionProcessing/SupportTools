@@ -7,7 +7,7 @@ namespace TransactionProcessing.MerchantPos.Pages;
 
 public sealed class MerchantsModel : PageModel
 {
-    private const string SecretMask = "*****";
+    private static readonly string SecretMask = new('*', 5);
     private readonly MerchantPosSettingsStore _settingsStore;
 
     public MerchantsModel(MerchantPosSettingsStore settingsStore)

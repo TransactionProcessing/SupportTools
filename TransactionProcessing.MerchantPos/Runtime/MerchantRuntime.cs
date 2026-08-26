@@ -6,6 +6,7 @@ using SimpleResults;
 using MerchantPos.EF.Models;
 using SecurityService.DataTransferObjects;
 using TransactionProcessing.MerchantPos.Runtime;
+using System.Security.Cryptography;
 
 public class MerchantRuntime
 {
@@ -13,8 +14,6 @@ public class MerchantRuntime
     private readonly ISecurityServiceClient SecurityServiceClient;
     private readonly IEfRepository Repository;
     private readonly MerchantMetrics Metrics;
-    private readonly Random _rng = new();
-
     public MerchantRuntime(IApiClient apiClient,
                            ISecurityServiceClient securityServiceClient,
                            IEfRepository repository,
@@ -243,16 +242,16 @@ public class MerchantRuntime
         decimal balance = await Repository.GetBalance(cfg.MerchantId);
 
         // Random product
-        Product product = cfg.Products[_rng.Next(cfg.Products.Count)];
+        Product product = cfg.Products[RandomNumberGenerator.GetInt32(cfg.Products.Count)];
 
         Decimal value = product.Value switch
         {
-            0 => this._rng.Next(9, 250),
+            0 => RandomNumberGenerator.GetInt32(9, 250),
             _ => product.Value
         };
 
         // Possible intentional fail
-        bool induceFail = _rng.NextDouble() < cfg.FailureInjectionProbability;
+        bool induceFail = NextDouble() < cfg.FailureInjectionProbability;
         decimal saleValue = induceFail ? balance + 10 : value;
         
         Result<SaleResponse> result = await ApiClient.SendSale(cfg, this.CurrentUserToken, product, saleValue, transactionNumber, cancellationToken);
@@ -284,6 +283,12 @@ public class MerchantRuntime
             newBalance = await Repository.GetBalance(cfg.MerchantId);
             this.Metrics.SetBalance(cfg.MerchantId, newBalance);
         }
+    }
+
+    private static double NextDouble()
+    {
+        var sample = RandomNumberGenerator.GetInt32(int.MaxValue);
+        return sample / (double)int.MaxValue;
     }
 
     private async Task DoReconciliation(MerchantConfig cfg, CancellationToken cancellationToken)

@@ -290,19 +290,49 @@ public sealed class OperationsDashboardService(
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var options = configurationState.Current;
+        var fileSendRows = await LoadFileSendRowsAsync(dbContext, cancellationToken);
+        var merchantRunRows = await LoadMerchantRunRowsAsync(dbContext, cancellationToken);
+        var pendingStatusChecks = await CountPendingStatusChecksAsync(dbContext, cancellationToken);
 
-        var fileSendRows = await dbContext.FileSendRecords
+        return new OperationsDashboardModel(
+            DateTimeOffset.UtcNow,
+            hostEnvironment.EnvironmentName,
+            ResolveConnectionStringSummary(),
+            DescribeAuthentication(),
+            DescribeFileProcessing(),
+            DescribeTransactionGeneration(),
+            DescribePolling(),
+            DescribeLogging(),
+            BuildMetrics(options, pendingStatusChecks),
+            BuildMerchantRows(options, fileSendRows, merchantRunRows),
+            BuildFileProfiles(options),
+            BuildContracts(options),
+            BuildRecentRuns(merchantRunRows));
+    }
+
+    private static async Task<IReadOnlyList<dynamic>> LoadFileSendRowsAsync(
+        MerchantFileProcessorDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.FileSendRecords
             .Select(record => new
             {
                 record.MerchantId,
                 MerchantName = record.MerchantName ?? record.MerchantId,
                 record.Status,
                 record.ProcessedUtc,
-                record.ProcessingCompleted
+                record.ProcessingCompleted,
+                record.EstateId,
+                record.FileProcessorFileId
             })
             .ToListAsync(cancellationToken);
+    }
 
-        var merchantRunRows = await dbContext.MerchantRunRecords
+    private static async Task<IReadOnlyList<dynamic>> LoadMerchantRunRowsAsync(
+        MerchantFileProcessorDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.MerchantRunRecords
             .Select(record => new
             {
                 record.MerchantId,
@@ -313,28 +343,38 @@ public sealed class OperationsDashboardService(
                 record.ErrorMessage
             })
             .ToListAsync(cancellationToken);
+    }
 
-        var pendingStatusChecks = await dbContext.FileSendRecords.CountAsync(record =>
+    private static async Task<int> CountPendingStatusChecksAsync(
+        MerchantFileProcessorDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.FileSendRecords.CountAsync(record =>
             record.Status == FileSendStatuses.Succeeded &&
             !record.ProcessingCompleted &&
             !string.IsNullOrWhiteSpace(record.EstateId) &&
             !string.IsNullOrWhiteSpace(record.FileProcessorFileId),
             cancellationToken);
+    }
 
-        var recentRuns = merchantRunRows
-            .OrderByDescending(record => record.CompletedUtc)
-            .Take(50)
-            .Select(record => new RunHistoryRow(
-                record.MerchantId,
-                record.MerchantName,
-                record.ScheduledRunUtc,
-                record.CompletedUtc,
-                record.Status,
-                record.ErrorMessage))
-            .ToArray();
+    private static IReadOnlyList<OperationsMetric> BuildMetrics(MerchantProcessingOptions options, int pendingStatusChecks) =>
+        new[]
+        {
+            new OperationsMetric("Merchants", options.Merchants.Count.ToString(), $"{options.Merchants.Count(merchant => merchant.Enabled)} enabled"),
+            new OperationsMetric("Contracts", options.ContractDefinitions.Count.ToString(), "Contract to file-profile mappings"),
+            new OperationsMetric("File profiles", options.FileProfiles.Count.ToString(), "Delimited and JSON builders"),
+            new OperationsMetric("Pending checks", pendingStatusChecks.ToString(), "Files awaiting completion polling"),
+            new OperationsMetric("Run interval", $"{options.FileStatusPolling.PollIntervalSeconds}s", "Status polling cadence"),
+            new OperationsMetric("Transaction range", $"{options.TransactionGeneration.MinimumTransactionsPerContract}-{options.TransactionGeneration.MaximumTransactionsPerContract}", "Synthetic transaction batch size")
+        };
 
+    private static IReadOnlyList<MerchantOperationsRow> BuildMerchantRows(
+        MerchantProcessingOptions options,
+        IReadOnlyList<dynamic> fileSendRows,
+        IReadOnlyList<dynamic> merchantRunRows)
+    {
         var merchantLookup = fileSendRows
-            .GroupBy(record => record.MerchantId, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(record => (string)record.MerchantId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => new
@@ -346,34 +386,24 @@ public sealed class OperationsDashboardService(
                 StringComparer.OrdinalIgnoreCase);
 
         var runLookup = merchantRunRows
-            .GroupBy(record => record.MerchantId, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(record => (string)record.MerchantId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(record => record.CompletedUtc).First(),
                 StringComparer.OrdinalIgnoreCase);
 
-        var pendingLookup = await dbContext.FileSendRecords
-            .Where(record =>
-                record.Status == FileSendStatuses.Succeeded &&
-                !record.ProcessingCompleted &&
-                !string.IsNullOrWhiteSpace(record.MerchantId))
-            .GroupBy(record => record.MerchantId)
-            .Select(group => new
-            {
-                MerchantId = group.Key,
-                PendingCount = group.Count()
-            })
-            .ToListAsync(cancellationToken);
+        var pendingLookup = fileSendRows
+            .Where(record => (bool)record.ProcessingCompleted == false && !string.IsNullOrWhiteSpace((string)record.MerchantId))
+            .GroupBy(record => (string)record.MerchantId)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
-        var pendingLookupMap = pendingLookup.ToDictionary(item => item.MerchantId, item => item.PendingCount, StringComparer.OrdinalIgnoreCase);
-
-        var merchants = options.Merchants
+        return options.Merchants
             .OrderBy(merchant => merchant.MerchantId, StringComparer.OrdinalIgnoreCase)
             .Select(merchant =>
             {
                 merchantLookup.TryGetValue(merchant.MerchantId, out var fileSummary);
                 runLookup.TryGetValue(merchant.MerchantId, out var runSummary);
-                pendingLookupMap.TryGetValue(merchant.MerchantId, out var pendingCount);
+                pendingLookup.TryGetValue(merchant.MerchantId, out var pendingCount);
 
                 return new MerchantOperationsRow(
                     merchant.MerchantId,
@@ -388,8 +418,10 @@ public sealed class OperationsDashboardService(
                     pendingCount);
             })
             .ToArray();
+    }
 
-        var fileProfiles = options.FileProfiles
+    private static IReadOnlyList<FileProfileRow> BuildFileProfiles(MerchantProcessingOptions options) =>
+        options.FileProfiles
             .OrderBy(profile => profile.FileProfileId, StringComparer.OrdinalIgnoreCase)
             .Select(profile => new FileProfileRow(
                 profile.FileProfileId,
@@ -404,36 +436,24 @@ public sealed class OperationsDashboardService(
                 DescribeFieldMap(profile.Fields)))
             .ToArray();
 
-        var contracts = options.ContractDefinitions
+    private static IReadOnlyList<ContractMappingRow> BuildContracts(MerchantProcessingOptions options) =>
+        options.ContractDefinitions
             .OrderBy(contract => contract.ContractId, StringComparer.OrdinalIgnoreCase)
             .Select(contract => new ContractMappingRow(contract.ContractId, contract.FileProfileId))
             .ToArray();
 
-        var metrics = new[]
-        {
-            new OperationsMetric("Merchants", options.Merchants.Count.ToString(), $"{options.Merchants.Count(merchant => merchant.Enabled)} enabled"),
-            new OperationsMetric("Contracts", options.ContractDefinitions.Count.ToString(), "Contract to file-profile mappings"),
-            new OperationsMetric("File profiles", options.FileProfiles.Count.ToString(), "Delimited and JSON builders"),
-            new OperationsMetric("Pending checks", pendingStatusChecks.ToString(), "Files awaiting completion polling"),
-            new OperationsMetric("Run interval", $"{options.FileStatusPolling.PollIntervalSeconds}s", "Status polling cadence"),
-            new OperationsMetric("Transaction range", $"{options.TransactionGeneration.MinimumTransactionsPerContract}-{options.TransactionGeneration.MaximumTransactionsPerContract}", "Synthetic transaction batch size")
-        };
-
-        return new OperationsDashboardModel(
-            DateTimeOffset.UtcNow,
-            hostEnvironment.EnvironmentName,
-            ResolveConnectionStringSummary(),
-            DescribeAuthentication(),
-            DescribeFileProcessing(),
-            DescribeTransactionGeneration(),
-            DescribePolling(),
-            DescribeLogging(),
-            metrics,
-            merchants,
-            fileProfiles,
-            contracts,
-            recentRuns);
-    }
+    private static IReadOnlyList<RunHistoryRow> BuildRecentRuns(IReadOnlyList<dynamic> merchantRunRows) =>
+        merchantRunRows
+            .OrderByDescending(record => record.CompletedUtc)
+            .Take(50)
+            .Select(record => new RunHistoryRow(
+                record.MerchantId,
+                record.MerchantName,
+                record.ScheduledRunUtc,
+                record.CompletedUtc,
+                record.Status,
+                record.ErrorMessage))
+            .ToArray();
 
     private string ResolveConnectionStringSummary()
     {

@@ -109,30 +109,40 @@ public sealed class MerchantPosSettingsStore
 
     private static MerchantPosSettingsSnapshot MergeWithDefaults(MerchantPosSettingsSnapshot snapshot, MerchantPosSettingsSnapshot defaults)
     {
-        snapshot.WorkerSettings ??= new WorkerSettings();
-        snapshot.WorkerSettings.ClientId = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ClientId) ? defaults.WorkerSettings.ClientId : snapshot.WorkerSettings.ClientId;
-        snapshot.WorkerSettings.ClientSecret = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ClientSecret) ? defaults.WorkerSettings.ClientSecret : snapshot.WorkerSettings.ClientSecret;
-        snapshot.WorkerSettings.ServiceClientId = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ServiceClientId) ? defaults.WorkerSettings.ServiceClientId : snapshot.WorkerSettings.ServiceClientId;
-        snapshot.WorkerSettings.ServiceClientSecret = string.IsNullOrWhiteSpace(snapshot.WorkerSettings.ServiceClientSecret) ? defaults.WorkerSettings.ServiceClientSecret : snapshot.WorkerSettings.ServiceClientSecret;
-        snapshot.WorkerSettings.MerchantScanIntervalSeconds = snapshot.WorkerSettings.MerchantScanIntervalSeconds <= 0
-            ? defaults.WorkerSettings.MerchantScanIntervalSeconds
-            : snapshot.WorkerSettings.MerchantScanIntervalSeconds;
-        if (snapshot.WorkerSettings.Merchants is null || snapshot.WorkerSettings.Merchants.Count == 0)
-        {
-            snapshot.WorkerSettings.Merchants = defaults.WorkerSettings.Merchants;
-        }
-
-        snapshot.ApiConfiguration ??= new ApiConfigurationSettings();
-        snapshot.ApiConfiguration.SecurityService = string.IsNullOrWhiteSpace(snapshot.ApiConfiguration.SecurityService) ? defaults.ApiConfiguration.SecurityService : snapshot.ApiConfiguration.SecurityService;
-        snapshot.ApiConfiguration.TransactionProcessorACL = string.IsNullOrWhiteSpace(snapshot.ApiConfiguration.TransactionProcessorACL) ? defaults.ApiConfiguration.TransactionProcessorACL : snapshot.ApiConfiguration.TransactionProcessorACL;
-        snapshot.ApiConfiguration.TransactionProcessorApi = string.IsNullOrWhiteSpace(snapshot.ApiConfiguration.TransactionProcessorApi) ? defaults.ApiConfiguration.TransactionProcessorApi : snapshot.ApiConfiguration.TransactionProcessorApi;
-        snapshot.ApiConfiguration.TestHost = string.IsNullOrWhiteSpace(snapshot.ApiConfiguration.TestHost) ? defaults.ApiConfiguration.TestHost : snapshot.ApiConfiguration.TestHost;
-
-        snapshot.ConnectionStrings ??= new ConnectionStringsSettings();
-        snapshot.ConnectionStrings.MerchantDb = string.IsNullOrWhiteSpace(snapshot.ConnectionStrings.MerchantDb) ? defaults.ConnectionStrings.MerchantDb : snapshot.ConnectionStrings.MerchantDb;
-        snapshot.ConnectionStrings.SettingsDb = string.IsNullOrWhiteSpace(snapshot.ConnectionStrings.SettingsDb) ? defaults.ConnectionStrings.SettingsDb : snapshot.ConnectionStrings.SettingsDb;
+        ApplyWorkerDefaults(snapshot.WorkerSettings ??= new WorkerSettings(), defaults.WorkerSettings);
+        ApplyApiDefaults(snapshot.ApiConfiguration ??= new ApiConfigurationSettings(), defaults.ApiConfiguration);
+        ApplyConnectionStringDefaults(snapshot.ConnectionStrings ??= new ConnectionStringsSettings(), defaults.ConnectionStrings);
         snapshot.EnsureDefaults();
         return snapshot;
+    }
+
+    private static void ApplyWorkerDefaults(WorkerSettings current, WorkerSettings defaults)
+    {
+        current.ClientId = string.IsNullOrWhiteSpace(current.ClientId) ? defaults.ClientId : current.ClientId;
+        current.ClientSecret = string.IsNullOrWhiteSpace(current.ClientSecret) ? defaults.ClientSecret : current.ClientSecret;
+        current.ServiceClientId = string.IsNullOrWhiteSpace(current.ServiceClientId) ? defaults.ServiceClientId : current.ServiceClientId;
+        current.ServiceClientSecret = string.IsNullOrWhiteSpace(current.ServiceClientSecret) ? defaults.ServiceClientSecret : current.ServiceClientSecret;
+        current.MerchantScanIntervalSeconds = current.MerchantScanIntervalSeconds <= 0
+            ? defaults.MerchantScanIntervalSeconds
+            : current.MerchantScanIntervalSeconds;
+        if (current.Merchants is null || current.Merchants.Count == 0)
+        {
+            current.Merchants = defaults.Merchants;
+        }
+    }
+
+    private static void ApplyApiDefaults(ApiConfigurationSettings current, ApiConfigurationSettings defaults)
+    {
+        current.SecurityService = string.IsNullOrWhiteSpace(current.SecurityService) ? defaults.SecurityService : current.SecurityService;
+        current.TransactionProcessorACL = string.IsNullOrWhiteSpace(current.TransactionProcessorACL) ? defaults.TransactionProcessorACL : current.TransactionProcessorACL;
+        current.TransactionProcessorApi = string.IsNullOrWhiteSpace(current.TransactionProcessorApi) ? defaults.TransactionProcessorApi : current.TransactionProcessorApi;
+        current.TestHost = string.IsNullOrWhiteSpace(current.TestHost) ? defaults.TestHost : current.TestHost;
+    }
+
+    private static void ApplyConnectionStringDefaults(ConnectionStringsSettings current, ConnectionStringsSettings defaults)
+    {
+        current.MerchantDb = string.IsNullOrWhiteSpace(current.MerchantDb) ? defaults.MerchantDb : current.MerchantDb;
+        current.SettingsDb = string.IsNullOrWhiteSpace(current.SettingsDb) ? defaults.SettingsDb : current.SettingsDb;
     }
 
     private MerchantPosSettingsDbContext CreateContext(string settingsDbPath)

@@ -6,7 +6,7 @@
       "email_address": "estateuser@devestate1.co.uk",
       "user": {
         "email_address": "estateuser@devestate1.co.uk",
-        "password": "123456",
+        "password": "",
         "given_name": "Development Estate",
         "middle_name": "",
         "family_name": "User"
@@ -35,7 +35,7 @@
           ],
           "user": {
             "email_address": "merchantuser@testmerchant1.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Test Merchant 1",
             "middle_name": "",
             "family_name": "User"

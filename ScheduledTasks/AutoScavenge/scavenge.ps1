@@ -1,7 +1,8 @@
 param(
     [string]$BaseUrl = "http://localhost:2113",
     [string]$Username,
-    [string]$Password
+    [string]$Password,
+    [System.Management.Automation.PSCredential]$Credential
 )
 
 $BaseUrl = $BaseUrl.TrimEnd('/')
@@ -12,7 +13,13 @@ $headers = @{
     'Content-Type' = 'application/json'
 }
 
-if ($Username -and $Password) {
+if ($Credential) {
+    $pair = "$($Credential.UserName)`:$($Credential.GetNetworkCredential().Password)"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+    $encoded = [Convert]::ToBase64String($bytes)
+    $headers['Authorization'] = "Basic $encoded"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($Username) -and -not [string]::IsNullOrWhiteSpace($Password)) {
     $pair = "$Username`:$Password"
     $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
     $encoded = [Convert]::ToBase64String($bytes)
