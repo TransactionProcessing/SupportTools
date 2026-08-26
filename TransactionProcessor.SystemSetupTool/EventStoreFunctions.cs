@@ -96,27 +96,27 @@ public class EventStoreFunctions{
 
         foreach (var projection in projectionsToDeploy)
         {
-            if (projection.Contains("EstateManagementSubscriptionStreamBuilder") ||
-                projection.Contains("FileProcessorSubscriptionStreamBuilder") ||
-                projection.Contains("TransactionProcessorSubscriptionStreamBuilder") ||
-                projection.Contains("EstateAggregator") ||
-                projection.Contains("MerchantAggregator") ||
-                projection.Contains("CallbackHandlerEnricher"))
+            if (projection.Contains("EstateManagementSubscriptionStreamBuilder", StringComparison.Ordinal) ||
+                projection.Contains("FileProcessorSubscriptionStreamBuilder", StringComparison.Ordinal) ||
+                projection.Contains("TransactionProcessorSubscriptionStreamBuilder", StringComparison.Ordinal) ||
+                projection.Contains("EstateAggregator", StringComparison.Ordinal) ||
+                projection.Contains("MerchantAggregator", StringComparison.Ordinal) ||
+                projection.Contains("CallbackHandlerEnricher", StringComparison.Ordinal))
             {
                 continue;
             }
 
             FileInfo f = new FileInfo(projection);
-            String name = f.Name.Substring(0, f.Name.Length - (f.Name.Length - f.Name.LastIndexOf(".")));
+            String name = Path.GetFileNameWithoutExtension(f.Name);
             var body = File.ReadAllText(f.FullName);
 
-            var x = body.IndexOf("//endtestsetup");
+            var x = body.IndexOf("//endtestsetup", StringComparison.Ordinal);
             x = x + "//endtestsetup".Length;
 
             body = body.Substring(x);
 
             // Is this already deployed (in the master list)
-            if (currentProjections.Any(p => p.Name == name) == false)
+            if (currentProjections.Any(p => string.Equals(p.Name, name, StringComparison.Ordinal)) == false)
             {
                 // Projection does not exist so create
                 await this.ProjectionClient.CreateContinuousAsync(name, body, true, cancellationToken: cancellationToken);

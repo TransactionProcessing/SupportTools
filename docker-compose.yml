@@ -10,7 +10,7 @@ services:
       - F:\home\txnproc\docker\db\log:/var/opt/mssql/log
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=thisisalongpassword123!
+      - SA_PASSWORD=${SQLSERVER_SA_PASSWORD}
   
   eventstore:
     image: eventstore/eventstore:21.2.0-buster-slim
@@ -37,10 +37,10 @@ services:
     environment: 
       - ServiceOptions:PublicOrigin=https://securityservice:5001
       - ServiceOptions:IssuerUrl=https://securityservice:5001
-      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PersistedGrantStore;Encrypt=false
-      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=Configuration;Encrypt=false
-      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=AuthenticationDbContext;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
+      - ConnectionStrings:PersistedGrantDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=PersistedGrantStore;Encrypt=false
+      - ConnectionStrings:ConfigurationDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=Configuration;Encrypt=false
+      - ConnectionStrings:AuthenticationDbContext=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=AuthenticationDbContext;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false |
       - urls=https://*:5001
     restart: on-failure:5
     depends_on:
@@ -60,8 +60,8 @@ services:
       - AppSettings:Authority=https://securityservice:5001
       - SecurityConfiguration:Authority=https://securityservice:5001
       - urls=http://*:5000
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false |       
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false |
     depends_on:
       - sqlserver
       - eventstore
@@ -80,8 +80,8 @@ services:
   #    - AppSettings:SecurityService=https://securityservice:5001
   #    - SecurityConfiguration:Authority=https://securityservice:5001
   #    - urls=http://*:5005
-  #    - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
-  #    - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
+  #    - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=EstateReportingReadModel;Encrypt=false
+  #    - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false |
   #  depends_on:
   #    - sqlserver
   #    - eventstore
@@ -122,7 +122,7 @@ services:
       - AppSettings:EstateManagementApi=http://estatemanagement:5000
       - AppSettings:VoucherManagementApi=http://vouchermanagement:5007
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
       - OperatorConfiguration:Safaricom:Url=http://testhosts:9000/api/safaricom
       - OperatorConfiguration:PataPawaPostPay:Url=http://testhosts:9000/PataPawaPostPayService/basichttp
       - OperatorConfiguration:PataPawaPrePay:Url=http://testhosts:9000/api/patapawaprepay
@@ -145,7 +145,7 @@ services:
       - urls=http://*:5003
       - AppSettings:TransactionProcessorApi=http://transactionprocessor:5002
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
     depends_on:
       - securityservice
       - transactionprocessor
@@ -156,8 +156,8 @@ services:
     volumes:
       - F:\home\txnproc\docker\trace:/home/txnproc/trace
     environment:
-      - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=TestBankReadModel;Encrypt=false
-      - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=PataPawaReadModel;Encrypt=false
+      - ConnectionStrings:TestBankReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=TestBankReadModel;Encrypt=false
+      - ConnectionStrings:PataPawaReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=PataPawaReadModel;Encrypt=false
     ports: 
       - "9000:9000"
     restart: on-failure:5
@@ -181,9 +181,9 @@ services:
       - AppSettings:TransactionProcessorApi=http://transactionProcessor:5002
       - AppSettings:EstateManagementApi=http://estateManamgement:5000
       - AppSettings:ClientId=serviceClient
-      - AppSettings:ClientSecret=d192cbc46d834d0da90e8a9d50ded543
-      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=thisisalongpassword123!;database=EstateReportingReadModel;Encrypt=false
-      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=thisisalongpassword123!;Encrypt=false | 
+      - AppSettings:ClientSecret=${TRANSACTIONPROCESSOR_CLIENTSECRET}
+      - ConnectionStrings:EstateReportingReadModel=server=sqlserver;user id=sa;password=${SQLSERVER_SA_PASSWORD};database=EstateReportingReadModel;Encrypt=false
+      - ConnectionStrings:HealthCheck=server=sqlserver;database=master;user id=sa;password=${SQLSERVER_SA_PASSWORD};Encrypt=false |
       - AppSettings:TemporaryFileLocation=/home/txnproc/bulkfiles/temporary
       - AppSettings:FileProfiles:0:ListeningDirectory=/home/txnproc/bulkfiles/safaricom
       - AppSettings:FileProfiles:1:ListeningDirectory=/home/txnproc/bulkfiles/voucher

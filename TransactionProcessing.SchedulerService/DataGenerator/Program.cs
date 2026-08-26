@@ -72,7 +72,7 @@ namespace TransactionDataGenerator{
             // Get a token to talk to the estate service
             CancellationToken cancellationToken = new();
             String clientId = "serviceClient";
-            String clientSecret = "d192cbc46d834d0da90e8a9d50ded543";
+            String clientSecret = ResolveRequiredSecret("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET");
             ITransactionDataGeneratorService g = new TransactionDataGeneratorService(Program.SecurityServiceClient,
                                                                        Program.TransactionProcessorClient,
                                                                        Program.baseAddressFunc("TransactionProcessorApi"),
@@ -90,6 +90,17 @@ namespace TransactionDataGenerator{
             //await Program.GenerateStatements(g, estateId, cancellationToken);
 
             Console.WriteLine("Process Complete");
+        }
+
+        private static string ResolveRequiredSecret(string environmentVariableName)
+        {
+            string? secret = Environment.GetEnvironmentVariable(environmentVariableName);
+            if (!string.IsNullOrWhiteSpace(secret))
+            {
+                return secret;
+            }
+
+            throw new InvalidOperationException($"Missing required secret. Set {environmentVariableName}.");
         }
 
         private static async Task GenerateStatements(ITransactionDataGeneratorService g, Guid estateId, CancellationToken cancellationToken){

@@ -73,70 +73,8 @@ public sealed class FileStatusReportService(
     public async Task<FileStatusReport> GetReportAsync(CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var aggregateSource = await dbContext.FileSendRecords
-            .Select(record => new
-            {
-                record.MerchantId,
-                record.Status,
-                record.ProcessedUtc
-            })
-            .ToListAsync(cancellationToken);
-
-        var aggregates = aggregateSource
-            .GroupBy(record => record.MerchantId, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new
-            {
-                MerchantId = group.Key,
-                SuccessfulFilesSent = group.Count(record => record.Status == FileSendStatuses.Succeeded),
-                FailedFiles = group.Count(record => record.Status == FileSendStatuses.Failed),
-                LastProcessedUtc = group.Max(record => (DateTimeOffset?)record.ProcessedUtc)
-            })
-            .ToList();
-
-        var aggregateLookup = aggregates.ToDictionary(item => item.MerchantId, StringComparer.OrdinalIgnoreCase);
-
-        var options = configurationState.Current;
-        var merchantSummaries = options.Merchants
-            .OrderBy(merchant => merchant.MerchantId, StringComparer.OrdinalIgnoreCase)
-            .Select(merchant =>
-            {
-                aggregateLookup.TryGetValue(merchant.MerchantId, out var aggregate);
-
-                return new MerchantFileSummary(
-                    merchant.MerchantId,
-                    string.IsNullOrWhiteSpace(merchant.Name) ? merchant.MerchantId : merchant.Name,
-                    merchant.Enabled,
-                    aggregate?.SuccessfulFilesSent ?? 0,
-                    aggregate?.FailedFiles ?? 0,
-                    aggregate?.LastProcessedUtc,
-                    GetNextScheduledUtc(merchant, DateTimeOffset.UtcNow));
-            })
-            .ToArray();
-
-        var recentFiles = (await dbContext.FileSendRecords
-            .Select(record => new FileStatusRow(
-                record.Id,
-                record.ProcessedUtc,
-                record.MerchantId,
-                record.MerchantName ?? record.MerchantId,
-                record.ContractId,
-                record.ContractName ?? record.ContractId,
-                record.Status,
-                record.FileName ?? string.Empty,
-                record.FileProfileId ?? string.Empty,
-                record.Format ?? string.Empty,
-                record.FileContent,
-                record.RecordCount ?? 0,
-                record.TotalAmount ?? 0m,
-                record.ErrorMessage,
-                record.ProcessingCompleted,
-                record.LastStatusCheckUtc))
-            .ToListAsync(cancellationToken))
-            .OrderByDescending(record => record.ProcessedUtc)
-            .Take(100)
-            .ToList();
-
+        var merchantSummaries = await BuildMerchantSummariesAsync(dbContext, configurationState, cancellationToken);
+        var recentFiles = await LoadRecentFilesAsync(dbContext, cancellationToken);
         return new FileStatusReport(DateTimeOffset.UtcNow, merchantSummaries, recentFiles);
     }
 
@@ -378,6 +316,75 @@ public sealed class FileStatusReportService(
             firstRunTime.Minute,
             firstRunTime.Second,
             TimeSpan.Zero);
+    }
+
+    private static async Task<IReadOnlyList<MerchantFileSummary>> BuildMerchantSummariesAsync(
+        MerchantFileProcessorDbContext dbContext,
+        IMerchantProcessingConfigurationState currentState,
+        CancellationToken cancellationToken)
+    {
+        var aggregateLookup = (await dbContext.FileSendRecords
+                .Select(record => new
+                {
+                    record.MerchantId,
+                    record.Status,
+                    record.ProcessedUtc
+                })
+                .ToListAsync(cancellationToken))
+            .GroupBy(record => record.MerchantId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                MerchantId = group.Key,
+                SuccessfulFilesSent = group.Count(record => record.Status == FileSendStatuses.Succeeded),
+                FailedFiles = group.Count(record => record.Status == FileSendStatuses.Failed),
+                LastProcessedUtc = group.Max(record => (DateTimeOffset?)record.ProcessedUtc)
+            })
+            .ToDictionary(item => item.MerchantId, StringComparer.OrdinalIgnoreCase);
+
+        return currentState.Current.Merchants
+            .OrderBy(merchant => merchant.MerchantId, StringComparer.OrdinalIgnoreCase)
+            .Select(merchant =>
+            {
+                aggregateLookup.TryGetValue(merchant.MerchantId, out var aggregate);
+
+                return new MerchantFileSummary(
+                    merchant.MerchantId,
+                    string.IsNullOrWhiteSpace(merchant.Name) ? merchant.MerchantId : merchant.Name,
+                    merchant.Enabled,
+                    aggregate?.SuccessfulFilesSent ?? 0,
+                    aggregate?.FailedFiles ?? 0,
+                    aggregate?.LastProcessedUtc,
+                    GetNextScheduledUtc(merchant, DateTimeOffset.UtcNow));
+            })
+            .ToArray();
+    }
+
+    private static async Task<IReadOnlyList<FileStatusRow>> LoadRecentFilesAsync(
+        MerchantFileProcessorDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        return (await dbContext.FileSendRecords
+                .Select(record => new FileStatusRow(
+                    record.Id,
+                    record.ProcessedUtc,
+                    record.MerchantId,
+                    record.MerchantName ?? record.MerchantId,
+                    record.ContractId,
+                    record.ContractName ?? record.ContractId,
+                    record.Status,
+                    record.FileName ?? string.Empty,
+                    record.FileProfileId ?? string.Empty,
+                    record.Format ?? string.Empty,
+                    record.FileContent,
+                    record.RecordCount ?? 0,
+                    record.TotalAmount ?? 0m,
+                    record.ErrorMessage,
+                    record.ProcessingCompleted,
+                    record.LastStatusCheckUtc))
+                .ToListAsync(cancellationToken))
+            .OrderByDescending(record => record.ProcessedUtc)
+            .Take(100)
+            .ToList();
     }
 
     private static void AppendDocumentStart(StringBuilder html, string title)

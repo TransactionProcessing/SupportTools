@@ -16,8 +16,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$ClientId,
 
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
+    [Parameter(Mandatory = $false)]
     [string]$ClientSecret
 )
 
@@ -164,11 +163,19 @@ function Invoke-DailySettlementProcessing {
         [Parameter(Mandatory = $true)]
         [string]$ClientId,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         [string]$ClientSecret
     )
 
     $settlementDate = (Get-Date).ToString('yyyy-MM-dd')
+    if ([string]::IsNullOrWhiteSpace($ClientSecret)) {
+        $ClientSecret = $env:TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ClientSecret)) {
+        throw 'Missing required client secret. Set TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET or pass -ClientSecret.'
+    }
+
     $accessToken = Get-AccessToken -SecurityServiceUrl $SecurityServiceUrl -ClientId $ClientId -ClientSecret $ClientSecret
     $headers = @{
         Authorization = "Bearer $accessToken"

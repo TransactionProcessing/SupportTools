@@ -6,7 +6,7 @@
       "email_address": "estateuser@productionestate1.co.uk",
       "user": {
         "email_address": "estateuser@productionestate1.co.uk",
-        "password": "123456",
+        "password": "",
         "given_name": "Production Estate",
         "middle_name": "",
         "family_name": "User"
@@ -35,7 +35,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant1.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 1",
             "middle_name": "",
             "family_name": "User"
@@ -68,7 +68,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant2.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 2",
             "middle_name": "",
             "family_name": "User"
@@ -101,7 +101,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant3.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 3",
             "middle_name": "",
             "family_name": "User"
@@ -134,7 +134,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant4.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 4",
             "middle_name": "",
             "family_name": "User"
@@ -167,7 +167,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant5.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 5",
             "middle_name": "",
             "family_name": "User"
@@ -200,7 +200,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant6.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 6",
             "middle_name": "",
             "family_name": "User"
@@ -233,7 +233,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant7.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 7",
             "middle_name": "",
             "family_name": "User"
@@ -266,7 +266,7 @@
           ],
           "user": {
             "email_address": "merchantuser@livemerchant8.co.uk",
-            "password": "123456",
+            "password": "",
             "given_name": "Live Merchant 8",
             "middle_name": "",
             "family_name": "User"

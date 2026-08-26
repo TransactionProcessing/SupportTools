@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using SecurityService.DataTransferObjects;
 using Shared.Results;
 using Shared.Serialisation;
+using System.Security.Cryptography;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;
@@ -396,10 +397,9 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
 
         return requestUri;
     }
-    private readonly Random _rng = new();
     private async Task<Result<(String accountNumber, String accountName, String? mobileNumber)>> CreateBillPaymentBill(Decimal billAmount, CancellationToken cancellationToken)
     {
-        Int32 accountNumber = this._rng.Next(1, 100000);
+        Int32 accountNumber = RandomNumberGenerator.GetInt32(1, 100000);
         String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
         
         var body = new
@@ -423,7 +423,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
 
     private async Task<Result<(String accountNumber, String accountName, String mobileNumber)>> CreateBillPaymentMeter(CancellationToken cancellationToken)
     {
-            Int32 meterNumber = this._rng.Next(1, 100000);
+            Int32 meterNumber = RandomNumberGenerator.GetInt32(1, 100000);
             String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
             var body = new
             {

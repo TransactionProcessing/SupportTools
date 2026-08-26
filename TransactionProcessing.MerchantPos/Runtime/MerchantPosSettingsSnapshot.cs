@@ -18,6 +18,13 @@ public sealed class MerchantPosSettingsSnapshot
 
     public void EnsureDefaults()
     {
+        EnsureWorkerDefaults();
+        EnsureApiConfigurationDefaults();
+        EnsureConnectionStringDefaults();
+    }
+
+    private void EnsureWorkerDefaults()
+    {
         WorkerSettings ??= new WorkerSettings();
         WorkerSettings.ClientId ??= string.Empty;
         WorkerSettings.ClientSecret ??= string.Empty;
@@ -25,13 +32,19 @@ public sealed class MerchantPosSettingsSnapshot
         WorkerSettings.ServiceClientSecret ??= string.Empty;
         WorkerSettings.MerchantScanIntervalSeconds = WorkerSettings.MerchantScanIntervalSeconds <= 0 ? 5 : WorkerSettings.MerchantScanIntervalSeconds;
         WorkerSettings.Merchants ??= new List<MerchantConfig>();
+    }
 
+    private void EnsureApiConfigurationDefaults()
+    {
         ApiConfiguration ??= new ApiConfigurationSettings();
         ApiConfiguration.SecurityService ??= string.Empty;
         ApiConfiguration.TransactionProcessorACL ??= string.Empty;
         ApiConfiguration.TransactionProcessorApi ??= string.Empty;
         ApiConfiguration.TestHost ??= string.Empty;
+    }
 
+    private void EnsureConnectionStringDefaults()
+    {
         ConnectionStrings ??= new ConnectionStringsSettings();
         ConnectionStrings.MerchantDb ??= string.Empty;
         ConnectionStrings.SettingsDb ??= string.Empty;

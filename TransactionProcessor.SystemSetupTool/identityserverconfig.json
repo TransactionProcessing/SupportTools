@@ -49,7 +49,7 @@
   ],
   "apiresources": [
     {
-      "secret": "3241913328414df4b8d031ed8f59d1bb",
+      "secret": "",
       "name": "estateReporting",
       "display_name": "Estate Reporting REST",
       "description": "API Resource representing Estate Reporting REST",
@@ -57,7 +57,7 @@
       "user_claims": null
     },
     {
-      "secret": "32c677c3cf2a4b8f8ccfb27a37c6f27e",
+      "secret": "",
       "name": "messagingService",
       "display_name": "Messaging REST",
       "description": "API Resource representing Messaging Service REST",
@@ -65,7 +65,7 @@
       "user_claims": null
     },
     {
-      "secret": "14363045ab8649909ec812e587720333",
+      "secret": "",
       "name": "transactionProcessor",
       "display_name": "Transaction Processor REST",
       "description": "API Resource representing Transaction Processor REST",
@@ -73,7 +73,7 @@
       "user_claims": [ "merchantId", "estateId", "role" ]
     },
     {
-      "secret": "bc7c25e9bf1649cc9d41abebfe98955e",
+      "secret": "",
       "name": "transactionProcessorACL",
       "display_name": "Transaction Processor ACL REST",
       "description": "API Resource representing Transaction Processor ACL REST",
@@ -81,7 +81,7 @@
       "user_claims": [ "merchantId", "estateId", "role" ]
     },
     {
-      "secret": "04f91a4057a041b9a65765dfc4efac7d",
+      "secret": "",
       "name": "fileProcessor",
       "display_name": "File Processor REST",
       "description": "API Resource representing File Processor REST",
@@ -92,7 +92,7 @@
   "clients": [
     {
       "client_id": "serviceClient",
-      "secret": "d192cbc46d834d0da90e8a9d50ded543",
+      "secret": "",
       "client_name": "Service Client",
       "client_description": "Client for use in inter service communications",
       "allowed_scopes": [ "transactionProcessorACL", "transactionProcessor", "estateReporting", "messagingService", "fileProcessor" ],
@@ -100,7 +100,7 @@
     },
     {
       "client_id": "managementUIClient",
-      "secret": "d192cbc46d834d0da90e8a9d50ded543",
+      "secret": "",
       "client_name": "Management UI App Client",
       "client_description": "Client for use by management app",
       "allowed_scopes": [ "fileProcessor", "transactionProcessor", "openid", "email", "profile" ],
@@ -123,7 +123,7 @@
     },
     {
       "client_id": "mobileAppClient",
-      "secret": "d192cbc46d834d0da90e8a9d50ded543",
+      "secret": "",
       "client_name": "Mobile App Client",
       "client_description": "Client for use by mobile app to process transactions",
       "allowed_scopes": [ "transactionProcessorACL" ],

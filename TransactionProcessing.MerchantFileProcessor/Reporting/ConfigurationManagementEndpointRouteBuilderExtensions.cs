@@ -9,290 +9,248 @@ public static class ConfigurationManagementEndpointRouteBuilderExtensions
 {
     public static IEndpointRouteBuilder MapConfigurationManagementEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/configuration/runtime", async (
-            HttpRequest request,
-            IMerchantProcessingConfigurationStore configurationStore,
-            CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var returnUrl = GetReturnUrl(form, "/ops/config/runtime");
-            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
-            var options = Clone(snapshot.Options);
-            options = new MerchantProcessingOptions
-            {
-                Authentication = new AuthenticationOptions
-                {
-                    ClientId = form["ClientId"].ToString(),
-                    ClientSecret = form["ClientSecret"].ToString(),
-                    Scope = GetOptional(form, "Scope"),
-                    Audience = GetOptional(form, "Audience")
-                },
-                FileProcessing = new FileProcessingOptions
-                {
-                    UserId = form["UserId"].ToString()
-                },
-                TransactionGeneration = new TransactionGenerationOptions
-                {
-                    MinimumTransactionsPerContract = ParseInt(form["MinimumTransactionsPerContract"], 5),
-                    MaximumTransactionsPerContract = ParseInt(form["MaximumTransactionsPerContract"], 25)
-                },
-                FileStatusPolling = new FileStatusPollingOptions
-                {
-                    PollIntervalSeconds = ParseInt(form["PollIntervalSeconds"], 30)
-                },
-                MerchantScanIntervalSeconds = ParseInt(form["MerchantScanIntervalSeconds"], 5),
-                ContractDefinitions = options.ContractDefinitions,
-                FileProfiles = options.FileProfiles,
-                Merchants = options.Merchants
-            };
-
-            try
-            {
-                await configurationStore.SaveAsync(options, cancellationToken);
-                return Results.Redirect($"{returnUrl}?saved=1");
-            }
-            catch (Exception ex)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-            }
-        });
-
-        endpoints.MapPost("/api/configuration/merchants", async (
-            HttpRequest request,
-            IMerchantProcessingConfigurationStore configurationStore,
-            CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var returnUrl = GetReturnUrl(form, "/ops/config/merchants");
-            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
-            var options = Clone(snapshot.Options);
-            var originalMerchantId = GetOptional(form, "OriginalMerchantId");
-            var merchantId = GetRequired(form, "MerchantId");
-            var merchantIndex = options.Merchants.FindIndex(entry =>
-                string.Equals(entry.MerchantId, originalMerchantId ?? merchantId, StringComparison.OrdinalIgnoreCase));
-
-            if (ParseBool(form["Delete"]))
-            {
-                if (merchantIndex < 0)
-                {
-                    return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString("Merchant not found.")}");
-                }
-
-                options.Merchants.RemoveAt(merchantIndex);
-
-                try
-                {
-                    await configurationStore.SaveAsync(options, cancellationToken);
-                    return Results.Redirect("/ops/config/merchants?removed=1");
-                }
-                catch (Exception ex)
-                {
-                    return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-                }
-            }
-
-            var merchant = new MerchantOptions
-            {
-                Name = GetRequired(form, "Name"),
-                Enabled = ParseBool(form["Enabled"]),
-                EstateId = GetRequired(form, "EstateId"),
-                MerchantId = merchantId,
-                RunAtUtc = GetOptional(form, "RunAtUtc") ?? "02:00:00",
-                RunTimesUtc = ParseRunTimes(GetOptional(form, "RunTimesUtc"))
-            };
-
-            if (merchantIndex >= 0)
-            {
-                options.Merchants[merchantIndex] = merchant;
-            }
-            else
-            {
-                options.Merchants.Add(merchant);
-            }
-
-            try
-            {
-                await configurationStore.SaveAsync(options, cancellationToken);
-                return Results.Redirect($"{returnUrl}?saved=1");
-            }
-            catch (Exception ex)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-            }
-        });
-
-        endpoints.MapPost("/api/configuration/contracts", async (
-            HttpRequest request,
-            IMerchantProcessingConfigurationStore configurationStore,
-            CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var returnUrl = GetReturnUrl(form, "/ops/config/contracts");
-            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
-            var options = Clone(snapshot.Options);
-            var originalContractId = GetOptional(form, "OriginalContractId");
-            var contractId = GetRequired(form, "ContractId");
-            var contractIndex = options.ContractDefinitions.FindIndex(entry =>
-                string.Equals(entry.ContractId, originalContractId ?? contractId, StringComparison.OrdinalIgnoreCase));
-
-            var contract = new ContractDefinitionOptions
-            {
-                ContractId = contractId,
-                FileProfileId = GetRequired(form, "FileProfileId")
-            };
-
-            if (contractIndex >= 0)
-            {
-                options.ContractDefinitions[contractIndex] = contract;
-            }
-            else
-            {
-                options.ContractDefinitions.Add(contract);
-            }
-
-            try
-            {
-                await configurationStore.SaveAsync(options, cancellationToken);
-                return Results.Redirect($"{returnUrl}?saved=1");
-            }
-            catch (Exception ex)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-            }
-        });
-
-        endpoints.MapPost("/api/configuration/file-profiles", async (
-            HttpRequest request,
-            IMerchantProcessingConfigurationStore configurationStore,
-            CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var returnUrl = GetReturnUrl(form, "/ops/config/file-profiles");
-            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
-            var options = Clone(snapshot.Options);
-            var originalFileProfileId = GetOptional(form, "OriginalFileProfileId");
-            var fileProfileId = GetRequired(form, "FileProfileId");
-            var profileIndex = options.FileProfiles.FindIndex(entry =>
-                string.Equals(entry.FileProfileId, originalFileProfileId ?? fileProfileId, StringComparison.OrdinalIgnoreCase));
-
-            var existingProfile = profileIndex >= 0 ? options.FileProfiles[profileIndex] : new FileProfileOptions();
-            var profile = new FileProfileOptions
-            {
-                FileProfileId = fileProfileId,
-                FileProcessorFileProfileId = GetRequired(form, "FileProcessorFileProfileId"),
-                Format = GetRequired(form, "Format"),
-                FileExtension = GetRequired(form, "FileExtension"),
-                FileNamePattern = GetOptional(form, "FileNamePattern"),
-                ContentType = GetOptional(form, "ContentType"),
-                Delimited = new DelimitedFileProfileOptions
-                {
-                    Delimiter = GetOptional(form, "Delimiter") ?? ",",
-                    IncludeHeader = ParseBool(form["IncludeHeader"]),
-                    HeaderFields = existingProfile.Delimited.HeaderFields,
-                    TrailerFields = existingProfile.Delimited.TrailerFields
-                },
-                Json = new JsonFileProfileOptions
-                {
-                    WriteIndented = ParseBool(form["WriteIndented"]),
-                    RootPropertyName = GetOptional(form, "RootPropertyName")
-                },
-                Fields = existingProfile.Fields
-            };
-
-            if (profileIndex >= 0)
-            {
-                options.FileProfiles[profileIndex] = profile;
-            }
-            else
-            {
-                options.FileProfiles.Add(profile);
-            }
-
-            try
-            {
-                await configurationStore.SaveAsync(options, cancellationToken);
-                return Results.Redirect($"{returnUrl}?saved=1");
-            }
-            catch (Exception ex)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-            }
-        });
-
-        endpoints.MapPost("/api/configuration/file-profiles/{fileProfileId}/fields/{section}", async (
-            string fileProfileId,
-            string section,
-            HttpRequest request,
-            IMerchantProcessingConfigurationStore configurationStore,
-            JsonSerializerOptions jsonSerializerOptions,
-            CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var returnUrl = GetReturnUrl(form, $"/ops/config/file-profiles/{Uri.EscapeDataString(fileProfileId)}");
-            var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
-            var options = Clone(snapshot.Options);
-            var profileIndex = options.FileProfiles.FindIndex(entry => entry.FileProfileId.Equals(fileProfileId, StringComparison.OrdinalIgnoreCase));
-
-            if (profileIndex < 0)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString("File profile not found.")}");
-            }
-
-            var profile = options.FileProfiles[profileIndex];
-            var fields = GetFieldList(profile, section);
-            var originalSortOrder = ParseNullableInt(form["OriginalSortOrder"]);
-
-            if (ParseBool(form["Delete"]))
-            {
-                if (originalSortOrder.HasValue)
-                {
-                    if (originalSortOrder.Value >= 0 && originalSortOrder.Value < fields.Count)
-                    {
-                        fields.RemoveAt(originalSortOrder.Value);
-                    }
-                }
-            }
-            else
-            {
-                var field = originalSortOrder.HasValue
-                    ? (originalSortOrder.Value >= 0 && originalSortOrder.Value < fields.Count ? fields[originalSortOrder.Value] : null)
-                    : null;
-
-                if (field is null)
-                {
-                    field = new FileFieldOptions();
-                }
-
-                var updatedField = new FileFieldOptions
-                {
-                    Name = GetRequired(form, "Name"),
-                    Source = GetOptional(form, "Source") ?? string.Empty,
-                    Format = GetOptional(form, "Format"),
-                    Value = GetOptional(form, "Value")
-                };
-
-                if (originalSortOrder.HasValue && originalSortOrder.Value >= 0 && originalSortOrder.Value < fields.Count)
-                {
-                    fields[originalSortOrder.Value] = updatedField;
-                }
-                else
-                {
-                    fields.Add(updatedField);
-                }
-            }
-
-            try
-            {
-                await configurationStore.SaveAsync(options, cancellationToken);
-                return Results.Redirect($"{returnUrl}?saved=1");
-            }
-            catch (Exception ex)
-            {
-                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
-            }
-        });
+        endpoints.MapPost("/api/configuration/runtime", HandleRuntimeConfigurationAsync);
+        endpoints.MapPost("/api/configuration/merchants", HandleMerchantConfigurationAsync);
+        endpoints.MapPost("/api/configuration/contracts", HandleContractConfigurationAsync);
+        endpoints.MapPost("/api/configuration/file-profiles", HandleFileProfileConfigurationAsync);
+        endpoints.MapPost("/api/configuration/file-profiles/{fileProfileId}/fields/{section}", HandleFileProfileFieldConfigurationAsync);
 
         return endpoints;
+    }
+
+    private static async Task<IResult> HandleRuntimeConfigurationAsync(
+        HttpRequest request,
+        IMerchantProcessingConfigurationStore configurationStore,
+        CancellationToken cancellationToken)
+    {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var returnUrl = GetReturnUrl(form, "/ops/config/runtime");
+        var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+        var template = Clone(snapshot.Options);
+        var options = new MerchantProcessingOptions
+        {
+            Authentication = new AuthenticationOptions
+            {
+                ClientId = form["ClientId"].ToString(),
+                ClientSecret = form["ClientSecret"].ToString(),
+                Scope = GetOptional(form, "Scope"),
+                Audience = GetOptional(form, "Audience")
+            },
+            FileProcessing = new FileProcessingOptions { UserId = form["UserId"].ToString() },
+            TransactionGeneration = new TransactionGenerationOptions
+            {
+                MinimumTransactionsPerContract = ParseInt(form["MinimumTransactionsPerContract"], 5),
+                MaximumTransactionsPerContract = ParseInt(form["MaximumTransactionsPerContract"], 25)
+            },
+            FileStatusPolling = new FileStatusPollingOptions { PollIntervalSeconds = ParseInt(form["PollIntervalSeconds"], 30) },
+            MerchantScanIntervalSeconds = ParseInt(form["MerchantScanIntervalSeconds"], 5),
+            ContractDefinitions = template.ContractDefinitions,
+            FileProfiles = template.FileProfiles,
+            Merchants = template.Merchants
+        };
+
+        return await SaveWithRedirectAsync(configurationStore, options, returnUrl, cancellationToken);
+    }
+
+    private static async Task<IResult> HandleMerchantConfigurationAsync(
+        HttpRequest request,
+        IMerchantProcessingConfigurationStore configurationStore,
+        CancellationToken cancellationToken)
+    {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var returnUrl = GetReturnUrl(form, "/ops/config/merchants");
+        var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+        var options = Clone(snapshot.Options);
+        var originalMerchantId = GetOptional(form, "OriginalMerchantId");
+        var merchantId = GetRequired(form, "MerchantId");
+        var merchantIndex = options.Merchants.FindIndex(entry =>
+            string.Equals(entry.MerchantId, originalMerchantId ?? merchantId, StringComparison.OrdinalIgnoreCase));
+
+        if (ParseBool(form["Delete"]))
+        {
+            if (merchantIndex < 0)
+            {
+                return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString("Merchant not found.")}");
+            }
+
+            options.Merchants.RemoveAt(merchantIndex);
+            return await SaveWithRedirectAsync(configurationStore, options, "/ops/config/merchants", cancellationToken, "removed=1");
+        }
+
+        var merchant = new MerchantOptions
+        {
+            Name = GetRequired(form, "Name"),
+            Enabled = ParseBool(form["Enabled"]),
+            EstateId = GetRequired(form, "EstateId"),
+            MerchantId = merchantId,
+            RunAtUtc = GetOptional(form, "RunAtUtc") ?? "02:00:00",
+            RunTimesUtc = ParseRunTimes(GetOptional(form, "RunTimesUtc"))
+        };
+
+        if (merchantIndex >= 0)
+        {
+            options.Merchants[merchantIndex] = merchant;
+        }
+        else
+        {
+            options.Merchants.Add(merchant);
+        }
+
+        return await SaveWithRedirectAsync(configurationStore, options, returnUrl, cancellationToken);
+    }
+
+    private static async Task<IResult> HandleContractConfigurationAsync(
+        HttpRequest request,
+        IMerchantProcessingConfigurationStore configurationStore,
+        CancellationToken cancellationToken)
+    {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var returnUrl = GetReturnUrl(form, "/ops/config/contracts");
+        var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+        var options = Clone(snapshot.Options);
+        var originalContractId = GetOptional(form, "OriginalContractId");
+        var contractId = GetRequired(form, "ContractId");
+        var contractIndex = options.ContractDefinitions.FindIndex(entry =>
+            string.Equals(entry.ContractId, originalContractId ?? contractId, StringComparison.OrdinalIgnoreCase));
+
+        var contract = new ContractDefinitionOptions
+        {
+            ContractId = contractId,
+            FileProfileId = GetRequired(form, "FileProfileId")
+        };
+
+        if (contractIndex >= 0)
+        {
+            options.ContractDefinitions[contractIndex] = contract;
+        }
+        else
+        {
+            options.ContractDefinitions.Add(contract);
+        }
+
+        return await SaveWithRedirectAsync(configurationStore, options, returnUrl, cancellationToken);
+    }
+
+    private static async Task<IResult> HandleFileProfileConfigurationAsync(
+        HttpRequest request,
+        IMerchantProcessingConfigurationStore configurationStore,
+        CancellationToken cancellationToken)
+    {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var returnUrl = GetReturnUrl(form, "/ops/config/file-profiles");
+        var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+        var options = Clone(snapshot.Options);
+        var originalFileProfileId = GetOptional(form, "OriginalFileProfileId");
+        var fileProfileId = GetRequired(form, "FileProfileId");
+        var profileIndex = options.FileProfiles.FindIndex(entry =>
+            string.Equals(entry.FileProfileId, originalFileProfileId ?? fileProfileId, StringComparison.OrdinalIgnoreCase));
+
+        var existingProfile = profileIndex >= 0 ? options.FileProfiles[profileIndex] : new FileProfileOptions();
+        var profile = new FileProfileOptions
+        {
+            FileProfileId = fileProfileId,
+            FileProcessorFileProfileId = GetRequired(form, "FileProcessorFileProfileId"),
+            Format = GetRequired(form, "Format"),
+            FileExtension = GetRequired(form, "FileExtension"),
+            FileNamePattern = GetOptional(form, "FileNamePattern"),
+            ContentType = GetOptional(form, "ContentType"),
+            Delimited = new DelimitedFileProfileOptions
+            {
+                Delimiter = GetOptional(form, "Delimiter") ?? ",",
+                IncludeHeader = ParseBool(form["IncludeHeader"]),
+                HeaderFields = existingProfile.Delimited.HeaderFields,
+                TrailerFields = existingProfile.Delimited.TrailerFields
+            },
+            Json = new JsonFileProfileOptions
+            {
+                WriteIndented = ParseBool(form["WriteIndented"]),
+                RootPropertyName = GetOptional(form, "RootPropertyName")
+            },
+            Fields = existingProfile.Fields
+        };
+
+        if (profileIndex >= 0)
+        {
+            options.FileProfiles[profileIndex] = profile;
+        }
+        else
+        {
+            options.FileProfiles.Add(profile);
+        }
+
+        return await SaveWithRedirectAsync(configurationStore, options, returnUrl, cancellationToken);
+    }
+
+    private static async Task<IResult> HandleFileProfileFieldConfigurationAsync(
+        string fileProfileId,
+        string section,
+        HttpRequest request,
+        IMerchantProcessingConfigurationStore configurationStore,
+        JsonSerializerOptions jsonSerializerOptions,
+        CancellationToken cancellationToken)
+    {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var returnUrl = GetReturnUrl(form, $"/ops/config/file-profiles/{Uri.EscapeDataString(fileProfileId)}");
+        var snapshot = await configurationStore.GetCurrentSnapshotAsync(cancellationToken);
+        var options = Clone(snapshot.Options);
+        var profileIndex = options.FileProfiles.FindIndex(entry => entry.FileProfileId.Equals(fileProfileId, StringComparison.OrdinalIgnoreCase));
+
+        if (profileIndex < 0)
+        {
+            return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString("File profile not found.")}");
+        }
+
+        var profile = options.FileProfiles[profileIndex];
+        var fields = GetFieldList(profile, section);
+        var originalSortOrder = ParseNullableInt(form["OriginalSortOrder"]);
+
+        if (ParseBool(form["Delete"]))
+        {
+            if (originalSortOrder.HasValue && originalSortOrder.Value >= 0 && originalSortOrder.Value < fields.Count)
+            {
+                fields.RemoveAt(originalSortOrder.Value);
+            }
+        }
+        else
+        {
+            var updatedField = new FileFieldOptions
+            {
+                Name = GetRequired(form, "Name"),
+                Source = GetOptional(form, "Source") ?? string.Empty,
+                Format = GetOptional(form, "Format"),
+                Value = GetOptional(form, "Value")
+            };
+
+            if (originalSortOrder.HasValue && originalSortOrder.Value >= 0 && originalSortOrder.Value < fields.Count)
+            {
+                fields[originalSortOrder.Value] = updatedField;
+            }
+            else
+            {
+                fields.Add(updatedField);
+            }
+        }
+
+        return await SaveWithRedirectAsync(configurationStore, options, returnUrl, cancellationToken);
+    }
+
+    private static async Task<IResult> SaveWithRedirectAsync(
+        IMerchantProcessingConfigurationStore configurationStore,
+        MerchantProcessingOptions options,
+        string returnUrl,
+        CancellationToken cancellationToken,
+        string? queryString = null)
+    {
+        try
+        {
+            await configurationStore.SaveAsync(options, cancellationToken);
+            var suffix = string.IsNullOrWhiteSpace(queryString) ? "saved=1" : queryString;
+            return Results.Redirect($"{returnUrl}?{suffix}");
+        }
+        catch (Exception ex)
+        {
+            return Results.Redirect($"{returnUrl}?error={Uri.EscapeDataString(ex.Message)}");
+        }
     }
 
     private static List<FileFieldOptions> GetFieldList(FileProfileOptions profile, string section)

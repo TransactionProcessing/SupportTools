@@ -45,7 +45,7 @@ public class EstateSetupFunctions {
     }
 
     public async Task<Result> SetupEstate(CancellationToken cancellationToken) {
-        var result = await this.SecurityServiceClient.GetToken("serviceClient", "d192cbc46d834d0da90e8a9d50ded543", CancellationToken.None);
+        var result = await this.SecurityServiceClient.GetToken("serviceClient", ResolveServiceClientSecret(), CancellationToken.None);
         this.TokenResponse = result.Data;
 
         Result<Guid> createEstateResult = await this.CreateEstate(cancellationToken);
@@ -75,6 +75,17 @@ public class EstateSetupFunctions {
 
         // Will only get here is everything was OK
         return Result.Success();
+    }
+
+    private static string ResolveServiceClientSecret()
+    {
+        string? secret = Environment.GetEnvironmentVariable("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET");
+        if (!string.IsNullOrWhiteSpace(secret))
+        {
+            return secret;
+        }
+
+        throw new InvalidOperationException("Missing required secret for service client. Set TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET.");
     }
 
     private async Task<Result<EstateResponse>> GetEstate(Guid estateId,
@@ -165,7 +176,7 @@ public class EstateSetupFunctions {
         await Retry.For(async () => {
             var existingContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
             if (existingContractsResult.IsFailed)
-                throw new Exception("GetContracts failed");
+                throw new InvalidOperationException("GetContracts failed");
 
             var c = existingContractsResult.Data.SingleOrDefault(c => c.Description == contractDescription);
             if (c == null) {
@@ -190,7 +201,7 @@ public class EstateSetupFunctions {
 
             var getContractResult = await this.TransactionProcessorClient.GetContract(this.TokenResponse.AccessToken, this.EstateId, contractId, cancellationToken);
             if (getContractResult.IsFailed)
-                throw new Exception("GetContract failed");
+                throw new InvalidOperationException("GetContract failed");
 
             var cp = getContractResult.Data.Products.SingleOrDefault(p => p.Name == productName);
             if (cp == null) {
@@ -396,73 +407,127 @@ public class EstateSetupFunctions {
     private async Task<Result> UpdateMerchant(Merchant merchant,
                                               MerchantResponse existingMerchant,
                                               CancellationToken cancellationToken) {
-        // check the merchants device
-        if (existingMerchant.Devices.ContainsValue(merchant.Device.DeviceIdentifier) == false) {
-            AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest { DeviceIdentifier = merchant.Device.DeviceIdentifier };
-            var addDeviceToMerchantResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, addMerchantDeviceRequest, cancellationToken);
-            if (addDeviceToMerchantResult.IsFailed)
-                return ResultHelpers.CreateFailure(addDeviceToMerchantResult);
+        var ensureDeviceResult = await EnsureMerchantDeviceAsync(merchant, existingMerchant, cancellationToken);
+        if (ensureDeviceResult.IsFailed)
+        {
+            return ResultHelpers.CreateFailure(ensureDeviceResult);
         }
 
-        // Check the users
+        var ensureUserResult = await EnsureMerchantUserAsync(merchant, cancellationToken);
+        if (ensureUserResult.IsFailed)
+        {
+            return ResultHelpers.CreateFailure(ensureUserResult);
+        }
+
+        var ensureOperatorsResult = await EnsureMerchantOperatorsAsync(merchant, existingMerchant, cancellationToken);
+        if (ensureOperatorsResult.IsFailed)
+        {
+            return ResultHelpers.CreateFailure(ensureOperatorsResult);
+        }
+
+        var ensureContractsResult = await EnsureMerchantContractsAsync(existingMerchant, cancellationToken);
+        if (ensureContractsResult.IsFailed)
+        {
+            return ResultHelpers.CreateFailure(ensureContractsResult);
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Result> EnsureMerchantDeviceAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken)
+    {
+        if (existingMerchant.Devices.ContainsValue(merchant.Device.DeviceIdentifier))
+        {
+            return Result.Success();
+        }
+
+        AddMerchantDeviceRequest addMerchantDeviceRequest = new() { DeviceIdentifier = merchant.Device.DeviceIdentifier };
+        var addDeviceToMerchantResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, addMerchantDeviceRequest, cancellationToken);
+        return addDeviceToMerchantResult.IsFailed ? ResultHelpers.CreateFailure(addDeviceToMerchantResult) : Result.Success();
+    }
+
+    private async Task<Result> EnsureMerchantUserAsync(Merchant merchant, CancellationToken cancellationToken)
+    {
         var userResult = await this.SecurityServiceClient.GetUsers(merchant.User.EmailAddress, cancellationToken);
         if (userResult.IsFailed)
+        {
             return ResultHelpers.CreateFailure(userResult);
-        if (userResult.Data == null || userResult.Data.Count == 0) {
-            CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest {
-                EmailAddress = merchant.User.EmailAddress,
-                FamilyName = merchant.User.FamilyName,
-                GivenName = merchant.User.GivenName,
-                MiddleName = merchant.User.MiddleName,
-                Password = merchant.User.Password
-            };
-            var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, merchant.MerchantId, createMerchantUserRequest, cancellationToken);
-            if (createMerchantUserResult.IsFailed)
-                return ResultHelpers.CreateFailure(createMerchantUserResult);
         }
 
+        if (userResult.Data is { Count: > 0 })
+        {
+            return Result.Success();
+        }
+
+        CreateMerchantUserRequest createMerchantUserRequest = new() {
+            EmailAddress = merchant.User.EmailAddress,
+            FamilyName = merchant.User.FamilyName,
+            GivenName = merchant.User.GivenName,
+            MiddleName = merchant.User.MiddleName,
+            Password = merchant.User.Password
+        };
+        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, merchant.MerchantId, createMerchantUserRequest, cancellationToken);
+        return createMerchantUserResult.IsFailed ? ResultHelpers.CreateFailure(createMerchantUserResult) : Result.Success();
+    }
+
+    private async Task<Result> EnsureMerchantOperatorsAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken)
+    {
         var getEstateResult = await this.TransactionProcessorClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
         if (getEstateResult.IsFailed)
+        {
             return ResultHelpers.CreateFailure(getEstateResult);
-
-        foreach (var @operator in getEstateResult.Data.Operators) {
-            if (existingMerchant.Operators == null) {
-                existingMerchant.Operators = new List<MerchantOperatorResponse>();
-            }
-
-            var merchantOperator = existingMerchant.Operators.SingleOrDefault(o => o.OperatorId == @operator.OperatorId);
-            if (merchantOperator != null)
-                continue;
-
-            DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new() { OperatorId = @operator.OperatorId, MerchantNumber = null, TerminalNumber = null };
-
-            var assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, assignOperatorRequest, cancellationToken);
-            if (assignOperatorToMerchantResult.IsFailed)
-                return ResultHelpers.CreateFailure(assignOperatorToMerchantResult);
         }
 
+        existingMerchant.Operators ??= new List<MerchantOperatorResponse>();
+        foreach (var @operator in getEstateResult.Data.Operators)
+        {
+            if (existingMerchant.Operators.Any(o => o.OperatorId == @operator.OperatorId))
+            {
+                continue;
+            }
+
+            DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new() { OperatorId = @operator.OperatorId, MerchantNumber = null, TerminalNumber = null };
+            var assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, assignOperatorRequest, cancellationToken);
+            if (assignOperatorToMerchantResult.IsFailed)
+            {
+                return ResultHelpers.CreateFailure(assignOperatorToMerchantResult);
+            }
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Result> EnsureMerchantContractsAsync(MerchantResponse existingMerchant, CancellationToken cancellationToken)
+    {
         var getContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
         if (getContractsResult.IsFailed)
+        {
             return ResultHelpers.CreateFailure(getContractsResult);
+        }
 
         var merchantContractsResult = await this.TransactionProcessorClient.GetMerchantContracts(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, cancellationToken);
         if (merchantContractsResult.IsFailed && merchantContractsResult.Status != ResultStatus.NotFound)
+        {
             return ResultHelpers.CreateFailure(merchantContractsResult);
-        List<ContractResponse> merchantContracts = merchantContractsResult.Data;
-        if (merchantContractsResult.Status == ResultStatus.NotFound) {
-            merchantContracts = new List<ContractResponse>();
         }
 
-        // Now contracts
-            foreach (ContractResponse contractResponse in getContractsResult.Data) {
-            if (merchantContracts.SingleOrDefault(c => c.ContractId == contractResponse.ContractId) != null)
+        var merchantContracts = merchantContractsResult.Status == ResultStatus.NotFound || merchantContractsResult.Data is null
+            ? new List<ContractResponse>()
+            : merchantContractsResult.Data;
+
+        foreach (ContractResponse contractResponse in getContractsResult.Data)
+        {
+            if (merchantContracts.Any(c => c.ContractId == contractResponse.ContractId))
+            {
                 continue;
+            }
 
             AddMerchantContractRequest addMerchantContractRequest = new() { ContractId = contractResponse.ContractId };
             var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, addMerchantContractRequest, cancellationToken);
-
             if (addContractToMerchantResult.IsFailed)
+            {
                 return ResultHelpers.CreateFailure(addContractToMerchantResult);
+            }
         }
 
         return Result.Success();
