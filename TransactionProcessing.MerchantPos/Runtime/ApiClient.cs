@@ -36,6 +36,7 @@ public interface IApiClient
 }
 
 public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
+    private const string AmountKey = "Amount";
     private const string DefaultCustomerAccountNumber = "07777777705";
     private readonly ISecurityServiceClient SecurityClient;
     private readonly ITransactionProcessorClient TransactionProcessorClient;
@@ -314,7 +315,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                 { "CustomerAccountNumber", extraDetails.Data.accountNumber },
                 { "CustomerName", extraDetails.Data.accountName },
                 { "MobileNumber", extraDetails.Data.mobileNumber },
-                { "Amount", value.ToString() },
+                { AmountKey, value.ToString() },
                 { "PataPawaPostPaidMessageType", "ProcessBill" }
             };
         }
@@ -323,7 +324,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                 { "MeterNumber", extraDetails.Data.accountNumber  }, 
                 { "CustomerName", extraDetails.Data.accountName }, 
                 { "PataPawaPrePayMessageType", "vend" }, 
-                { "Amount", value.ToString() },
+                { AmountKey, value.ToString() },
             };
         }
         requestMessages.Add(paymentRequestMessage);
@@ -346,7 +347,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             TransactionNumber = transactionNumber.ToString("D4")
         };
         
-        saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { { "Amount", value.ToString() }, { "CustomerAccountNumber", DefaultCustomerAccountNumber } };
+        saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { { AmountKey, value.ToString() }, { "CustomerAccountNumber", DefaultCustomerAccountNumber } };
         requestMessages.Add(saleTransactionRequest);
         return Result.Success(requestMessages);
     }
@@ -369,7 +370,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         };
 
         saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { 
-            { "Amount", value.ToString() }, 
+            { AmountKey, value.ToString() }, 
             { "RecipientMobile", DefaultCustomerAccountNumber }
         };
         requestMessages.Add(saleTransactionRequest);

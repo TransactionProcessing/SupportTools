@@ -7,6 +7,7 @@ namespace TransactionProcessing.MerchantPos.Pages;
 
 public sealed class MerchantsModel : PageModel
 {
+    private const string MerchantsPagePath = "/Merchants";
     private static readonly string SecretMask = new('*', 5);
     private readonly MerchantPosSettingsStore _settingsStore;
 
@@ -38,7 +39,7 @@ public sealed class MerchantsModel : PageModel
 
     public async Task<IActionResult> OnPostAddAsync()
     {
-        return RedirectToPage("/Merchants", new { selected = -1, message = "New merchant ready" });
+        return RedirectToPage(MerchantsPagePath, new { selected = -1, message = "New merchant ready" });
     }
 
     public async Task<IActionResult> OnPostSaveAsync()
@@ -59,7 +60,7 @@ public sealed class MerchantsModel : PageModel
         }
 
         await _settingsStore.SaveAsync(settings);
-        return RedirectToPage("/Merchants", new { selected = Selected, message = "Merchant saved" });
+        return RedirectToPage(MerchantsPagePath, new { selected = Selected, message = "Merchant saved" });
     }
 
     public async Task<IActionResult> OnPostRemoveAsync()
@@ -67,7 +68,7 @@ public sealed class MerchantsModel : PageModel
         var settings = _settingsStore.Current;
         if (settings.WorkerSettings.Merchants.Count == 0)
         {
-            return RedirectToPage("/Merchants", new { message = "No merchant to remove" });
+            return RedirectToPage(MerchantsPagePath, new { message = "No merchant to remove" });
         }
 
         Selected = ClampSelected(Selected);
@@ -75,7 +76,7 @@ public sealed class MerchantsModel : PageModel
         await _settingsStore.SaveAsync(settings);
 
         var selected = Math.Clamp(Selected, 0, Math.Max(0, settings.WorkerSettings.Merchants.Count - 1));
-        return RedirectToPage("/Merchants", new { selected, message = "Merchant removed" });
+        return RedirectToPage(MerchantsPagePath, new { selected, message = "Merchant removed" });
     }
 
     private void LoadSelectedMerchant()

@@ -11,6 +11,12 @@ using SimpleResults;
 namespace TransactionProcessor.SystemSetupTool;
 
 public class EventStoreFunctions{
+    private const string TransactionProcessorGroup = "Transaction Processor";
+    private const string TransactionProcessorDomainGroup = "Transaction Processor - Domain";
+    private const string TransactionProcessorOrderedGroup = "Transaction Processor - Ordered";
+    private const string FileProcessorGroup = "File Processor";
+    private const string MessagingServiceGroup = "Messaging Service";
+
     private readonly KurrentDBProjectionManagementClient ProjectionClient;
 
     private readonly KurrentDBPersistentSubscriptionsClient PersistentSubscriptionsClient;
@@ -32,44 +38,44 @@ public class EventStoreFunctions{
 
     private async Task<Result> SetupSubscriptions(CancellationToken cancellationToken){
         List<(String streamName, String groupName, Int32 retryCount)> subscriptions = [
-            ("$ce-TransactionAggregate", "Transaction Processor", 0),
-            ("$ce-SettlementAggregate", "Transaction Processor", 0),
-            ("$ce-VoucherAggregate", "Transaction Processor", 0),
-            ("$ce-FloatAggregate", "Transaction Processor", 0),
-            ("$ce-MerchantStatementAggregate", "Transaction Processor", 0),
-            ("$ce-ContractAggregate", "Transaction Processor", 0),
-            ("$ce-EstateAggregate", "Transaction Processor", 0),
-            ("$ce-MerchantAggregate", "Transaction Processor", 0),
-            ("$ce-CallbackMessageAggregate", "Transaction Processor", 0),
-            ("$ce-ReconciliationAggregate", "Transaction Processor", 0),
-            ("$ce-FileAggregate", "Transaction Processor", 0),
-            ("$ce-FileImportLogAggregate", "Transaction Processor", 0),
-            ("$ce-OperatorAggregate", "Transaction Processor", 0),
-            ("$ce-MerchantBalanceArchive", "Transaction Processor", 0),
+            ("$ce-TransactionAggregate", TransactionProcessorGroup, 0),
+            ("$ce-SettlementAggregate", TransactionProcessorGroup, 0),
+            ("$ce-VoucherAggregate", TransactionProcessorGroup, 0),
+            ("$ce-FloatAggregate", TransactionProcessorGroup, 0),
+            ("$ce-MerchantStatementAggregate", TransactionProcessorGroup, 0),
+            ("$ce-ContractAggregate", TransactionProcessorGroup, 0),
+            ("$ce-EstateAggregate", TransactionProcessorGroup, 0),
+            ("$ce-MerchantAggregate", TransactionProcessorGroup, 0),
+            ("$ce-CallbackMessageAggregate", TransactionProcessorGroup, 0),
+            ("$ce-ReconciliationAggregate", TransactionProcessorGroup, 0),
+            ("$ce-FileAggregate", TransactionProcessorGroup, 0),
+            ("$ce-FileImportLogAggregate", TransactionProcessorGroup, 0),
+            ("$ce-OperatorAggregate", TransactionProcessorGroup, 0),
+            ("$ce-MerchantBalanceArchive", TransactionProcessorGroup, 0),
 
-            ("$ce-TransactionAggregate", "Transaction Processor - Domain", 0),
-            ("$ce-SettlementAggregate", "Transaction Processor - Domain", 0),
-            ("$ce-FloatAggregate", "Transaction Processor - Domain", 0),
-            ("$ce-MerchantStatementForDateAggregate", "Transaction Processor - Domain", 0),
+            ("$ce-TransactionAggregate", TransactionProcessorDomainGroup, 0),
+            ("$ce-SettlementAggregate", TransactionProcessorDomainGroup, 0),
+            ("$ce-FloatAggregate", TransactionProcessorDomainGroup, 0),
+            ("$ce-MerchantStatementForDateAggregate", TransactionProcessorDomainGroup, 0),
 
-            ("$ce-EstateAggregate", "Transaction Processor - Ordered", 1),
-            ("$ce-SettlementAggregate", "Transaction Processor - Ordered", 1),
-            ("$ce-VoucherAggregate", "Transaction Processor - Ordered", 1),
-            ("$ce-TransactionAggregate", "Transaction Processor - Ordered", 0),
-            ("$ce-MerchantStatementAggregate", "Transaction Processor - Ordered", 0),
-            ("$ce-EstateAggregate", "Transaction Processor - Ordered", 0),
+            ("$ce-EstateAggregate", TransactionProcessorOrderedGroup, 1),
+            ("$ce-SettlementAggregate", TransactionProcessorOrderedGroup, 1),
+            ("$ce-VoucherAggregate", TransactionProcessorOrderedGroup, 1),
+            ("$ce-TransactionAggregate", TransactionProcessorOrderedGroup, 0),
+            ("$ce-MerchantStatementAggregate", TransactionProcessorOrderedGroup, 0),
+            ("$ce-EstateAggregate", TransactionProcessorOrderedGroup, 0),
 
-            ("$ce-FileAggregate", "File Processor", 0),
-            ("$ce-FileImportLogAggregate", "File Processor", 0),
+            ("$ce-FileAggregate", FileProcessorGroup, 0),
+            ("$ce-FileImportLogAggregate", FileProcessorGroup, 0),
 
-            ("$ce-EmailAggregate", "Messaging Service", 0),
-            ("$ce-SMSAggregate", "Messaging Service", 0)
+            ("$ce-EmailAggregate", MessagingServiceGroup, 0),
+            ("$ce-SMSAggregate", MessagingServiceGroup, 0)
         ];
 
         foreach ((String streamName, String groupName, Int32 retryCount) subscription in subscriptions){
             Boolean exists = false;
             try{
-                PersistentSubscriptionInfo subscriptionInfo = await this.PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken, deadline:TimeSpan.FromSeconds(30));
+                await this.PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken, deadline: TimeSpan.FromSeconds(30));
                 exists = true;
             }
             catch(PersistentSubscriptionNotFoundException){
@@ -115,18 +121,15 @@ public class EventStoreFunctions{
 
             body = body.Substring(x);
 
-            // Is this already deployed (in the master list)
-            if (currentProjections.Any(p => string.Equals(p.Name, name, StringComparison.Ordinal)) == false)
-            {
-                // Projection does not exist so create
-                await this.ProjectionClient.CreateContinuousAsync(name, body, true, cancellationToken: cancellationToken);
-            }
-            else
-            {
-                // Already exists so we need to update but do not reset
-                await this.ProjectionClient.DisableAsync(name, cancellationToken: cancellationToken);
-                await this.ProjectionClient.UpdateAsync(name, body, true, cancellationToken: cancellationToken);
-                await this.ProjectionClient.EnableAsync(name, cancellationToken: cancellationToken);
+                if (currentProjections.Any(p => string.Equals(p.Name, name, StringComparison.Ordinal)) == false)
+                {
+                    await this.ProjectionClient.CreateContinuousAsync(name, body, true, cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await this.ProjectionClient.DisableAsync(name, cancellationToken: cancellationToken);
+                    await this.ProjectionClient.UpdateAsync(name, body, true, cancellationToken: cancellationToken);
+                    await this.ProjectionClient.EnableAsync(name, cancellationToken: cancellationToken);
             }
         }
 

@@ -38,7 +38,6 @@ public class MerchantRuntime
         {
             try
             {
-                // Get the service client token here (can manage the expiry/caching at this level)
                 await StartupSequence(config, cancellationToken);
                 await RunMainLoop( config, cancellationToken);
             }
@@ -192,13 +191,11 @@ public class MerchantRuntime
                     TokenResponse userToken = this.CurrentUserToken
                         ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
                     await ApiClient.SendLogon(cfg, userToken, merchant.TransactionNumber, token);
-                    //_lastDailyLogonDate = now.Date;
                     await this.Repository.UpdateLastLogon(cfg.MerchantId, cfg.MerchantName, now);
                     Logger.LogInformation($"Performed daily logon for merchant {cfg.MerchantName} on {now:yyyy-MM-dd}");
                 }
             }
             else {
-                // Sell product
                 await DoSaleCycle(cfg, merchant.TransactionNumber, token);
             }
 

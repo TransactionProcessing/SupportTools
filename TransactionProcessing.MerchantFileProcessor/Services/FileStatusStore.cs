@@ -143,7 +143,7 @@ public sealed class FileStatusStore(
         Guid fileProcessorFileId,
         GeneratedFile file,
         CancellationToken cancellationToken) =>
-        this.RecordAsync(runId, merchant, contract, scheduledRunUtc, file, FileSendStatuses.Succeeded, null, fileProcessorFileId, cancellationToken);
+        this.RecordAsync(new FileStatusRecordRequest(runId, merchant, contract, scheduledRunUtc, file, FileSendStatuses.Succeeded, null, fileProcessorFileId), cancellationToken);
 
     public Task RecordFailureAsync(
         Guid runId,
@@ -153,7 +153,7 @@ public sealed class FileStatusStore(
         GeneratedFile? file,
         string errorMessage,
         CancellationToken cancellationToken) =>
-        this.RecordAsync(runId, merchant, contract, scheduledRunUtc, file, FileSendStatuses.Failed, errorMessage, null, cancellationToken);
+        this.RecordAsync(new FileStatusRecordRequest(runId, merchant, contract, scheduledRunUtc, file, FileSendStatuses.Failed, errorMessage, null), cancellationToken);
 
     public async Task RecordMerchantRunResultAsync(
         Guid runId,
@@ -250,38 +250,29 @@ public sealed class FileStatusStore(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task RecordAsync(
-        Guid runId,
-        MerchantOptions merchant,
-        ContractOptions contract,
-        DateTimeOffset scheduledRunUtc,
-        GeneratedFile? file,
-        string status,
-        string? errorMessage,
-        Guid? fileProcessorFileId,
-        CancellationToken cancellationToken)
+    private async Task RecordAsync(FileStatusRecordRequest request, CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var fileSendRecord = new FileSendRecord
         {
-            RunId = runId,
-            MerchantId = merchant.MerchantId,
-            EstateId = merchant.EstateId,
-            MerchantName = ResolveMerchantName(merchant),
-            ContractId = contract.ContractId,
-            ContractName = ResolveContractName(contract),
-            FileName = file?.FileName,
-            FileProfileId = file?.FileProfileId,
-            Format = file?.Format,
-            FileProcessorFileId = fileProcessorFileId?.ToString(),
-            ScheduledRunUtc = scheduledRunUtc,
-            FileContent = ResolveFileContent(file),
-            RecordCount = file?.RecordCount,
-            TotalAmount = file?.TotalAmount,
-            Status = status,
-            ErrorMessage = string.IsNullOrWhiteSpace(errorMessage) ? null : Truncate(errorMessage, 2048),
-            ProcessingCompleted = status == FileSendStatuses.Failed,
+            RunId = request.RunId,
+            MerchantId = request.Merchant.MerchantId,
+            EstateId = request.Merchant.EstateId,
+            MerchantName = ResolveMerchantName(request.Merchant),
+            ContractId = request.Contract.ContractId,
+            ContractName = ResolveContractName(request.Contract),
+            FileName = request.File?.FileName,
+            FileProfileId = request.File?.FileProfileId,
+            Format = request.File?.Format,
+            FileProcessorFileId = request.FileProcessorFileId?.ToString(),
+            ScheduledRunUtc = request.ScheduledRunUtc,
+            FileContent = ResolveFileContent(request.File),
+            RecordCount = request.File?.RecordCount,
+            TotalAmount = request.File?.TotalAmount,
+            Status = request.Status,
+            ErrorMessage = string.IsNullOrWhiteSpace(request.ErrorMessage) ? null : Truncate(request.ErrorMessage, 2048),
+            ProcessingCompleted = request.Status == FileSendStatuses.Failed,
             ProcessedUtc = DateTimeOffset.UtcNow
         };
 
@@ -289,18 +280,18 @@ public sealed class FileStatusStore(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        if (file is null)
+        if (request.File is null)
         {
             return;
         }
 
-        var fileLines = GetFileLines(file);
+        var fileLines = GetFileLines(request.File);
         if (fileLines.Count == 0)
         {
             return;
         }
 
-        if (status == FileSendStatuses.Succeeded)
+        if (request.Status == FileSendStatuses.Succeeded)
         {
             dbContext.FileSendRecordLineStatuses.AddRange(
                 fileLines.Select((line, index) => new FileSendRecordLineStatus
@@ -315,6 +306,16 @@ public sealed class FileStatusStore(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
+
+    private sealed record FileStatusRecordRequest(
+        Guid RunId,
+        MerchantOptions Merchant,
+        ContractOptions Contract,
+        DateTimeOffset ScheduledRunUtc,
+        GeneratedFile? File,
+        string Status,
+        string? ErrorMessage,
+        Guid? FileProcessorFileId);
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
