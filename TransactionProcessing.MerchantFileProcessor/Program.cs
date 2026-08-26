@@ -274,28 +274,18 @@ static async Task EnsureMerchantProcessingSchemaAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
-    await EnsureMerchantProcessingTablesAsync(dbContext, cancellationToken);
+    await EnsureMerchantProcessingCoreTablesAsync(dbContext, cancellationToken);
+    await EnsureMerchantProcessingProfileTablesAsync(dbContext, cancellationToken);
+    await EnsureMerchantProcessingMerchantTablesAsync(dbContext, cancellationToken);
     await EnsureMerchantProcessingIndexesAsync(dbContext, cancellationToken);
 }
 
-static async Task EnsureMerchantProcessingTablesAsync(
+static async Task EnsureMerchantProcessingCoreTablesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
     await ExecuteSqlStatementsAsync(dbContext, new[]
     {
-        """
-        CREATE TABLE IF NOT EXISTS MerchantRunRecords (
-            Id INTEGER NOT NULL CONSTRAINT PK_MerchantRunRecords PRIMARY KEY AUTOINCREMENT,
-            RunId TEXT NOT NULL,
-            MerchantId TEXT NOT NULL,
-            MerchantName TEXT NULL,
-            ScheduledRunUtc TEXT NOT NULL,
-            Status TEXT NOT NULL,
-            ErrorMessage TEXT NULL,
-            CompletedUtc TEXT NOT NULL
-        );
-        """,
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingAuthenticationRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingAuthenticationRecords PRIMARY KEY,
@@ -335,6 +325,15 @@ static async Task EnsureMerchantProcessingTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+    }, cancellationToken);
+}
+
+static async Task EnsureMerchantProcessingProfileTablesAsync(
+    MerchantFileProcessorDbContext dbContext,
+    CancellationToken cancellationToken)
+{
+    await ExecuteSqlStatementsAsync(dbContext, new[]
+    {
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfiles (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfiles PRIMARY KEY AUTOINCREMENT,
@@ -392,6 +391,27 @@ static async Task EnsureMerchantProcessingTablesAsync(
             UpdatedUtc TEXT NOT NULL,
             CONSTRAINT FK_MerchantProcessingFileProfileTrailerFields_MerchantProcessingFileProfiles_FileProfileRecordId
                 FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
+        );
+        """
+    }, cancellationToken);
+}
+
+static async Task EnsureMerchantProcessingMerchantTablesAsync(
+    MerchantFileProcessorDbContext dbContext,
+    CancellationToken cancellationToken)
+{
+    await ExecuteSqlStatementsAsync(dbContext, new[]
+    {
+        """
+        CREATE TABLE IF NOT EXISTS MerchantRunRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_MerchantRunRecords PRIMARY KEY AUTOINCREMENT,
+            RunId TEXT NOT NULL,
+            MerchantId TEXT NOT NULL,
+            MerchantName TEXT NULL,
+            ScheduledRunUtc TEXT NOT NULL,
+            Status TEXT NOT NULL,
+            ErrorMessage TEXT NULL,
+            CompletedUtc TEXT NOT NULL
         );
         """,
         """
