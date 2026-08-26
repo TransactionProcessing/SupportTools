@@ -119,9 +119,10 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             return ResultHelpers.CreateFailure(result);
         }
         
-        Logger.LogInformation($"{result.Data.Count} for merchant requested successfully");
+        List<ContractResponseX> contracts = result.Data ?? [];
+        Logger.LogInformation($"{contracts.Count} for merchant requested successfully");
 
-        foreach (ContractResponseX contractResponse in result.Data) {
+        foreach (ContractResponseX contractResponse in contracts) {
             foreach (ContractProductX contractResponseProduct in contractResponse.Products) {
                 products.Add(new Product {
                     ContractId = contractResponse.ContractId,
@@ -268,6 +269,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         Result<(String accountNumber, String accountName, String mobileNumber)> extraDetails = product.ProductSubType switch {
             ProductSubType.BillPaymentPostPay => await this.CreateBillPaymentBill(value, CancellationToken.None),
             ProductSubType.BillPaymentPrePay => await this.CreateBillPaymentMeter(CancellationToken.None),
+            _ => throw new InvalidOperationException($"Unsupported product subtype {product.ProductSubType}"),
         };
 
         if (extraDetails.IsFailed) {
@@ -397,7 +399,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
 
         return requestUri;
     }
-    private async Task<Result<(String accountNumber, String accountName, String? mobileNumber)>> CreateBillPaymentBill(Decimal billAmount, CancellationToken cancellationToken)
+    private async Task<Result<(String accountNumber, String accountName, String mobileNumber)>> CreateBillPaymentBill(Decimal billAmount, CancellationToken cancellationToken)
     {
         Int32 accountNumber = RandomNumberGenerator.GetInt32(1, 100000);
         String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
@@ -439,7 +441,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                 return ResultHelpers.CreateFailure(result);
             }
 
-            return Result.Success<(String, String, String?)>((body.meter_number.ToString(), body.customer_name, null));
+            return Result.Success((body.meter_number.ToString(), body.customer_name, "07777777705"));
     }
 
 }
@@ -453,7 +455,7 @@ public class ContractResponseX
     public int ContractReportingId { get; set; }
 
     [JsonProperty("description")]
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     [JsonProperty("estate_id")]
     public Guid EstateId { get; set; }
@@ -465,19 +467,19 @@ public class ContractResponseX
     public Guid OperatorId { get; set; }
 
     [JsonProperty("operator_name")]
-    public string OperatorName { get; set; }
+    public string OperatorName { get; set; } = string.Empty;
 
     [JsonProperty("products")]
-    public List<ContractProductX> Products { get; set; }
+    public List<ContractProductX> Products { get; set; } = [];
 }
 
 public class ContractProductX
 {
     [JsonProperty("display_text")]
-    public string DisplayText { get; set; }
+    public string DisplayText { get; set; } = string.Empty;
 
     [JsonProperty("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonProperty("product_id")]
     public Guid ProductId { get; set; }
@@ -486,7 +488,7 @@ public class ContractProductX
     public int ProductReportingId { get; set; }
 
     [JsonProperty("transaction_fees")]
-    public List<ContractProductTransactionFeeX> TransactionFees { get; set; }
+    public List<ContractProductTransactionFeeX> TransactionFees { get; set; } = [];
 
     [JsonProperty("value")]
     public Decimal? Value { get; set; }
@@ -504,7 +506,7 @@ public class ContractProductTransactionFeeX
     public FeeType FeeType { get; set; }
 
     [JsonProperty("description")]
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     [JsonProperty("transaction_fee_id")]
     public Guid TransactionFeeId { get; set; }
@@ -536,17 +538,17 @@ public class MerchantResponse
     public Guid MerchantId { get; set; }
 
     [JsonProperty("merchant_name")]
-    public string MerchantName { get; set; }
+    public string MerchantName { get; set; } = string.Empty;
 
     [JsonProperty("opening_hours")]
-    public Dictionary<DayOfWeek, OpeningHoursResponse> OpeningHours { get; set; }
+    public Dictionary<DayOfWeek, OpeningHoursResponse> OpeningHours { get; set; } = [];
 }
 
 public class OpeningHoursResponse
 {
     [JsonProperty("opening")]
-    public string Opening { get; set; }
+    public string Opening { get; set; } = string.Empty;
 
     [JsonProperty("closing")]
-    public string Closing { get; set; }
+    public string Closing { get; set; } = string.Empty;
 }

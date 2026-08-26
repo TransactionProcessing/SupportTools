@@ -47,7 +47,7 @@ public static class Extensions
 
     public static T GetSerialisedMessageResponseDTO<T>(this SerialisedMessage serialisedMessage)
     {
-        return JsonConvert.DeserializeObject<T>(serialisedMessage.SerialisedData);
+        return JsonConvert.DeserializeObject<T>(serialisedMessage.SerialisedData)!;
     }
 
     #endregion

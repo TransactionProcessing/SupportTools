@@ -21,7 +21,7 @@ public sealed class SharedAccessTokenProvider(
     {
         if (IsTokenValid(this.currentToken))
         {
-            return Result.Success(this.currentToken);
+            return Result.Success(this.currentToken!);
         }
 
         await this.refreshLock.WaitAsync(cancellationToken);
@@ -30,7 +30,7 @@ public sealed class SharedAccessTokenProvider(
         {
             if (IsTokenValid(this.currentToken))
             {
-                return Result.Success(this.currentToken);
+                return Result.Success(this.currentToken!);
             }
 
             var tokenResult = await this.RequestToken(cancellationToken);

@@ -14,7 +14,7 @@ namespace MerchantPos.EF.Persistence
         Task UpdateTotals(Guid merchantId, Guid operatorId, Guid contractId, Decimal amount);
         Task<List<OperatorTotal>> GetTotals(Guid merchantId);
         Task ClearTotals(Guid merchantId);
-        Task<Merchant> GetMerchant(Guid merchantId);
+        Task<Merchant?> GetMerchant(Guid merchantId);
 
         Task IncrementTransactionNumber(Guid merchantId, String merchantName);
     }

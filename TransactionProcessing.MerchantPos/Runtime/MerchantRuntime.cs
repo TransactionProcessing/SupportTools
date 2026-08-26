@@ -25,10 +25,10 @@ public class MerchantRuntime
         this.Metrics = metrics;
     }
 
-    private TokenResponse CurrentServiceToken;
-    private TokenResponse CurrentUserToken;
-    private (String clientId, String clientSecret) ServiceClientCredentials;
-    private (String clientId, String clientSecret) PosClientCredentials;
+    private TokenResponse? CurrentServiceToken;
+    private TokenResponse? CurrentUserToken;
+    private (String clientId, String clientSecret) ServiceClientCredentials = default!;
+    private (String clientId, String clientSecret) PosClientCredentials = default!;
     public async Task RunAsync((String clientId, String clientSecret) serviceClient, (String clientId, String clientSecret) posClient , MerchantConfig config, CancellationToken cancellationToken)
     {
         Logger.LogInformation($"MerchantRuntime started for {config.MerchantName}");
@@ -131,8 +131,13 @@ public class MerchantRuntime
             return;
         }
 
+        TokenResponse userToken = this.CurrentUserToken
+            ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
+        TokenResponse serviceToken = this.CurrentServiceToken
+            ?? throw new InvalidOperationException($"Service token was not initialized for merchant {cfg.MerchantName}.");
+
         // 2. Load products
-        Result<List<Product>> productsResult = await ApiClient.GetProductList(cfg, this.CurrentUserToken, cancellationToken);
+        Result<List<Product>> productsResult = await ApiClient.GetProductList(cfg, userToken, cancellationToken);
         if (productsResult.IsFailed) {
             Logger.LogWarning($"Failed to get product list for merchant {cfg.MerchantName} during startup sequence.");
             return;
@@ -140,14 +145,14 @@ public class MerchantRuntime
         cfg.Products = productsResult.Data;
         
         // 3. Balance
-        Result<decimal> balanceResult = await ApiClient.GetBalance(cfg, this.CurrentServiceToken, cancellationToken);
+        Result<decimal> balanceResult = await ApiClient.GetBalance(cfg, serviceToken, cancellationToken);
         if (balanceResult.IsFailed) {
             Logger.LogWarning($"Failed to get balance for merchant {cfg.MerchantName} during startup sequence.");
             return;
         }
         await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balanceResult.Data);
         // 4. get the merchant record
-        var merchant = await ApiClient.GetMerchant(cfg, this.CurrentUserToken, cancellationToken);
+        var merchant = await ApiClient.GetMerchant(cfg, userToken, cancellationToken);
         cfg.Merchant = merchant.Data;
     }
 
@@ -156,14 +161,18 @@ public class MerchantRuntime
         TimeSpan saleInterval = TimeSpan.FromSeconds(cfg.SaleIntervalSeconds);
 
         while (!token.IsCancellationRequested) {
-            Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId);
+            Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId)
+                ?? throw new InvalidOperationException($"Merchant {cfg.MerchantId} was not found.");
             // Wait until the merchant's configured opening time
             DateTime currentTime = DateTime.Now;
 
             // Get the current days opening and closing time
             TimeSpan openingTime;
             TimeSpan closingTime;
-            Boolean found = cfg.Merchant.OpeningHours.TryGetValue(DateTime.Now.DayOfWeek, out var openingHours);
+            MerchantResponse merchantConfig = cfg.Merchant
+                ?? throw new InvalidOperationException($"Merchant details were not loaded for {cfg.MerchantName}.");
+
+            Boolean found = merchantConfig.OpeningHours.TryGetValue(DateTime.Now.DayOfWeek, out var openingHours);
             if (found == false) {
                 // fallback to the configured default opening and closing time if no specific hours for the day of week
                 openingTime = cfg.OpeningTime.ToTimeSpan();
@@ -171,6 +180,10 @@ public class MerchantRuntime
             }
             else {
                 // We have opening and closing times for the current day of week, so use those
+                if (openingHours is null)
+                {
+                    throw new InvalidOperationException($"Opening hours were not configured for {cfg.MerchantName} on {DateTime.Now.DayOfWeek}.");
+                }
                 openingTime = TimeSpan.ParseExact(openingHours.Opening, "hhmm", null);
                 closingTime = TimeSpan.ParseExact(openingHours.Closing, "hhmm", null);
             }
@@ -214,7 +227,9 @@ public class MerchantRuntime
                 }
                 else
                 {
-                    await ApiClient.SendLogon(cfg, this.CurrentUserToken, merchant.TransactionNumber, token);
+                    TokenResponse userToken = this.CurrentUserToken
+                        ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
+                    await ApiClient.SendLogon(cfg, userToken, merchant.TransactionNumber, token);
                     //_lastDailyLogonDate = now.Date;
                     await this.Repository.UpdateLastLogon(cfg.MerchantId, cfg.MerchantName, now);
                     Logger.LogInformation($"Performed daily logon for merchant {cfg.MerchantName} on {now:yyyy-MM-dd}");
@@ -235,9 +250,13 @@ public class MerchantRuntime
         Result tokenResult = await this.GetServiceToken(cancellationToken);
         if (tokenResult.IsFailed)
             return;
+        TokenResponse serviceToken = this.CurrentServiceToken
+            ?? throw new InvalidOperationException($"Service token was not initialized for merchant {cfg.MerchantName}.");
         tokenResult = await this.GetUserToken(cfg, cancellationToken);
         if (tokenResult.IsFailed)
             return;
+        TokenResponse userToken = this.CurrentUserToken
+            ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
 
         decimal balance = await Repository.GetBalance(cfg.MerchantId);
 
@@ -254,7 +273,7 @@ public class MerchantRuntime
         bool induceFail = NextDouble() < cfg.FailureInjectionProbability;
         decimal saleValue = induceFail ? balance + 10 : value;
         
-        Result<SaleResponse> result = await ApiClient.SendSale(cfg, this.CurrentUserToken, product, saleValue, transactionNumber, cancellationToken);
+        Result<SaleResponse> result = await ApiClient.SendSale(cfg, userToken, product, saleValue, transactionNumber, cancellationToken);
 
         if (result.IsFailed)
         {
@@ -278,7 +297,7 @@ public class MerchantRuntime
         this.Metrics.SetBalance(cfg.MerchantId, newBalance);
         if (newBalance < cfg.DepositThreshold)
         {
-            await ApiClient.SendDeposit(cfg, this.CurrentServiceToken, cfg.DepositAmount,cancellationToken);
+            await ApiClient.SendDeposit(cfg, serviceToken, cfg.DepositAmount,cancellationToken);
             await Repository.UpdateBalance(cfg.MerchantId, cfg.MerchantName, newBalance + cfg.DepositAmount);
             newBalance = await Repository.GetBalance(cfg.MerchantId);
             this.Metrics.SetBalance(cfg.MerchantId, newBalance);
@@ -296,9 +315,11 @@ public class MerchantRuntime
         Result tokenResult = await this.GetUserToken(cfg, cancellationToken);
         if (tokenResult.IsFailed)
             return;
+        TokenResponse userToken = this.CurrentUserToken
+            ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
 
         List<OperatorTotal> totals = await Repository.GetTotals(cfg.MerchantId);
-        await ApiClient.SendReconciliation(cfg, this.CurrentUserToken, totals, cancellationToken);
+        await ApiClient.SendReconciliation(cfg, userToken, totals, cancellationToken);
 
         // Clear totals
         await this.Repository.UpdateLastEndOfDay(cfg.MerchantId, cfg.MerchantName, DateTime.Now);

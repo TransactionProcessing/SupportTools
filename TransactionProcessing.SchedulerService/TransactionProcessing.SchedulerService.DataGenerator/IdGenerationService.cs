@@ -18,9 +18,6 @@ public class IdGenerationService
         Formatting = Formatting.None
     });
 
-    private static readonly GenerateUniqueIdFromObject GenerateUniqueId =
-        data => IdGenerationService.GenerateGuidFromString(IdGenerationService.JsonSerialiser.Serialise(data));
-
     private static readonly GenerateUniqueIdFromString GenerateGuidFromString = uniqueKey => {
         using SHA256 sha256Hash = SHA256.Create();
         //Generate hash from the key
@@ -31,6 +28,13 @@ public class IdGenerationService
         //Create our Guid.
         return new Guid(j);
     };
+
+    private static readonly GenerateUniqueIdFromObject GenerateUniqueId =
+        data =>
+        {
+            string serialised = IdGenerationService.JsonSerialiser.Serialise(data);
+            return IdGenerationService.GenerateGuidFromString(serialised);
+        };
 
     public static Guid GenerateFloatAggregateId(Guid estateId, Guid contractId, Guid productId) =>
         IdGenerationService.GenerateUniqueId(new

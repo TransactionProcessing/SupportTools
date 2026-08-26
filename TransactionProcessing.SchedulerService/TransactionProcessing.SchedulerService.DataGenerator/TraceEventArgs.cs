@@ -11,7 +11,7 @@ public class TraceEventArgs : EventArgs
 
     #region Properties
 
-    public String Message { get; set; }
+    public String Message { get; set; } = String.Empty;
 
     public Level TraceLevel { get; set; }
 

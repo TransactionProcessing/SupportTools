@@ -791,7 +791,7 @@ internal sealed class MainForm : Form
             DataSource = server,
             InitialCatalog = database,
             Encrypt = _useSslCheckBox.Checked,
-            TrustServerCertificate = _useSslCheckBox.Checked
+            TrustServerCertificate = false
         };
 
         if (IsSqlAuthenticationSelected())

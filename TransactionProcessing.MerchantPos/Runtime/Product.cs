@@ -2,9 +2,9 @@ using TransactionProcessorACL.DataTransferObjects.Responses;
 
 namespace TransactionProcessing.MerchantPos.Runtime;
 
-public class Product
-{
-    public string Name { get; set; }
+    public class Product
+    {
+    public string Name { get; set; } = string.Empty;
     public Guid OperatorId { get; set; }
     public Guid ProductId { get; set; }
     public Guid ContractId { get; set; }

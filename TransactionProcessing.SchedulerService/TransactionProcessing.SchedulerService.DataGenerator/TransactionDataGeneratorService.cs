@@ -212,7 +212,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
         // Step 2: Decide how many total transactions to generate in this run
         numberOfSales = RandomNumberGenerator.GetInt32(1, 6); // e.g. 1–5 transactions per run
-        List<(SaleTransactionRequest request, Decimal amount)> saleRequests = null;
+        List<(SaleTransactionRequest request, Decimal amount)> saleRequests = [];
         for (int i = 0; i < numberOfSales; i++) {
             ContractProduct? contractProduct = contract.Products[RandomNumberGenerator.GetInt32(contract.Products.Count)];
 
@@ -349,15 +349,13 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
         };
 
         request.Headers.Authorization = new AuthenticationHeaderValue("bearer", tokenResult.Data);
-        HttpResponseMessage response = null;
-
         try
         {
 
             this.WriteTrace($"About to upload file for Merchant [{uploadFile.MerchantId}]");
             using (HttpClient client = new HttpClient())
             {
-                response = await client.SendAsync(request, cancellationToken);
+                await client.SendAsync(request, cancellationToken);
             }
             this.WriteTrace($"File uploaded for Merchant [{uploadFile.MerchantId}]");
             return Result.Success();
@@ -472,7 +470,7 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
 
     private String TestHostApi;
 
-    public static Decimal GetAmount(ContractProduct product = null)
+    public static Decimal GetAmount(ContractProduct? product = null)
     {
         return product switch
         {
@@ -751,8 +749,6 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
             return ResultHelpers.CreateFailure(tokenResult);
 
         SerialisedMessage requestSerialisedMessage = request.CreateSerialisedMessage();
-        SerialisedMessage responseSerialisedMessage = null;
-
         this.WriteTrace($"About to Send sale for Merchant [{merchant.MerchantName}]");
         Result<SerialisedMessage> result = new Result<SerialisedMessage>();
         for (int i = 0; i < 3; i++) {
@@ -774,36 +770,38 @@ public class TransactionDataGeneratorService : ITransactionDataGeneratorService 
     }
 
     public event TraceHandler? TraceGenerated;
-    private TokenResponse TokenResponse;
+    private TokenResponse? TokenResponse;
     private readonly RunningMode RunningMode;
     private readonly String ClientId;
 
     private readonly String ClientSecret;
-    private readonly String ClientToken;
 
     private async Task<Result<String>> GetAuthToken(CancellationToken cancellationToken) {
         this.WriteTrace("About to get auth token");
 
-        if (this.TokenResponse == null) {
+        TokenResponse? tokenResponse = this.TokenResponse;
+        if (tokenResponse == null) {
             this.WriteTrace("TokenResponse was null");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
 
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
-            this.TokenResponse = tokenResult.Data;
+            tokenResponse = tokenResult.Data;
+            this.TokenResponse = tokenResponse;
         }
 
-        if (this.TokenResponse.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2)) {
+        if (tokenResponse.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2)) {
             this.WriteTrace("TokenResponse was expired");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ClientId, this.ClientSecret, cancellationToken);
             if (tokenResult.IsFailed)
                 return ResultHelpers.CreateFailure(tokenResult);
-            this.TokenResponse = tokenResult.Data;
+            tokenResponse = tokenResult.Data;
+            this.TokenResponse = tokenResponse;
         }
 
         this.WriteTrace("Auth token retrieved");
 
-        return Result.Success<String>(this.TokenResponse.AccessToken);
+        return Result.Success<String>(tokenResponse.AccessToken);
     }
 
     private void WriteMessage(String message,

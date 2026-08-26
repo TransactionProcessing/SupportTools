@@ -7,7 +7,7 @@ namespace MerchantPos.EF.Models
     {
         [Key]
         public Guid MerchantId { get; set; }
-        public String MerchantName { get; set; }
+        public String MerchantName { get; set; } = String.Empty;
         public Decimal Balance { get; set; }
         public DateTime LastEndOfDayDateTime { get; set; }
         public DateTime LastLogonDateTime { get; set; }

@@ -72,7 +72,7 @@ public class EventStoreFunctions{
                 PersistentSubscriptionInfo subscriptionInfo = await this.PersistentSubscriptionsClient.GetInfoToStreamAsync(subscription.streamName, subscription.groupName, cancellationToken: cancellationToken, deadline:TimeSpan.FromSeconds(30));
                 exists = true;
             }
-            catch(PersistentSubscriptionNotFoundException pex){
+            catch(PersistentSubscriptionNotFoundException){
                 exists = false;
             }
 
