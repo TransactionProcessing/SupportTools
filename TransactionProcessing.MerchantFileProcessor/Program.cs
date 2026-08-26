@@ -250,8 +250,7 @@ static async Task EnsureFileSendSchemaAsync(
         await EnsureColumnAsync(dbContext, existingColumns, columnName, cancellationToken);
     }
 
-    await ExecuteSqlStatementsAsync(dbContext, new[]
-    {
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS FileSendRecordLineStatuses (
             Id INTEGER NOT NULL CONSTRAINT PK_FileSendRecordLineStatuses PRIMARY KEY AUTOINCREMENT,
@@ -266,8 +265,11 @@ static async Task EnsureFileSendSchemaAsync(
                 FOREIGN KEY (FileSendRecordId) REFERENCES FileSendRecords (Id) ON DELETE CASCADE
         );
         """,
+        cancellationToken);
+
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE UNIQUE INDEX IF NOT EXISTS IX_FileSendRecordLineStatuses_FileSendRecordId_LineNumber ON FileSendRecordLineStatuses (FileSendRecordId, LineNumber);",
-    }, cancellationToken);
+        cancellationToken);
 }
 
 static async Task EnsureMerchantProcessingSchemaAsync(
@@ -284,8 +286,7 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
-    await ExecuteSqlStatementsAsync(dbContext, new[]
-    {
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingAuthenticationRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingAuthenticationRecords PRIMARY KEY,
@@ -296,6 +297,8 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProcessingRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProcessingRecords PRIMARY KEY,
@@ -303,6 +306,8 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingTransactionGenerationRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingTransactionGenerationRecords PRIMARY KEY,
@@ -311,6 +316,8 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileStatusPollingRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileStatusPollingRecords PRIMARY KEY,
@@ -318,6 +325,8 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingMerchantScanRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchantScanRecords PRIMARY KEY,
@@ -325,15 +334,14 @@ static async Task EnsureMerchantProcessingCoreTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
-    }, cancellationToken);
+        cancellationToken);
 }
 
 static async Task EnsureMerchantProcessingProfileTablesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
-    await ExecuteSqlStatementsAsync(dbContext, new[]
-    {
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfiles (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfiles PRIMARY KEY AUTOINCREMENT,
@@ -351,6 +359,8 @@ static async Task EnsureMerchantProcessingProfileTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileFields (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileFields PRIMARY KEY AUTOINCREMENT,
@@ -365,6 +375,8 @@ static async Task EnsureMerchantProcessingProfileTablesAsync(
                 FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileHeaderFields (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileHeaderFields PRIMARY KEY AUTOINCREMENT,
@@ -379,6 +391,8 @@ static async Task EnsureMerchantProcessingProfileTablesAsync(
                 FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingFileProfileTrailerFields (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingFileProfileTrailerFields PRIMARY KEY AUTOINCREMENT,
@@ -392,16 +406,15 @@ static async Task EnsureMerchantProcessingProfileTablesAsync(
             CONSTRAINT FK_MerchantProcessingFileProfileTrailerFields_MerchantProcessingFileProfiles_FileProfileRecordId
                 FOREIGN KEY (FileProfileRecordId) REFERENCES MerchantProcessingFileProfiles (Id) ON DELETE CASCADE
         );
-        """
-    }, cancellationToken);
+        """,
+        cancellationToken);
 }
 
 static async Task EnsureMerchantProcessingMerchantTablesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
-    await ExecuteSqlStatementsAsync(dbContext, new[]
-    {
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantRunRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantRunRecords PRIMARY KEY AUTOINCREMENT,
@@ -414,6 +427,8 @@ static async Task EnsureMerchantProcessingMerchantTablesAsync(
             CompletedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingContractDefinitions (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingContractDefinitions PRIMARY KEY AUTOINCREMENT,
@@ -423,6 +438,8 @@ static async Task EnsureMerchantProcessingMerchantTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingMerchants (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchants PRIMARY KEY AUTOINCREMENT,
@@ -435,6 +452,8 @@ static async Task EnsureMerchantProcessingMerchantTablesAsync(
             UpdatedUtc TEXT NOT NULL
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingMerchantRunTimes (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingMerchantRunTimes PRIMARY KEY AUTOINCREMENT,
@@ -446,31 +465,46 @@ static async Task EnsureMerchantProcessingMerchantTablesAsync(
                 FOREIGN KEY (MerchantRecordId) REFERENCES MerchantProcessingMerchants (Id) ON DELETE CASCADE
         );
         """,
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         """
         CREATE TABLE IF NOT EXISTS MerchantProcessingConfigurationRecords (
             Id INTEGER NOT NULL CONSTRAINT PK_MerchantProcessingConfigurationRecords PRIMARY KEY AUTOINCREMENT,
             ConfigurationJson TEXT NOT NULL,
             UpdatedUtc TEXT NOT NULL
         );
-        """
-    }, cancellationToken);
+        """,
+        cancellationToken);
 }
 
 static async Task EnsureMerchantProcessingIndexesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
-    await ExecuteSqlStatementsAsync(dbContext, new[]
-    {
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS IX_MerchantRunRecords_MerchantId_ScheduledRunUtc_CompletedUtc ON MerchantRunRecords (MerchantId, ScheduledRunUtc, CompletedUtc);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfiles_FileProfileId ON MerchantProcessingFileProfiles (FileProfileId);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileHeaderFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileHeaderFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileTrailerFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileTrailerFields (FileProfileRecordId, SortOrder);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingContractDefinitions_ContractId ON MerchantProcessingContractDefinitions (ContractId);",
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
         "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingMerchants_MerchantId ON MerchantProcessingMerchants (MerchantId);",
-        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingMerchantRunTimes_MerchantRecordId_SortOrder ON MerchantProcessingMerchantRunTimes (MerchantRecordId, SortOrder);"
-    }, cancellationToken);
+        cancellationToken);
+    await dbContext.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingMerchantRunTimes_MerchantRecordId_SortOrder ON MerchantProcessingMerchantRunTimes (MerchantRecordId, SortOrder);",
+        cancellationToken);
 }
 
 static async Task<HashSet<string>> GetExistingColumnsAsync(MerchantFileProcessorDbContext dbContext, CancellationToken cancellationToken)
@@ -527,16 +561,5 @@ static async Task ExecuteColumnSqlAsync(
             return;
         default:
             throw new InvalidOperationException($"Unsupported FileSendRecords column '{columnName}'.");
-    }
-}
-
-static async Task ExecuteSqlStatementsAsync(
-    MerchantFileProcessorDbContext dbContext,
-    IEnumerable<string> sqlStatements,
-    CancellationToken cancellationToken)
-{
-    foreach (var sql in sqlStatements)
-    {
-        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 }
