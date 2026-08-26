@@ -47,7 +47,7 @@ Describe 'AutoScavenge\scavenge.ps1' {
             $Method -eq 'Post'
         }
 
-        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice' -Password 'secret'
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Username 'alice' -Password (ConvertTo-SecureString 'secret' -AsPlainText -Force)
 
         $captured.Count | Should -Be 1
         $captured.Uri | Should -Be $expectedUri
@@ -93,7 +93,7 @@ Describe 'AutoScavenge\scavenge.ps1' {
             $Method -eq 'Post'
         }
 
-        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Password 'secret'
+        & $script:scriptUnderTest -BaseUrl 'http://localhost:2113' -Password (ConvertTo-SecureString 'secret' -AsPlainText -Force)
 
         $captured.Count | Should -Be 1
         $captured.Uri | Should -Be 'http://localhost:2113/admin/scavenge'

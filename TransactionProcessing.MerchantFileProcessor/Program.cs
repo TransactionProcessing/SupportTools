@@ -247,7 +247,7 @@ static async Task EnsureFileSendSchemaAsync(
         ("ScheduledRunUtc", "ALTER TABLE FileSendRecords ADD COLUMN ScheduledRunUtc TEXT NOT NULL DEFAULT '0001-01-01T00:00:00+00:00';")
     })
     {
-        await EnsureColumnAsync(dbContext, existingColumns, columnName, sql, cancellationToken);
+        await EnsureColumnAsync(dbContext, existingColumns, columnName, cancellationToken);
     }
 
     await ExecuteSqlStatementsAsync(dbContext, new[]
@@ -271,6 +271,14 @@ static async Task EnsureFileSendSchemaAsync(
 }
 
 static async Task EnsureMerchantProcessingSchemaAsync(
+    MerchantFileProcessorDbContext dbContext,
+    CancellationToken cancellationToken)
+{
+    await EnsureMerchantProcessingTablesAsync(dbContext, cancellationToken);
+    await EnsureMerchantProcessingIndexesAsync(dbContext, cancellationToken);
+}
+
+static async Task EnsureMerchantProcessingTablesAsync(
     MerchantFileProcessorDbContext dbContext,
     CancellationToken cancellationToken)
 {
@@ -424,7 +432,16 @@ static async Task EnsureMerchantProcessingSchemaAsync(
             ConfigurationJson TEXT NOT NULL,
             UpdatedUtc TEXT NOT NULL
         );
-        """,
+        """
+    }, cancellationToken);
+}
+
+static async Task EnsureMerchantProcessingIndexesAsync(
+    MerchantFileProcessorDbContext dbContext,
+    CancellationToken cancellationToken)
+{
+    await ExecuteSqlStatementsAsync(dbContext, new[]
+    {
         "CREATE INDEX IF NOT EXISTS IX_MerchantRunRecords_MerchantId_ScheduledRunUtc_CompletedUtc ON MerchantRunRecords (MerchantId, ScheduledRunUtc, CompletedUtc);",
         "CREATE UNIQUE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfiles_FileProfileId ON MerchantProcessingFileProfiles (FileProfileId);",
         "CREATE INDEX IF NOT EXISTS IX_MerchantProcessingFileProfileFields_FileProfileRecordId_SortOrder ON MerchantProcessingFileProfileFields (FileProfileRecordId, SortOrder);",
@@ -449,12 +466,47 @@ static async Task EnsureColumnAsync(
     MerchantFileProcessorDbContext dbContext,
     ISet<string> existingColumns,
     string columnName,
-    string sql,
     CancellationToken cancellationToken)
 {
     if (!existingColumns.Contains(columnName))
     {
-        await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        await ExecuteColumnSqlAsync(dbContext, columnName, cancellationToken);
+    }
+}
+
+static async Task ExecuteColumnSqlAsync(
+    MerchantFileProcessorDbContext dbContext,
+    string columnName,
+    CancellationToken cancellationToken)
+{
+    switch (columnName)
+    {
+        case "MerchantName":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN MerchantName TEXT NULL;", cancellationToken);
+            return;
+        case "ContractName":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN ContractName TEXT NULL;", cancellationToken);
+            return;
+        case "FileContent":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN FileContent TEXT NULL;", cancellationToken);
+            return;
+        case "EstateId":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN EstateId TEXT NULL;", cancellationToken);
+            return;
+        case "FileProcessorFileId":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN FileProcessorFileId TEXT NULL;", cancellationToken);
+            return;
+        case "ProcessingCompleted":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN ProcessingCompleted INTEGER NOT NULL DEFAULT 0;", cancellationToken);
+            return;
+        case "LastStatusCheckUtc":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN LastStatusCheckUtc TEXT NULL;", cancellationToken);
+            return;
+        case "ScheduledRunUtc":
+            await dbContext.Database.ExecuteSqlRawAsync("ALTER TABLE FileSendRecords ADD COLUMN ScheduledRunUtc TEXT NOT NULL DEFAULT '0001-01-01T00:00:00+00:00';", cancellationToken);
+            return;
+        default:
+            throw new InvalidOperationException($"Unsupported FileSendRecords column '{columnName}'.");
     }
 }
 

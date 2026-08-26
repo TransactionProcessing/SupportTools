@@ -45,11 +45,7 @@ internal sealed class SqlAgentDeploymentService
             }
 
             _logger.LogInformation("Replacing existing job {JobName}.", job.Name);
-            await ExecuteProcedureAsync(
-                "msdb.dbo.sp_delete_job",
-                cancellationToken,
-                new SqlParameter("@job_name", job.Name),
-                new SqlParameter("@delete_unused_schedule", 1));
+            await DeleteJobAsync(job.Name, cancellationToken);
         }
 
         _writer.WriteLine($"Deploying job '{job.Name}'.");
@@ -75,7 +71,7 @@ internal sealed class SqlAgentDeploymentService
             jobIdParameter
         ];
 
-        await ExecuteProcedureAsync("msdb.dbo.sp_add_job", jobParameters, cancellationToken);
+        await AddJobAsync(jobParameters, cancellationToken);
 
         Guid jobId = (Guid)jobIdParameter.Value;
         _logger.LogInformation("Created job {JobName} with job id {JobId}.", job.Name, jobId);
@@ -97,19 +93,12 @@ internal sealed class SqlAgentDeploymentService
         if (!string.IsNullOrWhiteSpace(job.TargetServerName))
         {
             _logger.LogInformation("Binding job {JobName} to target server {TargetServer}.", job.Name, job.TargetServerName);
-            await ExecuteProcedureAsync(
-                "msdb.dbo.sp_add_jobserver",
-                cancellationToken,
-                new SqlParameter("@job_id", jobId),
-                new SqlParameter("@server_name", job.TargetServerName));
+            await AddJobServerAsync(jobId, job.TargetServerName, cancellationToken);
         }
         else
         {
             _logger.LogInformation("Binding job {JobName} to the local server.", job.Name);
-            await ExecuteProcedureAsync(
-                "msdb.dbo.sp_add_jobserver",
-                cancellationToken,
-                new SqlParameter("@job_id", jobId));
+            await AddJobServerAsync(jobId, null, cancellationToken);
         }
 
         _logger.LogInformation("Finished job {JobName}.", job.Name);
@@ -142,7 +131,7 @@ internal sealed class SqlAgentDeploymentService
             parameters.Add(new SqlParameter("@proxy_name", step.ProxyName));
         }
 
-        await ExecuteProcedureAsync("msdb.dbo.sp_add_jobstep", parameters, cancellationToken);
+        await AddJobStepAsync(parameters, cancellationToken);
 
         _writer.WriteLine($"  Added step {stepId}: {step.Name}");
         _logger.LogInformation("Added step {StepId} for job {JobId}: {StepName}.", stepId, jobId, step.Name);
@@ -169,7 +158,7 @@ internal sealed class SqlAgentDeploymentService
             new SqlParameter("@active_end_time", schedule.ActiveEndTime is null ? 235959 : ToTimeInt(schedule.ActiveEndTime.Value))
         ];
 
-        await ExecuteProcedureAsync("msdb.dbo.sp_add_jobschedule", parameters, cancellationToken);
+        await AddJobScheduleAsync(parameters, cancellationToken);
 
         _writer.WriteLine($"  Added schedule: {schedule.Name}");
         _logger.LogInformation("Added schedule {ScheduleName} for job {JobId}.", schedule.Name, jobId);
@@ -199,27 +188,81 @@ internal sealed class SqlAgentDeploymentService
         return exists;
     }
 
-    private async Task ExecuteProcedureAsync(string procedureName, CancellationToken cancellationToken, params SqlParameter[] parameters)
-    {
-        await ExecuteProcedureAsync(procedureName, (IEnumerable<SqlParameter>)parameters, cancellationToken);
-    }
-
-    private async Task ExecuteProcedureAsync(string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken)
+    private async Task DeleteJobAsync(string jobName, CancellationToken cancellationToken)
     {
         await using SqlCommand command = _connection.CreateCommand();
         command.CommandType = System.Data.CommandType.StoredProcedure;
-        command.CommandText = procedureName;
+        command.CommandText = "msdb.dbo.sp_delete_job";
 
+        await ExecuteCommandAsync(
+            command,
+            new[]
+            {
+                new SqlParameter("@job_name", jobName),
+                new SqlParameter("@delete_unused_schedule", 1)
+            },
+            "msdb.dbo.sp_delete_job",
+            cancellationToken);
+    }
+
+    private async Task AddJobAsync(IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken)
+    {
+        await using SqlCommand command = _connection.CreateCommand();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "msdb.dbo.sp_add_job";
+        await ExecuteCommandAsync(command, parameters, "msdb.dbo.sp_add_job", cancellationToken);
+    }
+
+    private async Task AddJobStepAsync(IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken)
+    {
+        await using SqlCommand command = _connection.CreateCommand();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "msdb.dbo.sp_add_jobstep";
+        await ExecuteCommandAsync(command, parameters, "msdb.dbo.sp_add_jobstep", cancellationToken);
+    }
+
+    private async Task AddJobScheduleAsync(IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken)
+    {
+        await using SqlCommand command = _connection.CreateCommand();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "msdb.dbo.sp_add_jobschedule";
+        await ExecuteCommandAsync(command, parameters, "msdb.dbo.sp_add_jobschedule", cancellationToken);
+    }
+
+    private async Task AddJobServerAsync(Guid jobId, string? targetServerName, CancellationToken cancellationToken)
+    {
+        List<SqlParameter> parameters =
+        [
+            new SqlParameter("@job_id", jobId)
+        ];
+
+        if (!string.IsNullOrWhiteSpace(targetServerName))
+        {
+            parameters.Add(new SqlParameter("@server_name", targetServerName));
+        }
+
+        await using SqlCommand command = _connection.CreateCommand();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "msdb.dbo.sp_add_jobserver";
+        await ExecuteCommandAsync(command, parameters, "msdb.dbo.sp_add_jobserver", cancellationToken);
+    }
+
+    private async Task ExecuteCommandAsync(
+        SqlCommand command,
+        IEnumerable<SqlParameter> parameters,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
         foreach (SqlParameter parameter in parameters)
         {
             command.Parameters.Add(parameter);
         }
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        _logger.LogTrace("Executing stored procedure {ProcedureName}.", procedureName);
+        _logger.LogTrace("Executing stored procedure {ProcedureName}.", operationName);
         await command.ExecuteNonQueryAsync(cancellationToken);
         stopwatch.Stop();
-        _logger.LogTrace("Executed stored procedure {ProcedureName} in {ElapsedMilliseconds} ms.", procedureName, stopwatch.ElapsedMilliseconds);
+        _logger.LogTrace("Executed stored procedure {ProcedureName} in {ElapsedMilliseconds} ms.", operationName, stopwatch.ElapsedMilliseconds);
     }
 
     private static int ToDateInt(DateOnly date) => date.Year * 10000 + date.Month * 100 + date.Day;

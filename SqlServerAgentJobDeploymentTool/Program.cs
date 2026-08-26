@@ -29,99 +29,14 @@ internal static class Program
         });
 
         Microsoft.Extensions.Logging.ILogger logger = loggerFactory.CreateLogger(nameof(Program));
-        string currentOperation = "starting";
-        string? currentContext = null;
 
         try
         {
-            logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
-
-            if (ShouldLaunchUi(args))
-            {
-                ApplicationConfiguration.Initialize();
-                Application.Run(new MainForm(loggerFactory));
-                return 0;
-            }
-
-            DeploymentOptions options = DeploymentOptions.Parse(args);
-            logger.LogInformation("Command-line mode selected. Manifest path: {ManifestPath}. Dry run: {DryRun}. Database override: {DatabaseOverride}.",
-                options.ManifestPath,
-                options.WhatIf,
-                string.IsNullOrWhiteSpace(options.DatabaseName) ? "<none>" : options.DatabaseName);
-
-            if (options.ShowHelp)
-            {
-                PrintUsage();
-                logger.LogInformation("Program completed with exit code 0.");
-                return 0;
-            }
-
-            currentOperation = "loading manifest";
-            currentContext = options.ManifestPath;
-            DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
-            logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
-
-            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
-            {
-                manifest.ConnectionString = options.ConnectionString;
-                logger.LogInformation("Using connection string override from command line.");
-            }
-
-            if (string.IsNullOrWhiteSpace(manifest.ConnectionString))
-            {
-                Console.Error.WriteLine("A connection string must be supplied in the manifest or with --connection-string.");
-                return 1;
-            }
-
-            currentOperation = "validating manifest";
-            currentContext = options.ManifestPath;
-            ManifestValidator.Validate(manifest);
-            logger.LogInformation("Manifest validation succeeded.");
-
-            if (options.WhatIf)
-            {
-                logger.LogInformation("Dry run requested. The following jobs would be deployed:");
-                foreach (JobDefinition job in manifest.Jobs)
-                {
-                    logger.LogInformation("Dry run job: {JobName}", job.Name);
-                }
-
-                logger.LogInformation("Program completed with exit code 0.");
-                return 0;
-            }
-
-            currentOperation = "opening SQL connection";
-            currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
-            Microsoft.Data.SqlClient.SqlConnection connection = new(manifest.ConnectionString);
-
-            try
-            {
-                logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
-                await connection.OpenAsync(CancellationToken.None);
-                logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
-
-                currentOperation = "deploying SQL Agent jobs";
-                var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
-                await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
-                logger.LogInformation("Deployment completed successfully.");
-                logger.LogInformation("Program completed with exit code 0.");
-                return 0;
-            }
-            finally
-            {
-                try
-                {
-                    await connection.DisposeAsync();
-                }
-                catch (Exception disposeEx)
-                {
-                    logger.LogWarning(disposeEx, "Failed to dispose SQL connection after {Operation}.", currentOperation);
-                }
-            }
+            return await RunAsync(args, loggerFactory, logger);
         }
         catch (Exception ex)
         {
-            DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, currentOperation, currentContext);
+            DeploymentErrorReporter.ReportCli(ex, logger, Console.Error, "starting", null);
             return 1;
         }
         finally
@@ -133,6 +48,96 @@ internal static class Program
             catch (Exception shutdownEx)
             {
                 logger.LogWarning(shutdownEx, "NLog shutdown failed.");
+            }
+        }
+    }
+
+    private static async Task<int> RunAsync(
+        string[] args,
+        ILoggerFactory loggerFactory,
+        Microsoft.Extensions.Logging.ILogger logger)
+    {
+        logger.LogInformation("Starting SQL Server Agent Job Deployment Tool.");
+
+        if (ShouldLaunchUi(args))
+        {
+            ApplicationConfiguration.Initialize();
+            Application.Run(new MainForm(loggerFactory));
+            return 0;
+        }
+
+        DeploymentOptions options = DeploymentOptions.Parse(args);
+        logger.LogInformation("Command-line mode selected. Manifest path: {ManifestPath}. Dry run: {DryRun}. Database override: {DatabaseOverride}.",
+            options.ManifestPath,
+            options.WhatIf,
+            string.IsNullOrWhiteSpace(options.DatabaseName) ? "<none>" : options.DatabaseName);
+
+        if (options.ShowHelp)
+        {
+            PrintUsage();
+            logger.LogInformation("Program completed with exit code 0.");
+            return 0;
+        }
+
+        string currentOperation = "loading manifest";
+        string? currentContext = options.ManifestPath;
+        DeploymentManifest manifest = await DeploymentManifestLoader.LoadAsync(options.ManifestPath, CancellationToken.None);
+        logger.LogInformation("Loaded manifest with {JobCount} job(s).", manifest.Jobs.Count);
+
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            manifest.ConnectionString = options.ConnectionString;
+            logger.LogInformation("Using connection string override from command line.");
+        }
+
+        if (string.IsNullOrWhiteSpace(manifest.ConnectionString))
+        {
+            Console.Error.WriteLine("A connection string must be supplied in the manifest or with --connection-string.");
+            return 1;
+        }
+
+        currentOperation = "validating manifest";
+        ManifestValidator.Validate(manifest);
+        logger.LogInformation("Manifest validation succeeded.");
+
+        if (options.WhatIf)
+        {
+            logger.LogInformation("Dry run requested. The following jobs would be deployed:");
+            foreach (JobDefinition job in manifest.Jobs)
+            {
+                logger.LogInformation("Dry run job: {JobName}", job.Name);
+            }
+
+            logger.LogInformation("Program completed with exit code 0.");
+            return 0;
+        }
+
+        currentOperation = "opening SQL connection";
+        currentContext = DeploymentErrorReporter.DescribeConnectionTarget(manifest.ConnectionString);
+        Microsoft.Data.SqlClient.SqlConnection connection = new(manifest.ConnectionString);
+
+        try
+        {
+            logger.LogInformation("Opening SQL connection to {ConnectionTarget}.", currentContext);
+            await connection.OpenAsync(CancellationToken.None);
+            logger.LogInformation("SQL connection opened to {ConnectionTarget}.", currentContext);
+
+            currentOperation = "deploying SQL Agent jobs";
+            var deployer = new SqlAgentDeploymentService(connection, Console.Out, loggerFactory.CreateLogger<SqlAgentDeploymentService>());
+            await deployer.DeployAsync(manifest, options.DatabaseName, CancellationToken.None);
+            logger.LogInformation("Deployment completed successfully.");
+            logger.LogInformation("Program completed with exit code 0.");
+            return 0;
+        }
+        finally
+        {
+            try
+            {
+                await connection.DisposeAsync();
+            }
+            catch (Exception disposeEx)
+            {
+                logger.LogWarning(disposeEx, "Failed to dispose SQL connection after {Operation}.", currentOperation);
             }
         }
     }
@@ -310,55 +315,75 @@ internal static class ManifestValidator
 
         foreach (JobDefinition job in manifest.Jobs)
         {
-            if (string.IsNullOrWhiteSpace(job.Name))
+            ValidateJob(job);
+        }
+    }
+
+    private static void ValidateJob(JobDefinition job)
+    {
+        if (string.IsNullOrWhiteSpace(job.Name))
+        {
+            throw new InvalidOperationException("Each job must have a name.");
+        }
+
+        if (job.Steps.Count == 0)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' does not contain any steps.");
+        }
+
+        ValidateSteps(job);
+        ValidateSchedules(job);
+    }
+
+    private static void ValidateSteps(JobDefinition job)
+    {
+        var stepIds = new HashSet<int>();
+        int nextStepId = 1;
+
+        foreach (JobStepDefinition step in job.Steps)
+        {
+            if (string.IsNullOrWhiteSpace(step.Name))
             {
-                throw new InvalidOperationException("Each job must have a name.");
+                throw new InvalidOperationException($"Job '{job.Name}' contains a step with no name.");
             }
 
-            if (job.Steps.Count == 0)
+            if (string.IsNullOrWhiteSpace(step.Command))
             {
-                throw new InvalidOperationException($"Job '{job.Name}' does not contain any steps.");
+                throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' does not contain a command.");
             }
 
-            var stepIds = new HashSet<int>();
-            int nextStepId = 1;
-            foreach (JobStepDefinition step in job.Steps)
+            int stepId = step.StepId ?? nextStepId;
+            nextStepId = stepId + 1;
+
+            if (!stepIds.Add(stepId))
             {
-                if (string.IsNullOrWhiteSpace(step.Name))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains a step with no name.");
-                }
-
-                if (string.IsNullOrWhiteSpace(step.Command))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' does not contain a command.");
-                }
-
-                int stepId = step.StepId ?? nextStepId;
-                nextStepId = stepId + 1;
-
-                if (!stepIds.Add(stepId))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains duplicate step id '{stepId}'.");
-                }
-
-                if (step.OnSuccessAction == JobStepAction.GoToStep && step.OnSuccessStepId is null)
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnSuccessStepId when OnSuccessAction is GoToStep.");
-                }
-
-                if (step.OnFailAction == JobStepAction.GoToStep && step.OnFailStepId is null)
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnFailStepId when OnFailAction is GoToStep.");
-                }
+                throw new InvalidOperationException($"Job '{job.Name}' contains duplicate step id '{stepId}'.");
             }
 
-            foreach (JobScheduleDefinition schedule in job.Schedules)
+            ValidateStepReferences(job, step);
+        }
+    }
+
+    private static void ValidateStepReferences(JobDefinition job, JobStepDefinition step)
+    {
+        if (step.OnSuccessAction == JobStepAction.GoToStep && step.OnSuccessStepId is null)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnSuccessStepId when OnSuccessAction is GoToStep.");
+        }
+
+        if (step.OnFailAction == JobStepAction.GoToStep && step.OnFailStepId is null)
+        {
+            throw new InvalidOperationException($"Job '{job.Name}' step '{step.Name}' must define OnFailStepId when OnFailAction is GoToStep.");
+        }
+    }
+
+    private static void ValidateSchedules(JobDefinition job)
+    {
+        foreach (JobScheduleDefinition schedule in job.Schedules)
+        {
+            if (string.IsNullOrWhiteSpace(schedule.Name))
             {
-                if (string.IsNullOrWhiteSpace(schedule.Name))
-                {
-                    throw new InvalidOperationException($"Job '{job.Name}' contains a schedule with no name.");
-                }
+                throw new InvalidOperationException($"Job '{job.Name}' contains a schedule with no name.");
             }
         }
     }
