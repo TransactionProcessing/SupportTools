@@ -170,7 +170,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine("        <tr><td colspan=\"5\">No merchant runs have been recorded yet.</td></tr>");
         }
 
-        html.AppendLine("      </tbody>");
+        html.AppendLine(TableBodyEnd);
         html.AppendLine("    </table>");
         html.AppendLine(SectionEnd);
 
@@ -241,7 +241,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine("        <tr><td colspan=\"5\">No merchants are configured.</td></tr>");
         }
 
-        html.AppendLine("      </tbody>");
+        html.AppendLine(TableBodyEnd);
         html.AppendLine("    </table>");
         html.AppendLine(SectionEnd);
 
@@ -286,7 +286,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine("        <tr><td colspan=\"5\">No merchant runs are recorded yet.</td></tr>");
         }
 
-        html.AppendLine("      </tbody>");
+        html.AppendLine(TableBodyEnd);
         html.AppendLine("    </table>");
         html.AppendLine(SectionEnd);
 
@@ -653,7 +653,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine("          <tr><td colspan=\"5\">No file profiles are configured.</td></tr>");
         }
 
-        html.AppendLine("        </tbody>");
+        html.AppendLine(TableBodyEnd);
         html.AppendLine(TableEnd);
         html.AppendLine("    </section>");
     }
@@ -679,7 +679,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine("          <tr><td colspan=\"2\">No contract definitions are configured.</td></tr>");
         }
 
-        html.AppendLine("        </tbody>");
+        html.AppendLine(TableBodyEnd);
         html.AppendLine(TableEnd);
         html.AppendLine("    </section>");
     }
