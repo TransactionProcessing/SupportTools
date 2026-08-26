@@ -110,24 +110,79 @@ public static class TransactionFileFieldResolver
 
         var transaction = context.Transaction;
 
-        return field.Source.ToLowerInvariant() switch
+        var source = field.Source.Trim();
+
+        if (source.Equals(TransactionFileFieldSources.MerchantId, StringComparison.OrdinalIgnoreCase))
         {
-            TransactionFileFieldSources.MerchantId => context.Merchant.MerchantId,
-            TransactionFileFieldSources.ContractId => context.Contract.ContractId,
-            TransactionFileFieldSources.ContractIssuer => context.Contract.Issuer,
-            TransactionFileFieldSources.ProductCode => GetTransaction(transaction).ProductCode,
-            TransactionFileFieldSources.Description => GetTransaction(transaction).Description,
-            TransactionFileFieldSources.RecipientMobileNumber => GetTransaction(transaction).RecipientMobileNumber,
-            TransactionFileFieldSources.Quantity => ApplyFormat(GetTransaction(transaction).Quantity, field.Format),
-            TransactionFileFieldSources.UnitAmount => ApplyFormat(GetTransaction(transaction).UnitAmount, field.Format),
-            TransactionFileFieldSources.TotalAmount => ApplyFormat(GetTransaction(transaction).TotalAmount, field.Format),
-            TransactionFileFieldSources.Currency => GetTransaction(transaction).Currency,
-            TransactionFileFieldSources.TransactionDateUtc => ApplyDateFormat(GetTransaction(transaction).TransactionDateUtc, field.Format),
-            TransactionFileFieldSources.ProcessingDateUtc => ApplyDateFormat(context.ProcessingTimestampUtc, field.Format),
-            TransactionFileFieldSources.RecordCount => ApplyFormat(context.RecordCount, field.Format),
-            TransactionFileFieldSources.FileTotalAmount => ApplyFormat(context.FileTotalAmount, field.Format ?? "0.00"),
-            _ => throw new InvalidOperationException($"Unsupported field source '{field.Source}'.")
-        };
+            return context.Merchant.MerchantId;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.ContractId, StringComparison.OrdinalIgnoreCase))
+        {
+            return context.Contract.ContractId;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.ContractIssuer, StringComparison.OrdinalIgnoreCase))
+        {
+            return context.Contract.Issuer;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.ProductCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetTransaction(transaction).ProductCode;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.Description, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetTransaction(transaction).Description;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.RecipientMobileNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetTransaction(transaction).RecipientMobileNumber;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.Quantity, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyFormat(GetTransaction(transaction).Quantity, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.UnitAmount, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyFormat(GetTransaction(transaction).UnitAmount, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.TotalAmount, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyFormat(GetTransaction(transaction).TotalAmount, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.Currency, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetTransaction(transaction).Currency;
+        }
+
+        if (source.Equals(TransactionFileFieldSources.TransactionDateUtc, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyDateFormat(GetTransaction(transaction).TransactionDateUtc, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.ProcessingDateUtc, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyDateFormat(context.ProcessingTimestampUtc, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.RecordCount, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyFormat(context.RecordCount, field.Format);
+        }
+
+        if (source.Equals(TransactionFileFieldSources.FileTotalAmount, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplyFormat(context.FileTotalAmount, field.Format ?? "0.00");
+        }
+
+        throw new InvalidOperationException($"Unsupported field source '{field.Source}'.");
     }
 
     private static GeneratedTransaction GetTransaction(GeneratedTransaction? transaction) =>

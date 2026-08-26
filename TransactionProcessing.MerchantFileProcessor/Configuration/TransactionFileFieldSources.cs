@@ -2,20 +2,20 @@ namespace TransactionProcessing.MerchantFileProcessor.Configuration;
 
 public static class TransactionFileFieldSources
 {
-    public const string MerchantId = "merchantid";
-    public const string ContractId = "contractid";
-    public const string ProductCode = "productcode";
-    public const string Description = "description";
-    public const string Quantity = "quantity";
-    public const string UnitAmount = "unitamount";
-    public const string TotalAmount = "totalamount";
-    public const string Currency = "currency";
-    public const string TransactionDateUtc = "transactiondateutc";
-    public const string RecipientMobileNumber = "recipientmobilenumber";
-    public const string ContractIssuer = "contractissuer";
-    public const string ProcessingDateUtc = "processingdateutc";
-    public const string RecordCount = "recordcount";
-    public const string FileTotalAmount = "filetotalamount";
+    public static string MerchantId { get; } = "merchantid";
+    public static string ContractId { get; } = "contractid";
+    public static string ProductCode { get; } = "productcode";
+    public static string Description { get; } = "description";
+    public static string Quantity { get; } = "quantity";
+    public static string UnitAmount { get; } = "unitamount";
+    public static string TotalAmount { get; } = "totalamount";
+    public static string Currency { get; } = "currency";
+    public static string TransactionDateUtc { get; } = "transactiondateutc";
+    public static string RecipientMobileNumber { get; } = "recipientmobilenumber";
+    public static string ContractIssuer { get; } = "contractissuer";
+    public static string ProcessingDateUtc { get; } = "processingdateutc";
+    public static string RecordCount { get; } = "recordcount";
+    public static string FileTotalAmount { get; } = "filetotalamount";
 
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {

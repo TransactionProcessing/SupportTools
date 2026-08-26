@@ -55,31 +55,31 @@ public interface IFileStatusStore
 
 public static class FileSendStatuses
 {
-    public const string Succeeded = "Succeeded";
+    public static string Succeeded { get; } = "Succeeded";
 
-    public const string Failed = "Failed";
+    public static string Failed { get; } = "Failed";
 }
 
 public static class MerchantRunStatuses
 {
-    public const string Succeeded = "Succeeded";
+    public static string Succeeded { get; } = "Succeeded";
 
-    public const string Failed = "Failed";
+    public static string Failed { get; } = "Failed";
 }
 
 public static class FileLineStatuses
 {
-    public const string Unknown = "Unknown";
+    public static string Unknown { get; } = "Unknown";
 
-    public const string NotProcessed = "NotProcessed";
+    public static string NotProcessed { get; } = "NotProcessed";
 
-    public const string Successful = "Successful";
+    public static string Successful { get; } = "Successful";
 
-    public const string Failed = "Failed";
+    public static string Failed { get; } = "Failed";
 
-    public const string Ignored = "Ignored";
+    public static string Ignored { get; } = "Ignored";
 
-    public const string Rejected = "Rejected";
+    public static string Rejected { get; } = "Rejected";
 }
 
 public sealed record FileStatusPollTarget(

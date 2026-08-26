@@ -2,9 +2,9 @@ namespace TransactionProcessing.MerchantFileProcessor.Configuration;
 
 public static class FileProfileFormats
 {
-    public const string Delimited = "delimited";
+    public static string Delimited { get; } = "delimited";
 
-    public const string Json = "json";
+    public static string Json { get; } = "json";
 
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {

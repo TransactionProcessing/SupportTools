@@ -1,7 +1,7 @@
 namespace TransactionProcessing.MerchantFileProcessor.Configuration;
 
 public sealed class MerchantProcessingOptions {
-    public const string SectionName = "MerchantProcessing";
+    public static string SectionName { get; } = "MerchantProcessing";
 
     public AuthenticationOptions Authentication { get; init; } = new();
 
