@@ -91,6 +91,24 @@ public sealed class RandomTransactionGenerator(
 
 public static class TransactionFileFieldResolver
 {
+    private static readonly Dictionary<string, Func<TransactionFileContext, string?, object>> FieldSourceHandlers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [TransactionFileFieldSources.MerchantId] = static (context, _) => context.Merchant.MerchantId,
+        [TransactionFileFieldSources.ContractId] = static (context, _) => context.Contract.ContractId,
+        [TransactionFileFieldSources.ContractIssuer] = static (context, _) => context.Contract.Issuer,
+        [TransactionFileFieldSources.ProductCode] = static (context, _) => GetTransaction(context.Transaction).ProductCode,
+        [TransactionFileFieldSources.Description] = static (context, _) => GetTransaction(context.Transaction).Description,
+        [TransactionFileFieldSources.RecipientMobileNumber] = static (context, _) => GetTransaction(context.Transaction).RecipientMobileNumber,
+        [TransactionFileFieldSources.Quantity] = static (context, format) => ApplyFormat(GetTransaction(context.Transaction).Quantity, format),
+        [TransactionFileFieldSources.UnitAmount] = static (context, format) => ApplyFormat(GetTransaction(context.Transaction).UnitAmount, format),
+        [TransactionFileFieldSources.TotalAmount] = static (context, format) => ApplyFormat(GetTransaction(context.Transaction).TotalAmount, format),
+        [TransactionFileFieldSources.Currency] = static (context, _) => GetTransaction(context.Transaction).Currency,
+        [TransactionFileFieldSources.TransactionDateUtc] = static (context, format) => ApplyDateFormat(GetTransaction(context.Transaction).TransactionDateUtc, format),
+        [TransactionFileFieldSources.ProcessingDateUtc] = static (context, format) => ApplyDateFormat(context.ProcessingTimestampUtc, format),
+        [TransactionFileFieldSources.RecordCount] = static (context, format) => ApplyFormat(context.RecordCount, format),
+        [TransactionFileFieldSources.FileTotalAmount] = static (context, format) => ApplyFormat(context.FileTotalAmount, format ?? "0.00")
+    };
+
     public static string GetTextValue(FileFieldOptions field, TransactionFileContext context)
     {
         return GetValue(field, context)?.ToString() ?? string.Empty;
@@ -108,85 +126,21 @@ public static class TransactionFileFieldResolver
             throw new InvalidOperationException($"Field '{field.Name}' must define either a source or a literal value.");
         }
 
-        var transaction = context.Transaction;
-
-        var source = field.Source.Trim();
-
-        if (source.Equals(TransactionFileFieldSources.MerchantId, StringComparison.OrdinalIgnoreCase))
-        {
-            return context.Merchant.MerchantId;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.ContractId, StringComparison.OrdinalIgnoreCase))
-        {
-            return context.Contract.ContractId;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.ContractIssuer, StringComparison.OrdinalIgnoreCase))
-        {
-            return context.Contract.Issuer;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.ProductCode, StringComparison.OrdinalIgnoreCase))
-        {
-            return GetTransaction(transaction).ProductCode;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.Description, StringComparison.OrdinalIgnoreCase))
-        {
-            return GetTransaction(transaction).Description;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.RecipientMobileNumber, StringComparison.OrdinalIgnoreCase))
-        {
-            return GetTransaction(transaction).RecipientMobileNumber;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.Quantity, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyFormat(GetTransaction(transaction).Quantity, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.UnitAmount, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyFormat(GetTransaction(transaction).UnitAmount, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.TotalAmount, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyFormat(GetTransaction(transaction).TotalAmount, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.Currency, StringComparison.OrdinalIgnoreCase))
-        {
-            return GetTransaction(transaction).Currency;
-        }
-
-        if (source.Equals(TransactionFileFieldSources.TransactionDateUtc, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyDateFormat(GetTransaction(transaction).TransactionDateUtc, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.ProcessingDateUtc, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyDateFormat(context.ProcessingTimestampUtc, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.RecordCount, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyFormat(context.RecordCount, field.Format);
-        }
-
-        if (source.Equals(TransactionFileFieldSources.FileTotalAmount, StringComparison.OrdinalIgnoreCase))
-        {
-            return ApplyFormat(context.FileTotalAmount, field.Format ?? "0.00");
-        }
-
-        throw new InvalidOperationException($"Unsupported field source '{field.Source}'.");
+        return ResolveFieldSourceValue(field.Source.Trim(), field.Format, context);
     }
 
     private static GeneratedTransaction GetTransaction(GeneratedTransaction? transaction) =>
         transaction ?? throw new InvalidOperationException("The requested field requires a transaction record, but no transaction context was supplied.");
+
+    private static object ResolveFieldSourceValue(string source, string? format, TransactionFileContext context)
+    {
+        if (!FieldSourceHandlers.TryGetValue(source, out var handler))
+        {
+            throw new InvalidOperationException($"Unsupported field source '{source}'.");
+        }
+
+        return handler(context, format);
+    }
 
     private static object ApplyFormat<T>(T value, string? format)
         where T : IFormattable

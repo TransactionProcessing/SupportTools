@@ -415,7 +415,7 @@ internal sealed class MainForm : Form
     private async Task RunDeploymentAsync(bool dryRun)
     {
         SetBusyState(true);
-        string currentOperation = "preparing deployment";
+        string currentOperation = string.Empty;
         string? currentContext = null;
 
         try
@@ -465,10 +465,11 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, currentOperation, currentContext);
+            string operation = string.IsNullOrWhiteSpace(currentOperation) ? "preparing deployment" : currentOperation;
+            DeploymentErrorReporter.ReportUi(ex, _logger, AppendOutput, operation, currentContext);
             UpdateValidationSummary();
             SetStatus("Deployment failed");
-            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, currentOperation, currentContext), "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, DeploymentErrorReporter.GetUserMessage(ex, operation, currentContext), "Deployment failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {

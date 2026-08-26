@@ -36,6 +36,7 @@ public interface IApiClient
 }
 
 public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
+    private const string DefaultCustomerAccountNumber = "07777777705";
     private readonly ISecurityServiceClient SecurityClient;
     private readonly ITransactionProcessorClient TransactionProcessorClient;
     private readonly MerchantPosSettingsStore SettingsStore;
@@ -345,7 +346,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             TransactionNumber = transactionNumber.ToString("D4")
         };
         
-        saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { { "Amount", value.ToString() }, { "CustomerAccountNumber", "07777777705" } };
+        saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { { "Amount", value.ToString() }, { "CustomerAccountNumber", DefaultCustomerAccountNumber } };
         requestMessages.Add(saleTransactionRequest);
         return Result.Success(requestMessages);
     }
@@ -369,7 +370,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
 
         saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { 
             { "Amount", value.ToString() }, 
-            { "RecipientMobile", "07777777705" }
+            { "RecipientMobile", DefaultCustomerAccountNumber }
         };
         requestMessages.Add(saleTransactionRequest);
         return Result.Success(requestMessages);
@@ -419,7 +420,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             return ResultHelpers.CreateFailure(result);
         }
 
-        return Result.Success((body.account_number.ToString(), body.account_name, "07777777705"));
+        return Result.Success((body.account_number.ToString(), body.account_name, DefaultCustomerAccountNumber));
     
     }
 
@@ -441,7 +442,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                 return ResultHelpers.CreateFailure(result);
             }
 
-            return Result.Success((body.meter_number.ToString(), body.customer_name, "07777777705"));
+            return Result.Success((body.meter_number.ToString(), body.customer_name, DefaultCustomerAccountNumber));
     }
 
 }
