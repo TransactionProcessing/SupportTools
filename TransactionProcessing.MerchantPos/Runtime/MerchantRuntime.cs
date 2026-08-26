@@ -163,51 +163,16 @@ public class MerchantRuntime
         while (!token.IsCancellationRequested) {
             Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId)
                 ?? throw new InvalidOperationException($"Merchant {cfg.MerchantId} was not found.");
-            // Wait until the merchant's configured opening time
             DateTime currentTime = DateTime.Now;
-
-            // Get the current days opening and closing time
-            TimeSpan openingTime;
-            TimeSpan closingTime;
             MerchantResponse merchantConfig = cfg.Merchant
                 ?? throw new InvalidOperationException($"Merchant details were not loaded for {cfg.MerchantName}.");
-
-            Boolean found = merchantConfig.OpeningHours.TryGetValue(DateTime.Now.DayOfWeek, out var openingHours);
-            if (found == false) {
-                // fallback to the configured default opening and closing time if no specific hours for the day of week
-                openingTime = cfg.OpeningTime.ToTimeSpan();
-                closingTime = cfg.ClosingTime.ToTimeSpan();
-            }
-            else {
-                // We have opening and closing times for the current day of week, so use those
-                if (openingHours is null)
-                {
-                    throw new InvalidOperationException($"Opening hours were not configured for {cfg.MerchantName} on {DateTime.Now.DayOfWeek}.");
-                }
-                openingTime = TimeSpan.ParseExact(openingHours.Opening, "hhmm", null);
-                closingTime = TimeSpan.ParseExact(openingHours.Closing, "hhmm", null);
-            }
-
+            (TimeSpan openingTime, TimeSpan closingTime) = GetTradingHours(cfg, merchantConfig, currentTime);
             if (currentTime.TimeOfDay < openingTime) {
-                TimeSpan delay = openingTime - currentTime.TimeOfDay;
-                Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");
-                await Task.Delay(delay, token);
+                await SleepUntilOpeningAsync(cfg, currentTime, openingTime, token);
             }
 
             if (currentTime.TimeOfDay > closingTime) {
-                // Get last end of day time
-                
-                if (currentTime.Date > merchant.LastEndOfDayDateTime.Date) {
-                    await DoReconciliation(cfg, token);
-                }
-
-                TimeSpan delay = openingTime - currentTime.TimeOfDay;
-                if (delay < TimeSpan.Zero) {
-                    delay += TimeSpan.FromDays(1);
-                }
-
-                Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");
-                await Task.Delay(delay, token);
+                await HandleAfterClosingAsync(cfg, merchant, currentTime, openingTime, token);
             }
 
 
@@ -243,6 +208,48 @@ public class MerchantRuntime
             await this.Repository.IncrementTransactionNumber(cfg.MerchantId, cfg.MerchantName);
             await Task.Delay(saleInterval, token);
         }
+    }
+
+    private static (TimeSpan openingTime, TimeSpan closingTime) GetTradingHours(
+        MerchantConfig cfg,
+        MerchantResponse merchantConfig,
+        DateTime currentTime)
+    {
+        Boolean found = merchantConfig.OpeningHours.TryGetValue(currentTime.DayOfWeek, out var openingHours);
+        if (found == false) {
+            return (cfg.OpeningTime.ToTimeSpan(), cfg.ClosingTime.ToTimeSpan());
+        }
+
+        if (openingHours is null)
+        {
+            throw new InvalidOperationException($"Opening hours were not configured for {cfg.MerchantName} on {currentTime.DayOfWeek}.");
+        }
+
+        TimeSpan openingTime = TimeSpan.ParseExact(openingHours.Opening, "hhmm", null);
+        TimeSpan closingTime = TimeSpan.ParseExact(openingHours.Closing, "hhmm", null);
+        return (openingTime, closingTime);
+    }
+
+    private async Task SleepUntilOpeningAsync(MerchantConfig cfg, DateTime currentTime, TimeSpan openingTime, CancellationToken token)
+    {
+        TimeSpan delay = openingTime - currentTime.TimeOfDay;
+        Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");
+        await Task.Delay(delay, token);
+    }
+
+    private async Task HandleAfterClosingAsync(MerchantConfig cfg, Merchant merchant, DateTime currentTime, TimeSpan openingTime, CancellationToken token)
+    {
+        if (currentTime.Date > merchant.LastEndOfDayDateTime.Date) {
+            await DoReconciliation(cfg, token);
+        }
+
+        TimeSpan delay = openingTime - currentTime.TimeOfDay;
+        if (delay < TimeSpan.Zero) {
+            delay += TimeSpan.FromDays(1);
+        }
+
+        Logger.LogInformation($"Merchant {cfg.MerchantName} sleeping until opening time {cfg.OpeningTime}");
+        await Task.Delay(delay, token);
     }
 
     private async Task DoSaleCycle(MerchantConfig cfg,Int32 transactionNumber, CancellationToken cancellationToken)
