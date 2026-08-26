@@ -36,8 +36,9 @@ namespace TransactionProcessor.HealthChecksUI
                                        }).AddInMemoryStorage();
         }
 
-        private HttpClientHandler ApiEndpointHttpHandler(IServiceProvider _)
+        private HttpClientHandler ApiEndpointHttpHandler(IServiceProvider serviceProvider)
         {
+            System.ArgumentNullException.ThrowIfNull(serviceProvider);
             return new HttpClientHandler();
         }
 
