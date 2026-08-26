@@ -33,8 +33,6 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static KurrentDBPersistentSubscriptionsClient PersistentSubscriptionsClient;
 
-        private static TokenResponse TokenResponse;
-        
         static async Task Main(string[] args) {
 
             CancellationToken cancellationToken = CancellationToken.None;
@@ -49,15 +47,7 @@ namespace TransactionProcessor.SystemSetupTool
             Func<String, String> securityResolver = s => { return ConfigurationReader.GetValue("SecurityServiceUri"); };
             Func<String, String> transactionProcessorResolver = s => { return ConfigurationReader.GetValue("TransactionProcessorApi"); };
             Func<String, String> fileProcessorResolver = s => { return ConfigurationReader.GetValue("FileProcessorApi"); };
-            HttpClientHandler handler = new() {
-                                            ServerCertificateCustomValidationCallback = (message,
-                                                                                         cert,
-                                                                                         chain,
-                                                                                         errors) =>
-                                                                                        {
-                                                                                            return true;
-                                                                                        }
-                                        };
+            HttpClientHandler handler = new();
             HttpClient client = new(handler);
             
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client, Serialise, Deserialise);
@@ -178,7 +168,7 @@ namespace TransactionProcessor.SystemSetupTool
 
         private static string ResolveRequiredSecret(string environmentVariableName, string description)
         {
-            string? secret = Environment.GetEnvironmentVariable(environmentVariableName);
+            string secret = Environment.GetEnvironmentVariable(environmentVariableName);
             if (!string.IsNullOrWhiteSpace(secret))
             {
                 return secret;

@@ -79,7 +79,7 @@ public class EstateSetupFunctions {
 
     private static string ResolveServiceClientSecret()
     {
-        string? secret = Environment.GetEnvironmentVariable("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET");
+        string secret = Environment.GetEnvironmentVariable("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET");
         if (!string.IsNullOrWhiteSpace(secret))
         {
             return secret;

@@ -23,13 +23,14 @@ namespace StreamManagement
         private static async Task<List<StreamConfiguration>> LoadStreamConfig(CancellationToken cancellationToken)
         {
             // Read the identity server config json string
-            String streamConfigurationJsonData = null;
+            String streamConfigurationJsonData;
             using (StreamReader sr = new StreamReader("streamconfiguration.json"))
             {
                 streamConfigurationJsonData = await sr.ReadToEndAsync(cancellationToken);
             }
 
-            StreamConfigurationList streamConfiguration = JsonSerializer.Deserialize<StreamConfigurationList>(streamConfigurationJsonData);
+            StreamConfigurationList streamConfiguration = JsonSerializer.Deserialize<StreamConfigurationList>(streamConfigurationJsonData)
+                ?? throw new InvalidOperationException("Stream configuration file did not contain valid JSON.");
 
             return streamConfiguration.StreamConfiguration;
         }

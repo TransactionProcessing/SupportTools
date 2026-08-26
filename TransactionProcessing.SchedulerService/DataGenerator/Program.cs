@@ -4,6 +4,7 @@ using SimpleResults;
 using TransactionProcessing.SchedulerService.DataGenerator;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
 using TransactionProcessor.DataTransferObjects.Responses.Merchant;
+#nullable enable
 
 namespace TransactionDataGenerator{
     using System.Collections.Generic;
@@ -19,23 +20,16 @@ namespace TransactionDataGenerator{
     /// </summary>
     class Program{
        
-        private static SecurityServiceClient SecurityServiceClient;
+        private static SecurityServiceClient SecurityServiceClient = null!;
         
-        private static TransactionProcessorClient TransactionProcessorClient;
+        private static TransactionProcessorClient TransactionProcessorClient = null!;
         
-        private static Func<String, String> baseAddressFunc;
+        private static Func<String, String> baseAddressFunc = null!;
         
         static async Task Main(string[] args){
 
 
-            HttpClientHandler handler = new HttpClientHandler{
-                                                                 ServerCertificateCustomValidationCallback = (message,
-                                                                                                              cert,
-                                                                                                              chain,
-                                                                                                              errors) => {
-                                                                                                                 return true;
-                                                                                                             }
-                                                             };
+            HttpClientHandler handler = new HttpClientHandler();
             HttpClient httpClient = new HttpClient(handler);
 
             baseAddressFunc = (apiName) => {
@@ -59,8 +53,8 @@ namespace TransactionDataGenerator{
                                       return $"http://{ipaddress}:9000";
                                   }
 
-                                  return null;
-                              };
+                                  throw new InvalidOperationException($"Unknown API name: {apiName}");
+                               };
             Shared.Logger.Logger.Initialise(new ConsoleLogger());
             Program.SecurityServiceClient = new SecurityServiceClient(baseAddressFunc, httpClient);
 
@@ -107,7 +101,7 @@ namespace TransactionDataGenerator{
             Result<List<MerchantResponse>> getMerchantsResult = await g.GetMerchants(estateId, cancellationToken);
             if (getMerchantsResult.IsFailed)
                 return;
-            List<MerchantResponse>? merchants = getMerchantsResult.Data;
+            List<MerchantResponse> merchants = getMerchantsResult.Data ?? [];
             foreach (MerchantResponse merchant in merchants){
                 await g.GenerateMerchantStatement(merchant.EstateId, merchant.MerchantId, DateTime.Now.AddMonths(-2), cancellationToken);
             }

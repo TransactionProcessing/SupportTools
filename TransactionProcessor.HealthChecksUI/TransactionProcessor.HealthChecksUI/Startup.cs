@@ -38,16 +38,7 @@ namespace TransactionProcessor.HealthChecksUI
 
         private HttpClientHandler ApiEndpointHttpHandler(IServiceProvider arg)
         {
-            return new HttpClientHandler
-                   {
-                       ServerCertificateCustomValidationCallback = (message,
-                                                                    cert,
-                                                                    chain,
-                                                                    errors) =>
-                                                                   {
-                                                                       return true;
-                                                                   }
-                   };
+            return new HttpClientHandler();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
