@@ -569,7 +569,6 @@ public class EstateSetupFunctions {
                 // Create the required floats
                 CreateFloatForContractProductRequest request = new CreateFloatForContractProductRequest { ContractId = contractResponse.ContractId, ProductId = contractProduct.ProductId, CreateDateTime = DateTime.Now };
                 
-                // TODO: Need a way to verify the float exists
                 Result createFloatResult = await this.TransactionProcessorClient.CreateFloatForContractProduct(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
                 if (createFloatResult.IsFailed)
                     return ResultHelpers.CreateFailure(createFloatResult);

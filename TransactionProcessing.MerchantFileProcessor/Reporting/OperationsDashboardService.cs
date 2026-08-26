@@ -79,12 +79,15 @@ public sealed class OperationsDashboardService(
     IConfiguration configuration) : IOperationsDashboardService
 {
     private const string SectionEnd = "  </section>";
+    private const string SectionPanelStart = "  <section class=\"panel\">";
+    private const string DivEnd = "    </div>";
     private const string TableStart = "      <table>";
     private const string TableEnd = "      </table>";
     private const string TableBodyStart = "      <tbody>";
     private const string TableBodyEnd = "      </tbody>";
     private const string TableRowStart = "        <tr>";
     private const string TableRowEnd = "        </tr>";
+    private const string NeutralBadgeTone = "neutral";
 
     public Task<OperationsDashboardModel> GetDashboardModelAsync(CancellationToken cancellationToken) =>
         this.BuildDashboardModelAsync(cancellationToken);
@@ -102,17 +105,17 @@ public sealed class OperationsDashboardService(
         html.AppendLine("      <div class=\"eyebrow\">Operations console</div>");
         html.AppendLine("      <h1>Merchant File Processor</h1>");
         html.AppendLine("      <p>Live configuration, scheduling, and processing visibility for the worker, using the same runtime settings that power the service.</p>");
-        html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         html.AppendLine("    <div class=\"hero-panel\">");
         html.AppendLine($"      <div class=\"hero-label\">Environment</div><div class=\"hero-value\">{Encode(model.EnvironmentName)}</div>");
         html.AppendLine($"      <div class=\"hero-label\">Generated</div><div class=\"hero-value mono\">{Encode(model.GeneratedUtc.ToString("u"))}</div>");
         html.AppendLine($"      <div class=\"hero-label\">Connection</div><div class=\"hero-value\">{Encode(model.ConnectionStringSummary)}</div>");
-        html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         html.AppendLine(SectionEnd);
 
         AppendMetrics(html, model.Metrics);
 
-        html.AppendLine("  <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("    <div class=\"section-title\">Merchant schedule</div>");
         html.AppendLine(TableStart);
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Enabled</th><th>Estate</th><th>Run times (UTC)</th><th>Last merchant run</th><th>Next run</th><th>Success</th><th>Failed</th><th>Pending checks</th><th>Status</th></tr></thead>");
@@ -122,7 +125,7 @@ public sealed class OperationsDashboardService(
         {
             html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(merchant.MerchantName)}</strong><br /><span class=\"mono muted\">{Encode(merchant.MerchantId)}</span></td>");
-            html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : "neutral")}</td>");
+            html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : NeutralBadgeTone)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.EstateId)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.RunTimesUtc)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.LastMerchantRunUtc?.ToString("u") ?? "Never")}</td>");
@@ -148,9 +151,9 @@ public sealed class OperationsDashboardService(
         AppendContractsSection(html, model.Contracts);
         html.AppendLine(SectionEnd);
 
-        html.AppendLine("  <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("    <div class=\"section-title\">Recent merchant runs</div>");
-        html.AppendLine("    <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("      <thead><tr><th>Merchant</th><th>Scheduled</th><th>Completed</th><th>Status</th><th>Error</th></tr></thead>");
         html.AppendLine(TableBodyStart);
 
@@ -191,12 +194,12 @@ public sealed class OperationsDashboardService(
         html.AppendLine("      <div class=\"eyebrow\">Configuration inventory</div>");
         html.AppendLine("      <h1>Appsettings review</h1>");
         html.AppendLine("      <p>This page mirrors the effective settings loaded at startup, so operators can validate what the worker is using without opening the deployment package.</p>");
-        html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         html.AppendLine("    <div class=\"hero-panel\">");
         html.AppendLine($"      <div class=\"hero-label\">Authentication</div><div class=\"hero-value\">{Encode(model.AuthenticationSummary)}</div>");
         html.AppendLine($"      <div class=\"hero-label\">File processing</div><div class=\"hero-value\">{Encode(model.FileProcessingSummary)}</div>");
         html.AppendLine($"      <div class=\"hero-label\">Polling</div><div class=\"hero-value\">{Encode(model.PollingSummary)}</div>");
-        html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"grid-2\">");
@@ -229,7 +232,7 @@ public sealed class OperationsDashboardService(
         {
             html.AppendLine(TableRowStart);
             html.AppendLine($"          <td><strong>{Encode(merchant.MerchantName)}</strong></td>");
-            html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : "neutral")}</td>");
+            html.AppendLine($"          <td>{RenderBadge(merchant.Enabled ? "Enabled" : "Disabled", merchant.Enabled ? "good" : NeutralBadgeTone)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.EstateId)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.MerchantId)}</td>");
             html.AppendLine($"          <td class=\"mono\">{Encode(merchant.RunTimesUtc)}</td>");
@@ -262,7 +265,7 @@ public sealed class OperationsDashboardService(
         html.AppendLine("      <div class=\"eyebrow\">Run history</div>");
         html.AppendLine("      <h1>Merchant execution audit trail</h1>");
         html.AppendLine("      <p>Each record shows the scheduled slot, completion time, and final outcome for a merchant processing cycle.</p>");
-        html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         html.AppendLine(SectionEnd);
 
         html.AppendLine("  <section class=\"panel\">");
@@ -595,7 +598,7 @@ public sealed class OperationsDashboardService(
             html.AppendLine($"      <div class=\"metric-label\">{Encode(metric.Label)}</div>");
             html.AppendLine($"      <div class=\"metric-value\">{Encode(metric.Value)}</div>");
             html.AppendLine($"      <div class=\"metric-detail\">{Encode(metric.Detail)}</div>");
-            html.AppendLine("    </div>");
+        html.AppendLine(DivEnd);
         }
         html.AppendLine(SectionEnd);
     }
@@ -631,17 +634,17 @@ public sealed class OperationsDashboardService(
 
     private static void AppendFileProfilesSection(StringBuilder html, IReadOnlyList<FileProfileRow> fileProfiles)
     {
-        html.AppendLine("    <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("      <div class=\"section-title\">File profiles</div>");
-        html.AppendLine("      <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("        <thead><tr><th>Profile</th><th>Format</th><th>Layout</th><th>Fields</th><th>Mapping</th></tr></thead>");
-        html.AppendLine("        <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var profile in fileProfiles)
         {
             html.AppendLine("          <tr>");
             html.AppendLine($"            <td><strong>{Encode(profile.FileProfileId)}</strong><br /><span class=\"mono muted\">{Encode(profile.FileProcessorFileProfileId)}</span></td>");
-            html.AppendLine($"            <td>{RenderBadge(profile.Format, "neutral")}</td>");
+            html.AppendLine($"            <td>{RenderBadge(profile.Format, NeutralBadgeTone)}</td>");
             html.AppendLine($"            <td>{Encode(profile.LayoutSummary)}<br /><span class=\"mono muted\">.{Encode(profile.FileExtension)}{(string.IsNullOrWhiteSpace(profile.ContentType) ? string.Empty : $" / {Encode(profile.ContentType)}")}</span></td>");
             html.AppendLine($"            <td>{profile.FieldCount} total<br /><span class=\"mono muted\">{profile.HeaderFieldCount} header, {profile.TrailerFieldCount} trailer</span></td>");
             html.AppendLine($"            <td class=\"mono smallwrap\">{Encode(profile.FieldMap)}</td>");
@@ -660,11 +663,11 @@ public sealed class OperationsDashboardService(
 
     private static void AppendContractsSection(StringBuilder html, IReadOnlyList<ContractMappingRow> contracts)
     {
-        html.AppendLine("    <section class=\"panel\">");
+        html.AppendLine(SectionPanelStart);
         html.AppendLine("      <div class=\"section-title\">Contract mappings</div>");
-        html.AppendLine("      <table>");
+        html.AppendLine(TableStart);
         html.AppendLine("        <thead><tr><th>Contract</th><th>File profile</th></tr></thead>");
-        html.AppendLine("        <tbody>");
+        html.AppendLine(TableBodyStart);
 
         foreach (var contract in contracts)
         {
@@ -767,7 +770,7 @@ public sealed class OperationsDashboardService(
             return "bad";
         }
 
-        return "neutral";
+        return NeutralBadgeTone;
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);

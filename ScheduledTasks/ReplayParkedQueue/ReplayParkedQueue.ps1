@@ -51,7 +51,7 @@ Get-ChildItem -Path $LogDirectory -Filter "ReplayParkedSubscriptions-*.log" -Fil
             Remove-Item $_.FullName -Force
         }
         catch {
-            # Avoid failing the run due to cleanup issues
+            Write-Trace "WARN" "Failed to remove stale log file $($_.FullName): $($_.Exception.Message)"
         }
     }
 

@@ -114,6 +114,7 @@ public class WorkerHost : BackgroundService
         }
         catch (OperationCanceledException) when (workerState.CancellationTokenSource.IsCancellationRequested)
         {
+            Logger.LogDebug($"Merchant worker cancellation observed for {workerState.MerchantName} ({merchantId}).");
         }
         catch (Exception ex)
         {
