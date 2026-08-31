@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="KurrentDB.Client" Version="1.4.0" />
+    <PackageReference Include="KurrentDB.Client" Version="1.4.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
     <PackageReference Include="Shared" Version="2026.5.7" />
