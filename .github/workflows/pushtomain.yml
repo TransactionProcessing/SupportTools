@@ -1,0 +1,294 @@
+﻿name: Push to Main
+
+on:
+  push:
+    # branches to consider in the event; optional, defaults to all
+    branches:
+      - main
+
+jobs:
+  build:
+    name: "Release"
+    env:
+        ASPNETCORE_ENVIRONMENT: "Production"
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Install NET 9
+      uses: actions/setup-dotnet@v4.0.1
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: 'Get Previous tag'
+      id: get-latest-tag
+      uses: actions-ecosystem/action-get-latest-tag@v1
+      with:
+          semver_only: true
+
+    - name: 'Bump Version'
+      id: bump-semver
+      uses: actions-ecosystem/action-bump-semver@v1
+      with:
+        current_version: ${{ steps.get-latest-tag.outputs.tag }}
+        level: patch
+    
+    - name: Print Version
+      id: next_version
+      run: echo ::set-output name=VERSION::${{ steps.bump-semver.outputs.new_version }}.$GITHUB_RUN_NUMBER
+
+    - name: Restore Nuget Packages
+      run: |
+        dotnet restore TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+
+    - name: Build Code
+      run: |
+        dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
+        dotnet build TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --configuration Release
+
+    - name: Publish API
+      run: |
+        dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained
+        dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained
+          
+    - name: Build Release Package (Merchant Pos)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/publishOutput
+         zip -r ../merchantpos.zip ./*
+         echo "Zip file created at: $(realpath ../merchantpos.zip)"
+    
+    - name: Upload the artifact (Merchant Pos)    
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: merchantpos
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/merchantpos.zip
+
+    - name: Build Release Package (Merchant File Processor)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/publishOutput
+         zip -r ../merchantfileprocessor.zip ./*
+         echo "Zip file created at: $(realpath ../merchantfileprocessor.zip)"
+    
+    - name: Upload the artifact (Merchant File Processor)    
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: merchantfileprocessor
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/merchantfileprocessor.zip
+
+    - name: Upload ScheduledTasks
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: scheduledtasks
+        path: ScheduledTasks
+
+  buildsqlagentjobdeploymenttool:
+    name: "Build SQL Agent Job Deployment Tool"
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install NET 10
+      uses: actions/setup-dotnet@v4.0.1
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Publish SQL Agent Job Deployment Tool
+      shell: pwsh
+      run: |
+        dotnet publish SqlServerAgentJobDeploymentTool/SqlServerAgentJobDeploymentTool.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output SqlServerAgentJobDeploymentTool/publishOutput
+
+    - name: Build Release Package (SQL Agent Job Deployment Tool)
+      shell: pwsh
+      run: |
+        Compress-Archive `
+          -Path SqlServerAgentJobDeploymentTool/publishOutput/* `
+          -DestinationPath SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip `
+          -Force
+
+    - name: Upload the artifact (SQL Agent Job Deployment Tool)
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: sqlagentjobdeploymenttool
+        path: SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip
+        
+  deploydevelopment:
+    runs-on: [developmentserver, windows]
+    needs: [build, buildsqlagentjobdeploymenttool]
+    environment: development
+    name: "Deploy to Development"
+    
+    steps:
+      - name: Download ScheduledTasks
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: scheduledtasks
+          path: ${{ runner.temp }}\scheduledtasks
+
+      - name: Install scheduled tasks
+        shell: powershell
+        env:
+          SCHEDULED_TASK_USER: ${{ secrets.SCHEDULED_TASK_USER }}
+          SCHEDULED_TASK_PASSWORD: ${{ secrets.SCHEDULED_TASK_PASSWORD }}
+        run: |
+          $taskScriptDir = 'C:\txnproc\transactionprocessing\powershell'
+          $scheduledTasksDownloadRoot = Join-Path $env:RUNNER_TEMP 'scheduledtasks'
+          $scheduledTasksRoot = Join-Path $scheduledTasksDownloadRoot 'ScheduledTasks'
+
+          if (-not (Test-Path $scheduledTasksRoot)) {
+            $scheduledTasksRoot = $scheduledTasksDownloadRoot
+          }
+
+          New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.ps1 |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Copy-Item -Destination $taskScriptDir -Force
+
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.xml |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            ForEach-Object {
+              [xml]$taskDefinition = Get-Content -Path $_.FullName -Raw
+              $taskName = [string]$taskDefinition.Task.RegistrationInfo.URI
+
+              if ([string]::IsNullOrWhiteSpace($taskName)) {
+                $taskName = $_.BaseName
+              }
+
+              $taskName = $taskName.TrimStart('\')
+              & schtasks.exe /Create /TN $taskName /XML $_.FullName /RU SYSTEM /F
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
+              }
+            }
+
+      - name: Download SQL Agent Job Deployment Tool
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: sqlagentjobdeploymenttool
+          path: C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool
+
+      - name: Deploy SQL Agent Job
+        shell: powershell
+        env:
+          SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
+          SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
+        run: |
+          $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
+          New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+          Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
+          $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
+          $stdoutPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stdout.log'
+          $stderrPath = Join-Path $env:RUNNER_TEMP 'sql-agent-job-deployment.stderr.log'
+
+          function Quote-Argument {
+            param([string]$Value)
+            '"' + ($Value -replace '"', '\"') + '"'
+          }
+
+          Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
+
+          $arguments = @(
+            '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
+            '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
+            '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
+          ) | ForEach-Object { Quote-Argument $_ }
+
+          $process = Start-Process `
+            -FilePath $toolExe `
+            -ArgumentList ($arguments -join ' ') `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+          $exitCode = $process.ExitCode
+
+          Write-Host "Captured SQL Agent job deployment exit code: $exitCode"
+
+          if ($null -eq $exitCode) {
+            throw "SQL Agent job deployment did not produce an exit code. Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
+
+          if (Test-Path $stdoutPath) {
+            Get-Content -LiteralPath $stdoutPath
+          }
+
+          if (Test-Path $stderrPath) {
+            Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Error $_ }
+          }
+
+          Write-Host "SQL Agent job deployment exit code: $exitCode"
+
+          if ($exitCode -ne 0) {
+            throw "SQL Agent job deployment failed with exit code $exitCode. Stdout: $stdoutPath. Stderr: $stderrPath."
+          }
+
+      - name: Upload SQL Agent deployment logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: sql-agent-job-deployment-logs-staging
+          path: |
+            ${{ runner.temp }}\sql-agent-job-deployment.stdout.log
+            ${{ runner.temp }}\sql-agent-job-deployment.stderr.log
+      
+      - name: Download the artifact (Merchant Pos) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantpos
+          
+      - name: Remove existing Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Merchant Pos)
+        run: |
+          Expand-Archive -Path merchantpos.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantpos" -Force
+  
+      - name: Install as a Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessing.MerchantPos.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName
+
+      - name: Download the artifact (Merchant File Processor) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantfileprocessor
+
+      - name: Remove existing Windows service (Merchant File Processor)
+        run: |
+          $serviceName = "Transaction Processing - Merchant File Processor"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Merchant File Processor)
+        run: |
+          Expand-Archive -Path merchantfileprocessor.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantfileprocessor" -Force
+  
+      - name: Install as a Windows service (Merchant File Processor)
+        run: |
+          $serviceName = "Transaction Processing - Merchant File Processor"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantfileprocessor\TransactionProcessing.MerchantFileProcessor.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName
