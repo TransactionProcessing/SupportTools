@@ -1,13 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.DataProtection;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects;
 using Shared.Exceptions;
 using Shared.Results;
 using SimpleResults;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Requests.Contract;
@@ -53,6 +54,11 @@ public class EstateSetupFunctions {
             return ResultHelpers.CreateFailure(createEstateResult);
         this.EstateId = createEstateResult.Data;
 
+
+        Result<EstateResponse> getEstateResult = await this.GetEstate(this.EstateId, cancellationToken);
+        if (getEstateResult.IsFailed)
+            return ResultHelpers.CreateFailure(createEstateResult);
+
         var createUserResult = await this.CreateEstateUser(cancellationToken);
         if (createUserResult.IsFailed)
             return ResultHelpers.CreateFailure(createUserResult);
@@ -77,6 +83,15 @@ public class EstateSetupFunctions {
         return Result.Success();
     }
 
+    private static string ResolveUserPassword(String password) {
+        if (!string.IsNullOrWhiteSpace(password))
+        {
+            return password;
+        }
+        return Environment.GetEnvironmentVariable("DEFAULT_USER_PASSWORD");
+    }
+
+
     private static string ResolveServiceClientSecret()
     {
         string secret = Environment.GetEnvironmentVariable("TRANSACTIONPROCESSOR_SERVICECLIENT_SECRET");
@@ -90,8 +105,10 @@ public class EstateSetupFunctions {
 
     private async Task<Result<EstateResponse>> GetEstate(Guid estateId,
                                                          CancellationToken cancellationToken) {
-        Result<EstateResponse> estateResponse = await this.TransactionProcessorClient.GetEstate(this.TokenResponse.AccessToken, estateId, cancellationToken);
-        return estateResponse;
+        var estateResponse = await this.TransactionProcessorClient.GetEstates(this.TokenResponse.AccessToken, estateId, cancellationToken);
+        if (estateResponse.IsFailed)
+            return ResultHelpers.CreateFailure(estateResponse);
+        return Result.Success(estateResponse.Data.Single());
     }
 
     private async Task<Result<Guid>> CreateEstate(CancellationToken cancellationToken) {
@@ -131,7 +148,7 @@ public class EstateSetupFunctions {
                 FamilyName = this.EstateConfig.User.FamilyName,
                 GivenName = this.EstateConfig.User.GivenName,
                 MiddleName = this.EstateConfig.User.MiddleName,
-                Password = this.EstateConfig.User.Password
+                Password = ResolveUserPassword(this.EstateConfig.User.Password)
             };
             return await this.TransactionProcessorClient.CreateEstateUser(this.TokenResponse.AccessToken, this.EstateId, createEstateUserRequest, cancellationToken);
         }
@@ -371,7 +388,7 @@ public class EstateSetupFunctions {
             FamilyName = merchant.User.FamilyName,
             GivenName = merchant.User.GivenName,
             MiddleName = merchant.User.MiddleName,
-            Password = merchant.User.Password
+            Password = ResolveUserPassword(merchant.User.Password)
         };
         var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest.MerchantId.Value, createMerchantUserRequest, cancellationToken);
         if (createMerchantUserResult.IsFailed)
