@@ -32,6 +32,7 @@ namespace TransactionProcessor.SystemSetupTool
         private static KurrentDBProjectionManagementClient ProjectionClient;
 
         private static KurrentDBPersistentSubscriptionsClient PersistentSubscriptionsClient;
+        private static ICatchupServiceClient CatchupServiceClient;
 
         static async Task Main(string[] args) {
 
@@ -47,7 +48,17 @@ namespace TransactionProcessor.SystemSetupTool
             Func<String, String> securityResolver = s => { return ConfigurationReader.GetValue("SecurityServiceUri"); };
             Func<String, String> transactionProcessorResolver = s => { return ConfigurationReader.GetValue("TransactionProcessorApi"); };
             Func<String, String> fileProcessorResolver = s => { return ConfigurationReader.GetValue("FileProcessorApi"); };
-            HttpClientHandler handler = new();
+            Func<String, String> catchupServiceResolver = s => { return ConfigurationReader.GetValue("CatchupService"); };
+            HttpClientHandler handler = new()
+            {
+                ServerCertificateCustomValidationCallback = (message,
+                                                             cert,
+                                                             chain,
+                                                             errors) =>
+                {
+                    return true;
+                }
+            };
             HttpClient client = new(handler);
             
             Program.SecurityServiceClient = new SecurityServiceClient(securityResolver, client, Serialise, Deserialise);
@@ -58,14 +69,16 @@ namespace TransactionProcessor.SystemSetupTool
             Program.ProjectionClient = new (settings);
             Program.PersistentSubscriptionsClient = new (settings);
 
+            CatchupServiceClient = new CatchupServiceClient(catchupServiceResolver, client);
+
             Mode setupMode = Mode.EstateSetup;
 
-            String configFileName = "setupconfig.staging.json";
+            String configFileName = "setupconfig.json";
 
             FileProcessingOptions fileProcessingOptions = await Program.GetFileProfileConfig(cancellationToken);
             IdentityServerConfiguration identityServerConfiguration = await Program.GetIdentityServerConfig(cancellationToken);
             IdentityServerFunctions identityServerFunctions = new(Program.SecurityServiceClient, identityServerConfiguration);
-            EventStoreFunctions eventStoreFunctions = new(Program.ProjectionClient, Program.PersistentSubscriptionsClient);
+            EventStoreFunctions eventStoreFunctions = new(Program.ProjectionClient, CatchupServiceClient);
 
             Result result = setupMode switch {
                 Mode.SecuritySetup => await identityServerFunctions.CreateConfig(cancellationToken),
