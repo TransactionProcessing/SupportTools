@@ -161,7 +161,8 @@ public class EventStoreFunctions{
         ("$idx-ce-TransactionAggregate", "Transaction Processor", "Domain"),
         ("$idx-ce-SettlementAggregate", "Transaction Processor", "Domain"),
         ("$idx-ce-FloatAggregate", "Transaction Processor", "Domain"),
-        
+        ("$idx-ce-MerchantStatementForDateAggregate", "Transaction Processor", "Domain"),
+
         ("$idx-ce-EstateAggregate", "Transaction Processor", "Ordered"),
         ("$idx-ce-SettlementAggregate", "Transaction Processor", "Ordered"),
         ("$idx-ce-VoucherAggregate", "Transaction Processor", "Ordered"),

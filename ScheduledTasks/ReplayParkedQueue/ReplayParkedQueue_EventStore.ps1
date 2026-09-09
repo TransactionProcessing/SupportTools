@@ -18,7 +18,7 @@ if (-not (Test-Path $LogDirectory)) {
 
 function Get-LogFilePath {
     $date = (Get-Date).ToString("yyyy-MM-dd")
-    Join-Path $LogDirectory "ReplayParkedSubscriptions_dev-$date.log"
+    Join-Path $LogDirectory "ReplayParkedSubscriptions-$date.log"
 }
 
 function Write-Trace {
@@ -79,7 +79,7 @@ try {
     Write-Trace "INFO" "Querying persistent subscriptions"
     $subscriptions = Invoke-RestMethod `
         -Method GET `
-        -Uri "$BaseUrl/subscriptions/status" `
+        -Uri "$BaseUrl/subscriptions" `
         -Headers $AuthHeader
 }
 catch {
@@ -92,8 +92,19 @@ catch {
 # =========================
 foreach ($sub in $subscriptions) {
 
-    $subscriptionId = $sub.subscriptionId
-    $infoUrl = "$BaseUrl/subscriptions/$subscriptionId/status"
+    $stream = $sub.eventStreamId
+    $group  = $sub.groupName
+
+    #Write-Trace "INFO" "Processing subscription [$stream][$group]"
+
+    $streamEncoded = if ($stream -eq '$all') {
+        '%24all'
+    }
+    else {
+        [System.Web.HttpUtility]::UrlEncode($stream)
+    }
+
+    $infoUrl = "$BaseUrl/subscriptions/$streamEncoded/$group/info"
 
     try {
         $info = Invoke-RestMethod `
@@ -102,17 +113,17 @@ foreach ($sub in $subscriptions) {
             -Headers $AuthHeader
     }
     catch {
-        Write-Trace "WARN" "Failed to get info for [$subscriptionId]: $($_.Exception.Message)"
+        Write-Trace "WARN" "Failed to get info for [$stream][$group]: $($_.Exception.Message)"
         continue
     }
-    #Write-Trace "INFO" "[$subscriptionId] $info"
-    $parkedEventCount = $info.parkedEventCount
-    #Write-Trace "INFO" "[$subscriptionId] parkedMessageCount=$parkedEventCount"
 
-    if ($parkedEventCount -gt 0) {
-        $replayUrl = "$BaseUrl/subscriptions/$subscriptionId/replay"
+    $parkedCount = $info.parkedMessageCount
+    #Write-Trace "INFO" "[$stream][$group] parkedMessageCount=$parkedCount"
 
-        Write-Trace "INFO" "Replaying [$parkedEventCount] parked messages for [$subscriptionId]"
+    if ($parkedCount -gt 0) {
+        $replayUrl = "$BaseUrl/subscriptions/$streamEncoded/$group/replayParked?from=0"
+
+        Write-Trace "INFO" "Replaying [$parkedCount] parked messages for [$stream][$group]"
 
         try {
             Invoke-RestMethod `
@@ -120,14 +131,14 @@ foreach ($sub in $subscriptions) {
                 -Uri $replayUrl `
                 -Headers $AuthHeader
 
-            Write-Trace "INFO" "Replay triggered successfully for [$subscriptionId]"
+            Write-Trace "INFO" "Replay triggered successfully for [$stream][$group]"
         }
         catch {
-            Write-Trace "ERROR" "Replay failed for [$subscriptionId]: $($_.Exception.Message)"
+            Write-Trace "ERROR" "Replay failed for [$stream][$group]: $($_.Exception.Message)"
         }
     }
     #else {
-    #    Write-Trace "INFO" "No parked messages for [$subscriptionId]"
+        #Write-Trace "INFO" "No parked messages for [$stream][$group]"
     #}
 }
 
