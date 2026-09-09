@@ -18,7 +18,7 @@ if (-not (Test-Path $LogDirectory)) {
 
 function Get-LogFilePath {
     $date = (Get-Date).ToString("yyyy-MM-dd")
-    Join-Path $LogDirectory "ReplayParkedSubscriptions_dev-$date.log"
+    Join-Path $LogDirectory "ReplayParkedSubscriptions-$date.log"
 }
 
 function Write-Trace {
@@ -107,7 +107,7 @@ foreach ($sub in $subscriptions) {
     }
     #Write-Trace "INFO" "[$subscriptionId] $info"
     $parkedEventCount = $info.parkedEventCount
-    #Write-Trace "INFO" "[$subscriptionId] parkedMessageCount=$parkedEventCount"
+    #Write-Trace "INFO" "[$subscriptionId] parkedEventCount=$parkedEventCount"
 
     if ($parkedEventCount -gt 0) {
         $replayUrl = "$BaseUrl/subscriptions/$subscriptionId/replay"
