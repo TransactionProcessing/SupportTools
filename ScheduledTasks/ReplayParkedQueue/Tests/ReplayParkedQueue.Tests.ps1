@@ -1,5 +1,5 @@
 Describe 'ReplayParkedQueue.ps1' {
-    It 'replays parked messages for subscriptions with parked counts and encodes $all streams' {
+    It 'replays parked messages for subscriptions with parked counts' {
         $scriptUnderTest = (Resolve-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'ReplayParkedQueue.ps1')).Path
         $logDirectory = Join-Path $TestDrive 'replay-logs-1'
         $securePassword = [System.Security.SecureString]::new()
@@ -9,12 +9,10 @@ Describe 'ReplayParkedQueue.ps1' {
         $credential = [pscredential]::new('alice', $securePassword)
         $subscriptions = @(
             [pscustomobject]@{
-                eventStreamId = 'stream-1'
-                groupName     = 'group-1'
+                subscriptionId = 'subscription-1'
             },
             [pscustomobject]@{
-                eventStreamId = '$all'
-                groupName     = 'group-2'
+                subscriptionId = 'subscription-2'
             }
         )
         $captured = [pscustomobject]@{
@@ -28,30 +26,30 @@ Describe 'ReplayParkedQueue.ps1' {
             $subscriptions
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions'
+            $Uri -eq 'https://queue.example/subscriptions/status'
         }
 
         Mock Invoke-RestMethod {
             $captured.InfoUris.Add($Uri) | Out-Null
-            @{ parkedMessageCount = 2 }
+            @{ parkedEventCount = 2 }
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions/stream-1/group-1/info'
+            $Uri -eq 'https://queue.example/subscriptions/subscription-1/status'
         }
 
         Mock Invoke-RestMethod {
             $captured.InfoUris.Add($Uri) | Out-Null
-            @{ parkedMessageCount = 0 }
+            @{ parkedEventCount = 0 }
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions/%24all/group-2/info'
+            $Uri -eq 'https://queue.example/subscriptions/subscription-2/status'
         }
 
         Mock Invoke-RestMethod {
             $captured.ReplayUris.Add($Uri) | Out-Null
         } -ParameterFilter {
             $Method -eq 'POST' -and
-            $Uri -eq 'https://queue.example/subscriptions/stream-1/group-1/replayParked?from=0'
+            $Uri -eq 'https://queue.example/subscriptions/subscription-1/replay'
         }
 
         & $scriptUnderTest 'https://queue.example' -Credential $credential -LogDirectory $logDirectory
@@ -59,11 +57,11 @@ Describe 'ReplayParkedQueue.ps1' {
         $captured.SubscriptionCalls | Should -Be 1
         $captured.InfoUris.Count | Should -Be 2
         $captured.InfoUris | Should -Be @(
-            'https://queue.example/subscriptions/stream-1/group-1/info',
-            'https://queue.example/subscriptions/%24all/group-2/info'
+            'https://queue.example/subscriptions/subscription-1/status',
+            'https://queue.example/subscriptions/subscription-2/status'
         )
         $captured.ReplayUris | Should -Be @(
-            'https://queue.example/subscriptions/stream-1/group-1/replayParked?from=0'
+            'https://queue.example/subscriptions/subscription-1/replay'
         )
     }
 
@@ -77,8 +75,7 @@ Describe 'ReplayParkedQueue.ps1' {
         $credential = [pscredential]::new('alice', $securePassword)
         $subscriptions = @(
             [pscustomobject]@{
-                eventStreamId = 'stream-1'
-                groupName     = 'group-1'
+                subscriptionId = 'subscription-1'
             }
         )
         $captured = [pscustomobject]@{
@@ -92,22 +89,22 @@ Describe 'ReplayParkedQueue.ps1' {
             $subscriptions
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions'
+            $Uri -eq 'https://queue.example/subscriptions/status'
         }
 
         Mock Invoke-RestMethod {
             $captured.InfoCalls++
-            @{ parkedMessageCount = 0 }
+            @{ parkedEventCount = 0 }
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions/stream-1/group-1/info'
+            $Uri -eq 'https://queue.example/subscriptions/subscription-1/status'
         }
 
         Mock Invoke-RestMethod {
             $captured.ReplayCalls++
         } -ParameterFilter {
             $Method -eq 'POST' -and
-            $Uri -like 'https://queue.example/subscriptions/*/*/replayParked?from=0'
+            $Uri -like 'https://queue.example/subscriptions/*/replay'
         }
 
         & $scriptUnderTest 'https://queue.example' -Credential $credential -LogDirectory $logDirectory
@@ -129,7 +126,7 @@ Describe 'ReplayParkedQueue.ps1' {
             @()
         } -ParameterFilter {
             $Method -eq 'GET' -and
-            $Uri -eq 'https://queue.example/subscriptions'
+            $Uri -eq 'https://queue.example/subscriptions/status'
         }
 
         & $scriptUnderTest 'https://queue.example' -LogDirectory $logDirectory
