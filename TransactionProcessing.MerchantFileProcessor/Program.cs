@@ -45,7 +45,8 @@ try
         .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
         .AddJsonFile("merchant-processing.bootstrap.json", optional: true, reloadOnChange: true)
-        .AddJsonFile("C:\\home\\txnproc\\config\\merchant-processing.bootstrap.local.json", optional: true, reloadOnChange: true)
+        .AddJsonFile($"/home/txnproc/config/appsettings.local.json", optional: true)
+        .AddJsonFile("/home/txnproc/config/merchant-processing.bootstrap.local.json", optional: true, reloadOnChange: true)
         .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
         .AddCommandLine(args);
