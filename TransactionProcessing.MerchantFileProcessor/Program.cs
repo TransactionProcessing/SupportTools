@@ -1,11 +1,14 @@
 using ClientProxyBase;
 using FileProcessor.Client;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
 using SecurityService.Client;
+using Shared.Monitoring;
 using Shared.Serialisation;
 using TransactionProcessing.MerchantFileProcessor;
 using TransactionProcessing.MerchantFileProcessor.Clients;
@@ -42,6 +45,7 @@ try
         .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
         .AddJsonFile("merchant-processing.bootstrap.json", optional: true, reloadOnChange: true)
+        .AddJsonFile("C:\\home\\txnproc\\config\\merchant-processing.bootstrap.local.json", optional: true, reloadOnChange: true)
         .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
         .AddCommandLine(args);
@@ -125,6 +129,9 @@ try
     builder.Services.AddSingleton(serialiserSettings);
     builder.Services.AddSingleton<IOperationsDashboardService, OperationsDashboardService>();
 
+    builder.Services.AddHealthChecks();
+    builder.Services.AddUptimeKuma();
+
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
@@ -155,6 +162,27 @@ try
     app.MapReportingEndpoints();
     app.MapConfigurationManagementEndpoints();
     app.MapRazorComponents<App>();
+
+    app.MapHealthChecks("health",
+        new HealthCheckOptions
+        {
+            Predicate = _ => true,
+            ResponseWriter = Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
+        });
+    app.MapHealthChecks("healthui",
+        new HealthCheckOptions
+        {
+            Predicate = _ => true,
+            ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+        });
+
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        app.RegisterWithUptimeKumaAsync()
+            .GetAwaiter()
+            .GetResult();
+    });
+
 
     await app.RunAsync();
 }

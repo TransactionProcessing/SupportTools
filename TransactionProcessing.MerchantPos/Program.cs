@@ -7,6 +7,9 @@ using NLog.Web;
 using SecurityService.Client;
 using Shared.Serialisation;
 using System.Text.Json;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Shared.Monitoring;
 using TransactionProcessing.MerchantPos.Persistence;
 using TransactionProcessing.MerchantPos.Runtime;
 using TransactionProcessor.Client;
@@ -92,7 +95,8 @@ try
     });
 
     builder.Services.AddHealthChecks();
-
+    builder.Services.AddUptimeKuma();
+    
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
@@ -117,7 +121,25 @@ try
         Results.Json(await factory.BuildAsync()));
 
     app.MapRazorPages();
-    app.MapHealthChecks("/health");
+    app.MapHealthChecks("health",
+        new HealthCheckOptions
+        {
+            Predicate = _ => true,
+            ResponseWriter = Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
+        });
+    app.MapHealthChecks("healthui",
+        new HealthCheckOptions
+        {
+            Predicate = _ => true,
+            ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+        });
+
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        app.RegisterWithUptimeKumaAsync()
+            .GetAwaiter()
+            .GetResult();
+    });
 
     await app.RunAsync();
 }

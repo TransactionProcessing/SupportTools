@@ -2,7 +2,7 @@
   "MerchantProcessing": {
     "Authentication": {
       "ClientId": "serviceClient",
-      "ClientSecret": ""
+      "ClientSecret": "Test"
     },
     "FileProcessing": {
       "UserId": "a51791a8-2731-490c-a8ac-639461f2a41f"
@@ -123,18 +123,6 @@
             "Format": "0.00"
           }
         ]
-      }
-    ],
-    "Merchants": [
-      {
-        "Name": "Test Merchant 1",
-        "EstateId": "435613ac-a468-47a3-ac4f-649d89764c22",
-        "MerchantId": "ab1c99fb-1c6c-4694-9a32-b71be5d1da33",
-        "RunTimesUtc": [
-          "09:02:00",
-          "15:02:00"
-        ],
-        "Enabled": true
       }
     ]
   }
