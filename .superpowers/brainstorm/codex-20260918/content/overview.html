@@ -1,0 +1,41 @@
+<h2>Monitoring dashboard direction</h2>
+<p class="subtitle">Overview first, with a focused service detail view available from each card.</p>
+
+<div class="mockup">
+  <div class="mockup-header">HealthWatch · Overview</div>
+  <div class="mockup-body" style="background:#f4f7f8;padding:18px;color:#17212b;font-family:Arial,sans-serif">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><div style="font-size:20px;font-weight:700">Services</div><div style="font-size:12px;color:#70808c">Last refresh: just now · 12 monitored</div></div>
+      <div style="display:flex;gap:8px"><button class="mock-button">Add service</button><button class="mock-button">Configure</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div style="background:white;border-radius:10px;padding:12px;border-left:4px solid #34c77b"><div style="font-size:11px;color:#70808c">HEALTHY</div><div style="font-size:24px;font-weight:700">9</div></div>
+      <div style="background:white;border-radius:10px;padding:12px;border-left:4px solid #e7a93b"><div style="font-size:11px;color:#70808c">DEGRADED</div><div style="font-size:24px;font-weight:700">2</div></div>
+      <div style="background:white;border-radius:10px;padding:12px;border-left:4px solid #e34a59"><div style="font-size:11px;color:#70808c">UNHEALTHY</div><div style="font-size:24px;font-weight:700">1</div></div>
+      <div style="background:white;border-radius:10px;padding:12px;border-left:4px solid #9aa6ae"><div style="font-size:11px;color:#70808c">OPEN INCIDENTS</div><div style="font-size:24px;font-weight:700">1</div></div>
+    </div>
+    <div style="background:white;border-radius:10px;padding:0;overflow:hidden">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.4fr;padding:12px 14px;background:#eef2f3;font-size:11px;font-weight:700;color:#70808c">
+        <div>SERVICE</div><div>STATUS</div><div>RESPONSE</div><div>UPTIME (30D)</div><div>LAST CHECK</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.4fr;padding:15px 14px;border-top:1px solid #edf0f1;align-items:center;font-size:13px"><div><b>Merchant POS</b><div style="font-size:11px;color:#70808c">Production · /health</div></div><div style="color:#22a968;font-weight:700">● Healthy</div><div>8 ms</div><div>99.99%</div><div>18 Sep, 08:14</div></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.4fr;padding:15px 14px;border-top:1px solid #edf0f1;align-items:center;font-size:13px"><div><b>Merchant File Processor</b><div style="font-size:11px;color:#70808c">Production · /health</div></div><div style="color:#bb7a11;font-weight:700">● Degraded</div><div>31 ms</div><div>99.82%</div><div>18 Sep, 08:14</div></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.4fr;padding:15px 14px;border-top:1px solid #edf0f1;align-items:center;font-size:13px"><div><b>Transaction API</b><div style="font-size:11px;color:#70808c">Staging · /health</div></div><div style="color:#d53849;font-weight:700">● Unhealthy</div><div>—</div><div>98.41%</div><div>Incident open · 6m</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Service detail view</h3>
+  <div class="mockup">
+    <div class="mockup-header">Merchant File Processor · Production</div>
+    <div class="mockup-body" style="background:#f4f7f8;padding:18px;color:#17212b;font-family:Arial,sans-serif">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><div style="font-size:18px;font-weight:700">● Degraded</div><div style="font-size:12px;color:#70808c">Last checked 18 Sep, 08:14:22 · 31 ms</div></div><button class="mock-button">Edit service</button></div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-bottom:12px"><div style="background:white;border-radius:10px;padding:12px"><div style="font-size:11px;color:#70808c">UPTIME (30 DAYS)</div><div style="font-size:21px;font-weight:700">99.82%</div></div><div style="background:white;border-radius:10px;padding:12px"><div style="font-size:11px;color:#70808c">CURRENT INCIDENT</div><div style="font-size:21px;font-weight:700">12m 18s</div></div><div style="background:white;border-radius:10px;padding:12px"><div style="font-size:11px;color:#70808c">AVG RESPONSE (24H)</div><div style="font-size:21px;font-weight:700">24.6 ms</div></div></div>
+      <div style="background:white;border-radius:10px;padding:12px;margin-bottom:12px"><div style="font-size:11px;color:#70808c;margin-bottom:8px">STATUS TIMELINE · LAST 24 HOURS</div><div style="display:flex;gap:2px;height:22px"><div style="flex:22;background:#34c77b;border-radius:4px"></div><div style="flex:3;background:#e7a93b;border-radius:4px"></div><div style="flex:8;background:#34c77b;border-radius:4px"></div><div style="flex:4;background:#e7a93b;border-radius:4px"></div><div style="flex:18;background:#34c77b;border-radius:4px"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:#70808c;margin-top:5px"><span>08:00</span><span>Now</span></div></div>
+      <div style="background:white;border-radius:10px;padding:12px"><div style="font-size:11px;color:#70808c;margin-bottom:8px">DEPENDENCY DETAILS</div><div style="display:grid;grid-template-columns:1.5fr .8fr 1fr 2fr;gap:8px;font-size:12px;padding-bottom:8px;border-bottom:1px solid #edf0f1;font-weight:700"><div>CHECK</div><div>STATUS</div><div>DURATION</div><div>DETAIL</div></div><div style="display:grid;grid-template-columns:1.5fr .8fr 1fr 2fr;gap:8px;font-size:12px;padding-top:10px"><div>PrimaryDatabase</div><div style="color:#22a968">Healthy</div><div>4 ms</div><div>Connection successful</div></div><div style="display:grid;grid-template-columns:1.5fr .8fr 1fr 2fr;gap:8px;font-size:12px;padding-top:10px"><div>MessageBus</div><div style="color:#bb7a11;font-weight:700">Degraded</div><div>26 ms</div><div>Consumer lag above threshold</div></div></div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle">The key question is whether this overview/detail split gives you the right operational emphasis: current state first, then dependency evidence and history.</p>

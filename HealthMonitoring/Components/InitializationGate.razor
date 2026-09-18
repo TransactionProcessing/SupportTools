@@ -1,0 +1,28 @@
+@inject HealthMonitoring.Monitoring.IInitializationService Initialization
+@inject NavigationManager Navigation
+
+@if (_checking)
+{
+    <p class="panel">Checking initialisation…</p>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool _checking = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _checking = true;
+        var status = await Initialization.GetStatusAsync(CancellationToken.None);
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var onInitialisationOverview = path.Equals("initialise", StringComparison.OrdinalIgnoreCase);
+        var onHealthMonitoringInitialise = path.Equals("health-monitoring/initialise", StringComparison.OrdinalIgnoreCase);
+        if (status.Required && !status.Complete && !onInitialisationOverview && !onHealthMonitoringInitialise)
+            Navigation.NavigateTo("/initialise", replace: true);
+        _checking = false;
+    }
+}

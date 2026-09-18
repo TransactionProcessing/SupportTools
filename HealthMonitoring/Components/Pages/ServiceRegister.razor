@@ -1,0 +1,36 @@
+@page "/services/new"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Operational Support · Register service</PageTitle>
+<div class="page-heading"><div><p class="eyebrow">CONFIGURATION</p><h1>Register service</h1><p class="muted">Add a service manually or use the self-registration API.</p></div><a class="button secondary" href="/">Cancel</a></div>
+<EditForm Model="_request" OnValidSubmit="RegisterAsync" class="panel form">
+    <label>Service ID<input @bind="_request.ServiceId" required /></label>
+    <label>Display name<input @bind="_request.Name" required /></label>
+    <label>Monitor type<select @bind="_request.MonitorType"><option value="HttpHealthEndpoint">ASP.NET health endpoint</option><option value="KurrentDb">KurrentDB</option><option value="SqlServer">SQL Server</option></select></label>
+    @if (_request.MonitorType is MonitorType.KurrentDb or MonitorType.SqlServer)
+    {
+        <label>@(_request.MonitorType == MonitorType.KurrentDb ? "KurrentDB" : "SQL Server") connection string<input @bind="_request.ConnectionString" type="password" autocomplete="off" placeholder="@(_request.MonitorType == MonitorType.KurrentDb ? "esdb://user:password@host:2113?tls=false" : "Server=host;Database=database;User Id=user;Password=password;TrustServerCertificate=True")" required /></label>
+    }
+    else
+    {
+        <label>Health URL<input @bind="_request.HealthUrl" type="url" required /></label>
+        <label class="checkbox-label"><input @bind="_request.IgnoreCertificateErrors" type="checkbox" /> Ignore HTTPS certificate errors <span class="warning">Use only for trusted internal or development endpoints.</span></label>
+    }
+    <div class="form-grid"><label>Polling interval (seconds)<input @bind="_request.PollingIntervalSeconds" type="number" min="5" /></label><label>Timeout (seconds)<input @bind="_request.RequestTimeoutSeconds" type="number" min="1" /></label><label>Retention (days)<input @bind="_request.RetentionDays" type="number" min="1" /></label></div>
+    @if (!string.IsNullOrWhiteSpace(_error)) { <p class="error">@_error</p> }
+    <button class="button" type="submit" disabled="@_saving">@(_saving ? "Saving…" : "Save service")</button>
+</EditForm>
+
+@code {
+    private ServiceRegistrationRequest _request = new("", "", "https://localhost/health");
+    private bool _saving;
+    private string? _error;
+    private async Task RegisterAsync()
+    {
+        _saving = true;
+        try { var response = await Http.PostAsJsonAsync(new Uri(new Uri(Navigation.BaseUri), "api/services/register"), _request); if (response.IsSuccessStatusCode) Navigation.NavigateTo("/"); else _error = await response.Content.ReadAsStringAsync(); }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _saving = false; }
+    }
+}

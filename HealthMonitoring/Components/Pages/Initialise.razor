@@ -1,0 +1,70 @@
+@page "/health-monitoring/initialise"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Operational Support · Initialise Health Monitoring</PageTitle>
+<div class="initialise-page">
+    <div class="initialise-breadcrumb">Home <span>›</span> Initialise</div>
+    <div class="initialise-heading">
+        <p class="eyebrow">FIRST-RUN SETUP</p>
+        <h1>Initialise Health Monitoring</h1>
+        <p class="muted">Set up the monitors required for your dashboard before you continue.</p>
+    </div>
+    <div class="wizard-steps"><span class="wizard-step active">1</span><strong>Set up required monitors</strong><span class="wizard-line"></span><span class="wizard-step">2</span><span>Finish</span></div>
+    <div class="initialise-notice">ⓘ <span>Configure the base monitors for your dashboard. Required monitors can be changed independently in application settings.</span></div>
+    <EditForm Model="_request" OnValidSubmit="SaveAsync">
+        <div class="monitor-cards">
+            <section class="monitor-card">
+                <div class="monitor-icon">▤</div>
+                <div class="monitor-card-body">
+                    <div class="monitor-card-title"><h2>SQL Server</h2><span class="required-badge @(_status?.RequireSqlServer == true ? "required" : "optional")">@(_status?.RequireSqlServer == true ? "Required" : "Optional")</span></div>
+                    <p class="monitor-state">● @(_status?.SqlServerConfigured == true ? "Configured" : "Not configured")</p>
+                    <label>SQL Server connection string<input @bind="_request.SqlServerConnectionString" type="password" autocomplete="off" placeholder="Server=...;Database=...;User Id=...;Password=..." /></label>
+                </div>
+            </section>
+            <section class="monitor-card">
+                <div class="monitor-icon">⌘</div>
+                <div class="monitor-card-body">
+                    <div class="monitor-card-title"><h2>KurrentDB</h2><span class="required-badge @(_status?.RequireKurrentDb == true ? "required" : "optional")">@(_status?.RequireKurrentDb == true ? "Required" : "Optional")</span></div>
+                    <p class="monitor-state">● @(_status?.KurrentDbConfigured == true ? "Configured" : "Not configured")</p>
+                    <label>KurrentDB connection string<input @bind="_request.KurrentDbConnectionString" type="password" autocomplete="off" placeholder="esdb://user:password@host:2113?tls=false" /></label>
+                </div>
+            </section>
+        </div>
+        <div class="initialise-footer">
+            <label class="checkbox-label"><input @bind="_request.TestConnections" type="checkbox" /> Test connections before finishing</label>
+            <div class="initialise-actions"><button class="button secondary" type="button" @onclick="Skip">Skip for now</button><button class="button" type="submit" disabled="@_saving">@(_saving ? "Saving…" : "Save and continue")</button></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <p class="error">@_error</p> }
+    </EditForm>
+    <p class="initialise-footnote">ⓘ Required monitors can be changed in Settings &gt; Application.</p>
+</div>
+
+@code {
+    private InitializationRequest _request = new("", "");
+    private InitializationStatus? _status;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _status = await Http.GetFromJsonAsync<InitializationStatus>(new Uri(new Uri(Navigation.BaseUri), "api/initialization/status")); }
+        catch (Exception exception) { _error = exception.Message; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var response = await Http.PostAsJsonAsync(new Uri(new Uri(Navigation.BaseUri), "api/initialization"), _request);
+            if (response.IsSuccessStatusCode) Navigation.NavigateTo("/", forceLoad: true);
+            else _error = await response.Content.ReadAsStringAsync();
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _saving = false; }
+    }
+
+    private void Skip() => Navigation.NavigateTo("/");
+}
