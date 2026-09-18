@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
+
 builder.Services.AddDbContext<HealthMonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("HealthMonitoring")));
 builder.Services.AddHealthMonitoringServices();

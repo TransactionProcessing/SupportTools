@@ -1,0 +1,4 @@
+{
+  "Urls": "http://*:9620",
+  "AllowedHosts": "*"
+}
