@@ -6,6 +6,11 @@ namespace HealthMonitoring.Tests.Client;
 
 public sealed class HealthMonitoringRegistrationClientTests
 {
+    private const string PaymentsApiServiceId = "payments-api";
+    private const string SecurityServiceId = "security-service";
+    private const string SecurityServiceName = "Security Service";
+    private const string MonitoringBaseUrl = "https://monitoring.local";
+
     [Fact]
     public async Task RegisterAsync_posts_service_configuration_and_returns_acknowledgement()
     {
@@ -13,7 +18,7 @@ public sealed class HealthMonitoringRegistrationClientTests
         {
             Content = JsonContent.Create(new
             {
-                serviceId = "payments-api",
+                serviceId = PaymentsApiServiceId,
                 action = "created",
                 service = new { id = Guid.Parse("11111111-1111-1111-1111-111111111111") }
             })
@@ -22,7 +27,7 @@ public sealed class HealthMonitoringRegistrationClientTests
 
         var result = await client.RegisterAsync(new ServiceRegistrationOptions
         {
-            ServiceId = "payments-api",
+            ServiceId = PaymentsApiServiceId,
             Name = "Payments API",
             HealthUrl = new Uri("https://payments-api/health"),
             PollingInterval = TimeSpan.FromSeconds(30),
@@ -34,9 +39,9 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.Equal("created", result.Action);
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), result.MonitoredServiceId);
         Assert.Equal(HttpMethod.Post, handler.Request!.Method);
-        Assert.Equal("http://monitoring.local/api/services/register", handler.Request.RequestUri!.ToString());
+        Assert.Equal($"{MonitoringBaseUrl}/api/services/register", handler.Request.RequestUri!.ToString());
         var payload = await handler.Request.Content!.ReadFromJsonAsync<ServiceRegistrationPayload>();
-        Assert.Equal("payments-api", payload!.ServiceId);
+        Assert.Equal(PaymentsApiServiceId, payload!.ServiceId);
         Assert.Equal(0, payload.MonitorType);
         Assert.Equal(30, payload.PollingIntervalSeconds);
         Assert.True(payload.IgnoreCertificateErrors);
@@ -48,21 +53,21 @@ public sealed class HealthMonitoringRegistrationClientTests
         var targetId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var handler = new QueueHandler(
             JsonResponse(HttpStatusCode.OK, Array.Empty<object>()),
-            JsonResponse(HttpStatusCode.OK, new { id = targetId, serviceId = "security-service", name = "Security Service" }),
+            JsonResponse(HttpStatusCode.OK, new { id = targetId, serviceId = SecurityServiceId, name = SecurityServiceName }),
             JsonResponse(HttpStatusCode.Created, new { }));
         var client = CreateClient(handler);
 
         await client.SetDependencyMappingsAsync("payments-api", new[]
         {
-            new DependencyMappingOptions("Security Service", "security-service")
+            new DependencyMappingOptions(SecurityServiceName, SecurityServiceId)
         });
 
         Assert.Collection(handler.Requests,
-            request => Assert.Equal("http://monitoring.local/api/services/payments-api/dependency-links", request.RequestUri!.ToString()),
-            request => Assert.Equal("http://monitoring.local/api/services/security-service", request.RequestUri!.ToString()),
+            request => Assert.Equal($"{MonitoringBaseUrl}/api/services/{PaymentsApiServiceId}/dependency-links", request.RequestUri!.ToString()),
+            request => Assert.Equal($"{MonitoringBaseUrl}/api/services/{SecurityServiceId}", request.RequestUri!.ToString()),
             request => Assert.Equal(HttpMethod.Post, request.Method));
         var payload = await handler.Requests[2].Content!.ReadFromJsonAsync<DependencyMappingPayload>();
-        Assert.Equal("Security Service", payload!.DependencyName);
+        Assert.Equal(SecurityServiceName, payload!.DependencyName);
         Assert.Equal(targetId, payload.TargetMonitoredServiceId);
     }
 
@@ -72,22 +77,22 @@ public sealed class HealthMonitoringRegistrationClientTests
         var linkId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var targetId = Guid.Parse("44444444-4444-4444-4444-444444444444");
         var handler = new QueueHandler(
-            JsonResponse(HttpStatusCode.OK, new[] { new { id = linkId, dependencyName = "Security Service" } }),
-            JsonResponse(HttpStatusCode.OK, new { id = targetId, serviceId = "security-service", name = "Security Service" }),
+            JsonResponse(HttpStatusCode.OK, new[] { new { id = linkId, dependencyName = SecurityServiceName } }),
+            JsonResponse(HttpStatusCode.OK, new { id = targetId, serviceId = SecurityServiceId, name = SecurityServiceName }),
             JsonResponse(HttpStatusCode.OK, new { }));
         var client = CreateClient(handler);
 
         await client.SetDependencyMappingsAsync("payments-api", new[]
         {
-            new DependencyMappingOptions("Security Service", "security-service")
+            new DependencyMappingOptions(SecurityServiceName, SecurityServiceId)
         });
 
         Assert.Equal(HttpMethod.Put, handler.Requests[2].Method);
-        Assert.EndsWith($"/api/services/payments-api/dependency-links/{linkId}", handler.Requests[2].RequestUri!.ToString());
+        Assert.EndsWith($"/api/services/{PaymentsApiServiceId}/dependency-links/{linkId}", handler.Requests[2].RequestUri!.ToString());
     }
 
     private static HealthMonitoringRegistrationClient CreateClient(HttpMessageHandler handler) =>
-        new(new HttpClient(handler) { BaseAddress = new Uri("http://monitoring.local") });
+        new(new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) });
 
     private sealed class ServiceRegistrationPayload
     {
@@ -107,7 +112,7 @@ public sealed class HealthMonitoringRegistrationClientTests
     {
         public HttpRequestMessage? Request { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
         {
             Request = request;
             return Task.FromResult(responseFactory(request));
@@ -119,7 +124,7 @@ public sealed class HealthMonitoringRegistrationClientTests
         private int _index;
         public List<HttpRequestMessage> Requests { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
         {
             Requests.Add(request);
             return Task.FromResult(responses[_index++]);

@@ -7,6 +7,16 @@ public static class ServiceRegistrationEndpoints
 {
     public static IEndpointRouteBuilder MapServiceRegistrationEndpoints(this IEndpointRouteBuilder endpoints, string dashboardEnvironment)
     {
+        MapRegistrationEndpoint(endpoints, dashboardEnvironment);
+        MapListEndpoint(endpoints);
+        MapGetEndpoint(endpoints);
+        MapUpdateEndpoint(endpoints, dashboardEnvironment);
+        MapArchiveEndpoint(endpoints);
+
+        return endpoints;
+    }
+
+    private static void MapRegistrationEndpoint(IEndpointRouteBuilder endpoints, string dashboardEnvironment) =>
         endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var errors = ServiceConfigurationValidator.Validate(request);
@@ -21,6 +31,7 @@ public static class ServiceRegistrationEndpoints
                 : Results.Ok(new ServiceRegistrationResponse(service.ServiceId, action, service));
         });
 
+    private static void MapListEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/services", async (IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var services = await repository.ListServicesAsync(false, cancellationToken);
@@ -34,13 +45,14 @@ public static class ServiceRegistrationEndpoints
             return Results.Ok(results);
         });
 
+    private static void MapGetEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/services/{serviceId}", async (string serviceId, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var service = await repository.GetServiceAsync(serviceId, cancellationToken);
-            if (service is null || service.ArchivedAtUtc is not null) return Results.NotFound();
-            return Results.Ok(service);
+            return service is null || service.ArchivedAtUtc is not null ? Results.NotFound() : Results.Ok(service);
         });
 
+    private static void MapUpdateEndpoint(IEndpointRouteBuilder endpoints, string dashboardEnvironment) =>
         endpoints.MapPut("/api/services/{serviceId}", async (string serviceId, ServiceRegistrationRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             if (!string.Equals(serviceId, request.ServiceId, StringComparison.OrdinalIgnoreCase)) return Results.BadRequest("Route serviceId must match request ServiceId.");
@@ -53,12 +65,10 @@ public static class ServiceRegistrationEndpoints
             return Results.Ok(service);
         });
 
+    private static void MapArchiveEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapDelete("/api/services/{serviceId}", async (string serviceId, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             await repository.ArchiveServiceAsync(serviceId, DateTimeOffset.UtcNow, cancellationToken);
             return Results.NoContent();
         });
-
-        return endpoints;
-    }
 }

@@ -6,22 +6,108 @@ namespace HealthMonitoring.Persistence;
 
 public static class HealthMonitoringSchemaInitializer
 {
-    private static readonly LegacyDurationColumn[] LegacyDurationColumns =
+    private static readonly LegacyDurationMigration[] LegacyDurationMigrations =
     [
-        new("MonitoredServices", "PollingInterval", Nullable: false),
-        new("MonitoredServices", "RequestTimeout", Nullable: false),
-        new("MonitoredServices", "RetentionPeriod", Nullable: false),
-        new("HealthObservations", "ResponseDuration", Nullable: false),
-        new("HealthCheckResults", "Duration", Nullable: false),
-        new("ServiceStatusSnapshots", "LastResponseDuration", Nullable: true)
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'PollingInterval' AND system_type_id = 41)
+               AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__PollingIntervalTicks')
+                ALTER TABLE [dbo].[MonitoredServices] ADD [__PollingIntervalTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'PollingInterval' AND system_type_id = 41)
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__PollingIntervalTicks')
+                UPDATE [dbo].[MonitoredServices]
+                SET [__PollingIntervalTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [PollingInterval]) / 100;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'PollingInterval' AND system_type_id = 41)
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__PollingIntervalTicks')
+                ALTER TABLE [dbo].[MonitoredServices] ALTER COLUMN [__PollingIntervalTicks] bigint NOT NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'PollingInterval' AND system_type_id = 41)
+               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__PollingIntervalTicks')
+            BEGIN
+                ALTER TABLE [dbo].[MonitoredServices] DROP COLUMN [PollingInterval];
+                EXEC sp_rename N'dbo.MonitoredServices.__PollingIntervalTicks', N'PollingInterval', N'COLUMN';
+            END;
+            """) ,
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RequestTimeout' AND system_type_id = 41) AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RequestTimeoutTicks') ALTER TABLE [dbo].[MonitoredServices] ADD [__RequestTimeoutTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RequestTimeout' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RequestTimeoutTicks') UPDATE [dbo].[MonitoredServices] SET [__RequestTimeoutTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [RequestTimeout]) / 100;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RequestTimeout' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RequestTimeoutTicks') ALTER TABLE [dbo].[MonitoredServices] ALTER COLUMN [__RequestTimeoutTicks] bigint NOT NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RequestTimeout' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RequestTimeoutTicks') BEGIN ALTER TABLE [dbo].[MonitoredServices] DROP COLUMN [RequestTimeout]; EXEC sp_rename N'dbo.MonitoredServices.__RequestTimeoutTicks', N'RequestTimeout', N'COLUMN'; END;
+            """) ,
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RetentionPeriod' AND system_type_id = 41) AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RetentionPeriodTicks') ALTER TABLE [dbo].[MonitoredServices] ADD [__RetentionPeriodTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RetentionPeriod' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RetentionPeriodTicks') UPDATE [dbo].[MonitoredServices] SET [__RetentionPeriodTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [RetentionPeriod]) / 100;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RetentionPeriod' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RetentionPeriodTicks') ALTER TABLE [dbo].[MonitoredServices] ALTER COLUMN [__RetentionPeriodTicks] bigint NOT NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[MonitoredServices]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'RetentionPeriod' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MonitoredServices]') AND name = N'__RetentionPeriodTicks') BEGIN ALTER TABLE [dbo].[MonitoredServices] DROP COLUMN [RetentionPeriod]; EXEC sp_rename N'dbo.MonitoredServices.__RetentionPeriodTicks', N'RetentionPeriod', N'COLUMN'; END;
+            """) ,
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[HealthObservations]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'ResponseDuration' AND system_type_id = 41) AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'__ResponseDurationTicks') ALTER TABLE [dbo].[HealthObservations] ADD [__ResponseDurationTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthObservations]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'ResponseDuration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'__ResponseDurationTicks') UPDATE [dbo].[HealthObservations] SET [__ResponseDurationTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [ResponseDuration]) / 100;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthObservations]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'ResponseDuration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'__ResponseDurationTicks') ALTER TABLE [dbo].[HealthObservations] ALTER COLUMN [__ResponseDurationTicks] bigint NOT NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthObservations]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'ResponseDuration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthObservations]') AND name = N'__ResponseDurationTicks') BEGIN ALTER TABLE [dbo].[HealthObservations] DROP COLUMN [ResponseDuration]; EXEC sp_rename N'dbo.HealthObservations.__ResponseDurationTicks', N'ResponseDuration', N'COLUMN'; END;
+            """) ,
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[HealthCheckResults]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'Duration' AND system_type_id = 41) AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'__DurationTicks') ALTER TABLE [dbo].[HealthCheckResults] ADD [__DurationTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthCheckResults]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'Duration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'__DurationTicks') UPDATE [dbo].[HealthCheckResults] SET [__DurationTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [Duration]) / 100;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthCheckResults]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'Duration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'__DurationTicks') ALTER TABLE [dbo].[HealthCheckResults] ALTER COLUMN [__DurationTicks] bigint NOT NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[HealthCheckResults]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'Duration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HealthCheckResults]') AND name = N'__DurationTicks') BEGIN ALTER TABLE [dbo].[HealthCheckResults] DROP COLUMN [Duration]; EXEC sp_rename N'dbo.HealthCheckResults.__DurationTicks', N'Duration', N'COLUMN'; END;
+            """) ,
+        new(
+            """
+            IF OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'LastResponseDuration' AND system_type_id = 41) AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'__LastResponseDurationTicks') ALTER TABLE [dbo].[ServiceStatusSnapshots] ADD [__LastResponseDurationTicks] bigint NULL;
+            """,
+            """
+            IF OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'LastResponseDuration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'__LastResponseDurationTicks') UPDATE [dbo].[ServiceStatusSnapshots] SET [__LastResponseDurationTicks] = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), [LastResponseDuration]) / 100;
+            """,
+            null,
+            """
+            IF OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]', N'U') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'LastResponseDuration' AND system_type_id = 41) AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ServiceStatusSnapshots]') AND name = N'__LastResponseDurationTicks') BEGIN ALTER TABLE [dbo].[ServiceStatusSnapshots] DROP COLUMN [LastResponseDuration]; EXEC sp_rename N'dbo.ServiceStatusSnapshots.__LastResponseDurationTicks', N'LastResponseDuration', N'COLUMN'; END;
+            """)
     ];
 
     public static async Task InitializeAsync(HealthMonitoringDbContext dbContext, CancellationToken cancellationToken = default)
     {
         await dbContext.Database.EnsureCreatedAsync(cancellationToken);
 
-        foreach (var column in LegacyDurationColumns)
-            await ConvertLegacyColumnAsync(dbContext, column, cancellationToken);
+        foreach (var migration in LegacyDurationMigrations)
+            await ConvertLegacyColumnAsync(dbContext, migration, cancellationToken);
 
         await dbContext.Database.ExecuteSqlRawAsync("""
             IF OBJECT_ID(N'[dbo].[ServiceDependencyLinks]', N'U') IS NULL
@@ -64,50 +150,21 @@ public static class HealthMonitoringSchemaInitializer
 
     private static async Task ConvertLegacyColumnAsync(
         HealthMonitoringDbContext dbContext,
-        LegacyDurationColumn column,
+        LegacyDurationMigration migration,
         CancellationToken cancellationToken)
     {
-        var table = $"[dbo].[{column.TableName}]";
-        var oldColumn = $"[{column.ColumnName}]";
-        var temporaryColumn = $"[__{column.ColumnName}Ticks]";
-
-        await dbContext.Database.ExecuteSqlRawAsync($"""
-            IF OBJECT_ID(N'{table}', N'U') IS NOT NULL
-               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'{column.ColumnName}' AND system_type_id = 41)
-               AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'__{column.ColumnName}Ticks')
-                ALTER TABLE {table} ADD {temporaryColumn} bigint NULL;
-            """, cancellationToken);
-
-        await dbContext.Database.ExecuteSqlRawAsync($"""
-            IF OBJECT_ID(N'{table}', N'U') IS NOT NULL
-               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'{column.ColumnName}' AND system_type_id = 41)
-               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'__{column.ColumnName}Ticks')
-                UPDATE {table}
-                SET {temporaryColumn} = DATEDIFF_BIG(NANOSECOND, CAST('00:00:00' AS time), {oldColumn}) / 100;
-            """, cancellationToken);
-
-        if (!column.Nullable)
-        {
-            await dbContext.Database.ExecuteSqlRawAsync($"""
-                IF OBJECT_ID(N'{table}', N'U') IS NOT NULL
-                   AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'{column.ColumnName}' AND system_type_id = 41)
-                   AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'__{column.ColumnName}Ticks')
-                    ALTER TABLE {table} ALTER COLUMN {temporaryColumn} bigint NOT NULL;
-                """, cancellationToken);
-        }
-
-        await dbContext.Database.ExecuteSqlRawAsync($"""
-            IF OBJECT_ID(N'{table}', N'U') IS NOT NULL
-               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'{column.ColumnName}' AND system_type_id = 41)
-               AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'{table}') AND name = N'__{column.ColumnName}Ticks')
-            BEGIN
-                ALTER TABLE {table} DROP COLUMN {oldColumn};
-                EXEC sp_rename N'dbo.{column.TableName}.__{column.ColumnName}Ticks', N'{column.ColumnName}', N'COLUMN';
-            END;
-            """, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(migration.AddTemporaryColumnSql, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(migration.CopyDurationSql, cancellationToken);
+        if (migration.MakeRequiredSql is not null)
+            await dbContext.Database.ExecuteSqlRawAsync(migration.MakeRequiredSql, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(migration.ReplaceColumnSql, cancellationToken);
     }
 
-    private sealed record LegacyDurationColumn(string TableName, string ColumnName, bool Nullable);
+    private sealed record LegacyDurationMigration(
+        string AddTemporaryColumnSql,
+        string CopyDurationSql,
+        string? MakeRequiredSql,
+        string ReplaceColumnSql);
 }
 
 #pragma warning restore EF1002

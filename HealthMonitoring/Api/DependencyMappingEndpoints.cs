@@ -6,16 +6,26 @@ public static class DependencyMappingEndpoints
 {
     public static IEndpointRouteBuilder MapDependencyMappingEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        MapListEndpoint(endpoints);
+        MapCreateEndpoint(endpoints);
+        MapUpdateEndpoint(endpoints);
+        MapDeleteEndpoint(endpoints);
+
+        return endpoints;
+    }
+
+    private static void MapListEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/api/services/{serviceId}/dependency-links", async (string serviceId, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var service = await repository.GetServiceAsync(serviceId, cancellationToken);
             if (service is null || service.ArchivedAtUtc is not null) return Results.NotFound();
 
             var links = await repository.ListDependencyLinksAsync(service.Id, cancellationToken);
-            var services = await repository.ListServicesAsync(false, cancellationToken);
+            var services = await repository.ListServicesAsync(true, cancellationToken);
             return Results.Ok(ToResponses(links, services));
         });
 
+    private static void MapCreateEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapPost("/api/services/{serviceId}/dependency-links", async (string serviceId, DependencyLinkRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var service = await repository.GetServiceAsync(serviceId, cancellationToken);
@@ -35,6 +45,7 @@ public static class DependencyMappingEndpoints
             return Results.Created($"/api/services/{serviceId}/dependency-links/{link.Id}", link);
         });
 
+    private static void MapUpdateEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapPut("/api/services/{serviceId}/dependency-links/{linkId:guid}", async (string serviceId, Guid linkId, DependencyLinkRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var service = await repository.GetServiceAsync(serviceId, cancellationToken);
@@ -54,6 +65,7 @@ public static class DependencyMappingEndpoints
             return Results.Ok(existing);
         });
 
+    private static void MapDeleteEndpoint(IEndpointRouteBuilder endpoints) =>
         endpoints.MapDelete("/api/services/{serviceId}/dependency-links/{linkId:guid}", async (string serviceId, Guid linkId, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
             var service = await repository.GetServiceAsync(serviceId, cancellationToken);
@@ -65,9 +77,6 @@ public static class DependencyMappingEndpoints
             await repository.DeleteDependencyLinkAsync(linkId, cancellationToken);
             return Results.NoContent();
         });
-
-        return endpoints;
-    }
 
     private static async Task<IResult?> ValidateAsync(Guid parentId, DependencyLinkRequest request, Guid? currentLinkId, IHealthMonitoringRepository repository, CancellationToken cancellationToken)
     {

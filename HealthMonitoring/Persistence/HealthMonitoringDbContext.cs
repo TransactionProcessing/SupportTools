@@ -6,6 +6,9 @@ namespace HealthMonitoring.Persistence;
 
 public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringDbContext> options) : DbContext(options)
 {
+    private const string BigintColumnType = "bigint";
+    private const string NvarcharMaxColumnType = "nvarchar(max)";
+
     private static readonly ValueConverter<TimeSpan, long> TimeSpanTicksConverter = new(
         value => value.Ticks,
         value => TimeSpan.FromTicks(value));
@@ -32,11 +35,11 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
             entity.Property(service => service.Environment).HasMaxLength(100).IsRequired();
             entity.Property(service => service.MonitorType).HasConversion<string>().HasMaxLength(50).IsRequired();
             entity.Property(service => service.HealthUrl).HasConversion<string>().HasMaxLength(2048).IsRequired();
-            entity.Property(service => service.ConnectionString).HasColumnType("nvarchar(max)");
-            entity.Property(service => service.StatusPolicyJson).HasColumnType("nvarchar(max)").IsRequired();
-            entity.Property(service => service.PollingInterval).HasConversion(TimeSpanTicksConverter).HasColumnType("bigint");
-            entity.Property(service => service.RequestTimeout).HasConversion(TimeSpanTicksConverter).HasColumnType("bigint");
-            entity.Property(service => service.RetentionPeriod).HasConversion(TimeSpanTicksConverter).HasColumnType("bigint");
+            entity.Property(service => service.ConnectionString).HasColumnType(NvarcharMaxColumnType);
+            entity.Property(service => service.StatusPolicyJson).HasColumnType(NvarcharMaxColumnType).IsRequired();
+            entity.Property(service => service.PollingInterval).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);
+            entity.Property(service => service.RequestTimeout).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);
+            entity.Property(service => service.RetentionPeriod).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);
             entity.Ignore(service => service.StatusPolicy);
         });
 
@@ -46,9 +49,9 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
             entity.HasIndex(observation => new { observation.MonitoredServiceId, observation.ObservedAtUtc });
             entity.Property(observation => observation.Status).HasConversion<string>().HasMaxLength(20);
             entity.Property(observation => observation.AggregateStatus).HasMaxLength(50).IsRequired();
-            entity.Property(observation => observation.ResponseDuration).HasConversion(TimeSpanTicksConverter).HasColumnType("bigint");
-            entity.Property(observation => observation.RawResponseJson).HasColumnType("nvarchar(max)");
-            entity.Property(observation => observation.Error).HasColumnType("nvarchar(max)");
+            entity.Property(observation => observation.ResponseDuration).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);
+            entity.Property(observation => observation.RawResponseJson).HasColumnType(NvarcharMaxColumnType);
+            entity.Property(observation => observation.Error).HasColumnType(NvarcharMaxColumnType);
             entity.HasMany(observation => observation.Checks)
                 .WithOne()
                 .HasForeignKey(checkResult => checkResult.HealthObservationId)
@@ -60,9 +63,9 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
             entity.HasKey(checkResult => checkResult.Id);
             entity.Property(checkResult => checkResult.Name).HasMaxLength(300).IsRequired();
             entity.Property(checkResult => checkResult.Status).HasConversion<string>().HasMaxLength(20);
-            entity.Property(checkResult => checkResult.Duration).HasConversion(TimeSpanTicksConverter).HasColumnType("bigint");
-            entity.Property(checkResult => checkResult.DataJson).HasColumnType("nvarchar(max)");
-            entity.Property(checkResult => checkResult.Exception).HasColumnType("nvarchar(max)");
+            entity.Property(checkResult => checkResult.Duration).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);
+            entity.Property(checkResult => checkResult.DataJson).HasColumnType(NvarcharMaxColumnType);
+            entity.Property(checkResult => checkResult.Exception).HasColumnType(NvarcharMaxColumnType);
         });
 
         modelBuilder.Entity<ServiceIncident>(entity =>
@@ -78,8 +81,8 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
         {
             entity.HasKey(snapshot => snapshot.MonitoredServiceId);
             entity.Property(snapshot => snapshot.Status).HasConversion<string>().HasMaxLength(20);
-            entity.Property(snapshot => snapshot.LastResponseDuration).HasConversion(NullableTimeSpanTicksConverter).HasColumnType("bigint");
-            entity.Property(snapshot => snapshot.LastError).HasColumnType("nvarchar(max)");
+            entity.Property(snapshot => snapshot.LastResponseDuration).HasConversion(NullableTimeSpanTicksConverter).HasColumnType(BigintColumnType);
+            entity.Property(snapshot => snapshot.LastError).HasColumnType(NvarcharMaxColumnType);
         });
 
         modelBuilder.Entity<ServiceDependencyLink>(entity =>

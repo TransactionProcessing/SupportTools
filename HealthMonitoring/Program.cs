@@ -6,6 +6,7 @@ using HealthMonitoring.Reporting;
 using HealthMonitoring.Components;
 using HealthMonitoring.Health;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,7 @@ builder.Services.AddSingleton(new InitializationOptions
     RequireSqlServer = builder.Configuration.GetValue("Initialization:RequireSqlServer", true),
     RequireKurrentDb = builder.Configuration.GetValue("Initialization:RequireKurrentDb", true)
 });
+builder.Services.Configure<SqlServerMonitorOptions>(builder.Configuration.GetSection("Monitoring:SqlServer"));
 
 builder.Services.AddDbContext<HealthMonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("HealthMonitoring")));

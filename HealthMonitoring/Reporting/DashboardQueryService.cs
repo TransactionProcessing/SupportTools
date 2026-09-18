@@ -24,7 +24,9 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
             rows.Add(ToRow(service, snapshot, observations));
         }
 
-        var incidents = await dbContext.ServiceIncidents.AsNoTracking().CountAsync(incident => incident.EndedAtUtc == null, cancellationToken);
+        var incidents = await dbContext.ServiceIncidents.AsNoTracking()
+            .Where(incident => incident.EndedAtUtc == null)
+            .CountAsync(incident => dbContext.MonitoredServices.Any(service => service.Id == incident.MonitoredServiceId && service.ArchivedAtUtc == null), cancellationToken);
         return new DashboardOverview(rows.OrderBy(row => row.Name).ToArray(), rows.Count(row => row.Status == HealthStatus.Healthy), rows.Count(row => row.Status == HealthStatus.Degraded), rows.Count(row => row.Status == HealthStatus.Unhealthy), incidents);
     }
 

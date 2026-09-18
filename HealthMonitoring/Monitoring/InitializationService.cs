@@ -62,40 +62,88 @@ public sealed class InitializationService(
 
     public async Task InitializeAsync(InitializationRequest request, string dashboardEnvironment, CancellationToken cancellationToken)
     {
-        if (options.RequireSqlServer && string.IsNullOrWhiteSpace(request.SqlServerConnectionString)) throw new ArgumentException("SQL Server connection string is required.", nameof(request));
-        if (options.RequireKurrentDb && string.IsNullOrWhiteSpace(request.KurrentDbConnectionString)) throw new ArgumentException("KurrentDB connection string is required.", nameof(request));
-
-        if (request.TestConnections && !string.IsNullOrWhiteSpace(request.SqlServerConnectionString))
-        {
-            var sqlServer = ServiceConfigurationValidator.ToService(new ServiceRegistrationRequest
-            {
-                ServiceId = "sql-server",
-                Name = "SQL Server",
-                MonitorType = MonitorType.SqlServer,
-                ConnectionString = request.SqlServerConnectionString
-            }, dashboardEnvironment);
-            var sqlResult = await sqlServerClient.CheckAsync(sqlServer, cancellationToken);
-            if (sqlResult.Normalized.Status == HealthStatus.Unhealthy) throw new ArgumentException($"SQL Server connection test failed: {sqlResult.Normalized.Error}");
-        }
-
-        if (request.TestConnections && !string.IsNullOrWhiteSpace(request.KurrentDbConnectionString))
-        {
-            var kurrentDb = ServiceConfigurationValidator.ToService(new ServiceRegistrationRequest
-            {
-                ServiceId = "kurrentdb",
-                Name = "KurrentDB",
-                MonitorType = MonitorType.KurrentDb,
-                ConnectionString = request.KurrentDbConnectionString
-            }, dashboardEnvironment);
-            var kurrentResult = await kurrentDbClient.CheckAsync(kurrentDb, cancellationToken);
-            if (kurrentResult.Normalized.Status == HealthStatus.Unhealthy) throw new ArgumentException($"KurrentDB connection test failed: {kurrentResult.Normalized.Error}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.SqlServerConnectionString))
-            await SaveAsync(new ServiceRegistrationRequest { ServiceId = "sql-server", Name = "SQL Server", MonitorType = MonitorType.SqlServer, ConnectionString = request.SqlServerConnectionString, PollingIntervalSeconds = 60, RequestTimeoutSeconds = 10, RetentionDays = 365 }, dashboardEnvironment, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(request.KurrentDbConnectionString))
-            await SaveAsync(new ServiceRegistrationRequest { ServiceId = "kurrentdb", Name = "KurrentDB", MonitorType = MonitorType.KurrentDb, ConnectionString = request.KurrentDbConnectionString, PollingIntervalSeconds = 60, RequestTimeoutSeconds = 10, RetentionDays = 365 }, dashboardEnvironment, cancellationToken);
+        ValidateRequiredConnections(request);
+        if (request.TestConnections) await TestConnectionsAsync(request, dashboardEnvironment, cancellationToken);
+        await SaveConfiguredServicesAsync(request, dashboardEnvironment, cancellationToken);
     }
+
+    private void ValidateRequiredConnections(InitializationRequest request)
+    {
+        if (options.RequireSqlServer && string.IsNullOrWhiteSpace(request.SqlServerConnectionString))
+            throw new ArgumentException("SQL Server connection string is required.", nameof(request));
+        if (options.RequireKurrentDb && string.IsNullOrWhiteSpace(request.KurrentDbConnectionString))
+            throw new ArgumentException("KurrentDB connection string is required.", nameof(request));
+    }
+
+    private async Task TestConnectionsAsync(InitializationRequest request, string dashboardEnvironment, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SqlServerConnectionString))
+            await TestSqlServerAsync(request.SqlServerConnectionString, dashboardEnvironment, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.KurrentDbConnectionString))
+            await TestKurrentDbAsync(request.KurrentDbConnectionString, dashboardEnvironment, cancellationToken);
+    }
+
+    private async Task TestSqlServerAsync(string connectionString, string dashboardEnvironment, CancellationToken cancellationToken)
+    {
+        var service = ServiceConfigurationValidator.ToService(new ServiceRegistrationRequest
+        {
+            ServiceId = "sql-server",
+            Name = "SQL Server",
+            MonitorType = MonitorType.SqlServer,
+            ConnectionString = connectionString
+        }, dashboardEnvironment);
+        var result = await sqlServerClient.CheckAsync(service, cancellationToken);
+        ThrowIfConnectionTestFailed(result.Normalized, "SQL Server");
+    }
+
+    private async Task TestKurrentDbAsync(string connectionString, string dashboardEnvironment, CancellationToken cancellationToken)
+    {
+        var service = ServiceConfigurationValidator.ToService(new ServiceRegistrationRequest
+        {
+            ServiceId = "kurrentdb",
+            Name = "KurrentDB",
+            MonitorType = MonitorType.KurrentDb,
+            ConnectionString = connectionString
+        }, dashboardEnvironment);
+        var result = await kurrentDbClient.CheckAsync(service, cancellationToken);
+        ThrowIfConnectionTestFailed(result.Normalized, "KurrentDB");
+    }
+
+    private static void ThrowIfConnectionTestFailed(NormalizedHealthResult result, string name)
+    {
+        if (result.Status == HealthStatus.Unhealthy)
+            throw new ArgumentException($"{name} connection test failed: {result.Error}");
+    }
+
+    private async Task SaveConfiguredServicesAsync(InitializationRequest request, string dashboardEnvironment, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SqlServerConnectionString))
+            await SaveAsync(CreateSqlServerRequest(request.SqlServerConnectionString), dashboardEnvironment, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.KurrentDbConnectionString))
+            await SaveAsync(CreateKurrentDbRequest(request.KurrentDbConnectionString), dashboardEnvironment, cancellationToken);
+    }
+
+    private static ServiceRegistrationRequest CreateSqlServerRequest(string connectionString) => new()
+    {
+        ServiceId = "sql-server",
+        Name = "SQL Server",
+        MonitorType = MonitorType.SqlServer,
+        ConnectionString = connectionString,
+        PollingIntervalSeconds = 60,
+        RequestTimeoutSeconds = 10,
+        RetentionDays = 365
+    };
+
+    private static ServiceRegistrationRequest CreateKurrentDbRequest(string connectionString) => new()
+    {
+        ServiceId = "kurrentdb",
+        Name = "KurrentDB",
+        MonitorType = MonitorType.KurrentDb,
+        ConnectionString = connectionString,
+        PollingIntervalSeconds = 60,
+        RequestTimeoutSeconds = 10,
+        RetentionDays = 365
+    };
 
     private async Task SaveAsync(ServiceRegistrationRequest request, string dashboardEnvironment, CancellationToken cancellationToken)
     {

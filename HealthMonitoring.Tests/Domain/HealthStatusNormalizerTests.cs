@@ -6,6 +6,8 @@ namespace HealthMonitoring.Tests.Domain;
 
 public sealed class HealthStatusNormalizerTests
 {
+    private const string UnhealthyStatus = "Unhealthy";
+
     [Fact]
     public void All_healthy_checks_produce_healthy_status()
     {
@@ -21,7 +23,7 @@ public sealed class HealthStatusNormalizerTests
     public void Non_critical_unhealthy_check_produces_degraded_status_by_default()
     {
         var normalizer = new HealthStatusNormalizer();
-        var response = Response("Unhealthy", ("cache", "Unhealthy"));
+        var response = Response(UnhealthyStatus, ("cache", UnhealthyStatus));
 
         var result = normalizer.Normalize(response, HttpStatusCode.ServiceUnavailable, TimeSpan.FromMilliseconds(9));
 
@@ -32,7 +34,7 @@ public sealed class HealthStatusNormalizerTests
     public void Critical_check_failure_produces_unhealthy_status()
     {
         var normalizer = new HealthStatusNormalizer();
-        var response = Response("Unhealthy", ("database", "Unhealthy"));
+        var response = Response(UnhealthyStatus, ("database", UnhealthyStatus));
         var policy = new StatusPolicy { CriticalChecks = ["database"] };
 
         var result = normalizer.Normalize(response, HttpStatusCode.ServiceUnavailable, TimeSpan.FromMilliseconds(9), policy);

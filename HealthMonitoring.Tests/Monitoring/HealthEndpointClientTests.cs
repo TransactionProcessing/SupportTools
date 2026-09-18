@@ -35,6 +35,35 @@ public sealed class HealthEndpointClientTests
         Assert.Contains("timeout", result.Normalized.Error, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Non_success_response_preserves_degraded_policy_for_non_critical_dependency()
+    {
+        var body = "{\"status\":\"Unhealthy\",\"entries\":{\"cache\":{\"status\":\"Unhealthy\",\"duration\":\"00:00:00.004\",\"data\":{}}}}";
+        var handler = new StubHandler(HttpStatusCode.ServiceUnavailable, body);
+        var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
+        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+
+        var result = await client.CheckAsync(service, CancellationToken.None);
+
+        Assert.Equal(HealthStatus.Degraded, result.Normalized.Status);
+        Assert.Contains("503", result.Normalized.Error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    public async Task Invalid_health_payload_is_recorded_as_unhealthy_observation_candidate(string body)
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, body);
+        var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
+        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+
+        var result = await client.CheckAsync(service, CancellationToken.None);
+
+        Assert.Equal(HealthStatus.Unhealthy, result.Normalized.Status);
+        Assert.Contains("Invalid health response", result.Normalized.Error, StringComparison.Ordinal);
+    }
+
     private sealed class StubHandler : HttpMessageHandler
     {
         private readonly HttpStatusCode? _status;
@@ -44,7 +73,7 @@ public sealed class HealthEndpointClientTests
         public StubHandler(HttpStatusCode status, string body) { _status = status; _body = body; }
         public StubHandler(Exception exception) { _exception = exception; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
         {
             if (_exception is not null) return Task.FromException<HttpResponseMessage>(_exception);
             return Task.FromResult(new HttpResponseMessage(_status!.Value) { Content = new StringContent(_body!) });
@@ -53,6 +82,6 @@ public sealed class HealthEndpointClientTests
 
     private sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
-        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+        public HttpClient CreateClient(string _) => new(handler, disposeHandler: false);
     }
 }

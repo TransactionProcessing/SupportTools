@@ -2,12 +2,18 @@ using System.Diagnostics;
 using System.Text.Json;
 using HealthMonitoring.Domain;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 
 namespace HealthMonitoring.Monitoring;
 
 public interface ISqlServerProbe
 {
     Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken);
+}
+
+public sealed class SqlServerMonitorOptions
+{
+    public string[] AllowedDataSources { get; init; } = [];
 }
 
 public sealed class SqlServerMonitorClient(ISqlServerProbe probe) : IHealthEndpointClient
@@ -46,29 +52,41 @@ public sealed class SqlServerMonitorClient(ISqlServerProbe probe) : IHealthEndpo
     }
 }
 
-internal sealed class SqlServerProbe : ISqlServerProbe
+internal sealed class SqlServerProbe(IOptions<SqlServerMonitorOptions> options) : ISqlServerProbe
 {
     public async Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(service.ConnectionString)) throw new InvalidOperationException("SQL Server connection string is not configured.");
-
-        SqlConnectionStringBuilder builder;
-        try
-        {
-            builder = new SqlConnectionStringBuilder(service.ConnectionString);
-        }
-        catch (ArgumentException exception)
-        {
-            throw new InvalidOperationException("SQL Server connection string is invalid.", exception);
-        }
+        var connectionString = ValidateConnectionString(service.ConnectionString, options.Value.AllowedDataSources);
 
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(service.RequestTimeout);
-        await using var connection = new SqlConnection(builder.ConnectionString);
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(timeoutSource.Token);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT 1";
         command.CommandTimeout = Math.Max(1, (int)Math.Ceiling(service.RequestTimeout.TotalSeconds));
         await command.ExecuteScalarAsync(timeoutSource.Token);
+    }
+
+    private static string ValidateConnectionString(string connectionString, IReadOnlyCollection<string> allowedDataSources)
+    {
+        SqlConnectionStringBuilder builder;
+        try
+        {
+            builder = new SqlConnectionStringBuilder(connectionString);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidOperationException("SQL Server connection string is invalid.", exception);
+        }
+        if (allowedDataSources.Count == 0)
+            throw new InvalidOperationException("No SQL Server data sources are configured for monitoring.");
+
+        var dataSource = builder.DataSource.Trim();
+        if (!allowedDataSources.Any(allowed => string.Equals(allowed.Trim(), dataSource, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"SQL Server data source '{dataSource}' is not allowed for monitoring.");
+
+        return builder.ConnectionString;
     }
 }

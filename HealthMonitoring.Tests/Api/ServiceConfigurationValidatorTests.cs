@@ -5,10 +5,13 @@ namespace HealthMonitoring.Tests.Api;
 
 public sealed class ServiceConfigurationValidatorTests
 {
+    private const string ServiceId = "service";
+    private const string ServiceName = "Service";
+
     [Fact]
     public void Rejects_non_http_urls_and_invalid_intervals()
     {
-        var request = new ServiceRegistrationRequest("service", "Service", "ftp://service")
+        var request = new ServiceRegistrationRequest(ServiceId, ServiceName, "ftp://service")
         {
             PollingIntervalSeconds = 3,
             RequestTimeoutSeconds = 5,
@@ -28,14 +31,14 @@ public sealed class ServiceConfigurationValidatorTests
         var existing = new HealthMonitoring.Domain.MonitoredService
         {
             Id = Guid.NewGuid(),
-            ServiceId = "service",
-            Name = "Service",
+            ServiceId = ServiceId,
+            Name = ServiceName,
             Environment = "Production",
             HealthUrl = new Uri("https://old/health"),
             PollingInterval = TimeSpan.FromMinutes(5),
             RetentionPeriod = TimeSpan.FromDays(10)
         };
-        var request = new ServiceRegistrationRequest("service", "Updated", "https://new/health") { PollingIntervalSeconds = 30, RetentionDays = 1 };
+        var request = new ServiceRegistrationRequest(ServiceId, "Updated", "https://new/health") { PollingIntervalSeconds = 30, RetentionDays = 1 };
 
         var result = ServiceConfigurationValidator.ToService(request, "Development", existing, preserveManagedSettings: true);
 

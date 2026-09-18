@@ -33,7 +33,7 @@ public sealed class SqlServerMonitorClientTests
 
     private sealed class StubProbe(Exception? exception = null) : ISqlServerProbe
     {
-        public Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken) =>
+        public Task ProbeAsync(MonitoredService _, CancellationToken cancellationToken) =>
             exception is null ? Task.CompletedTask : Task.FromException(exception);
     }
 }

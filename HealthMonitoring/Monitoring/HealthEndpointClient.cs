@@ -41,14 +41,20 @@ public sealed class HealthEndpointClient(IHttpClientFactory httpClientFactory, I
                 var normalized = normalizer.Normalize(parsed, response.StatusCode, stopwatch.Elapsed, service.StatusPolicy) with { RawResponse = raw };
                 if (!response.IsSuccessStatusCode)
                 {
-                    normalized = normalized with { Status = HealthStatus.Unhealthy, Error = $"Health endpoint returned {(int)response.StatusCode} {response.ReasonPhrase}." };
+                    normalized = normalized with
+                    {
+                        Error = normalized.Error ?? $"Health endpoint returned {(int)response.StatusCode} {response.ReasonPhrase}."
+                    };
                 }
 
                 return new HealthEndpointResult(normalized, response.StatusCode, stopwatch.Elapsed, raw);
             }
-            catch (JsonException)
+            catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
             {
-                var normalized = normalizer.NormalizeInvalid(response.StatusCode, raw, stopwatch.Elapsed, service.StatusPolicy);
+                var normalized = normalizer.NormalizeInvalid(response.StatusCode, raw, stopwatch.Elapsed, service.StatusPolicy) with
+                {
+                    Error = $"Invalid health response: {raw}"
+                };
                 return new HealthEndpointResult(normalized, response.StatusCode, stopwatch.Elapsed, raw);
             }
         }
