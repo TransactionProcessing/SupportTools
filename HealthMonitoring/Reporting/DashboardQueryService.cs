@@ -37,7 +37,11 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
         var incidents = await dbContext.ServiceIncidents.AsNoTracking().Where(item => item.MonitoredServiceId == service.Id && (item.EndedAtUtc == null || item.EndedAtUtc >= from)).OrderByDescending(item => item.StartedAtUtc).ToListAsync(cancellationToken);
         var snapshot = await dbContext.ServiceStatusSnapshots.AsNoTracking().SingleOrDefaultAsync(item => item.MonitoredServiceId == service.Id, cancellationToken);
         var checks = observations.SelectMany(item => item.Checks).ToArray();
-        return new ServiceDetailModel(service, ToRow(service, snapshot, observations), observations, incidents, checks);
+        var dependencyLinks = await dbContext.ServiceDependencyLinks.AsNoTracking()
+            .Where(link => link.MonitoredServiceId == service.Id)
+            .Join(dbContext.MonitoredServices.AsNoTracking(), link => link.TargetMonitoredServiceId, target => target.Id, (link, target) => new ResolvedDependencyLink(link.DependencyName, target.ServiceId, target.Name))
+            .ToListAsync(cancellationToken);
+        return new ServiceDetailModel(service, ToRow(service, snapshot, observations), observations, incidents, checks, dependencyLinks);
     }
 
     private static ServiceDashboardRow ToRow(MonitoredService service, ServiceStatusSnapshot? snapshot, IReadOnlyList<HealthObservation> observations)

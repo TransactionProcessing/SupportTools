@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace HealthMonitoring.Domain;
 
 public sealed class MonitoredService
@@ -6,9 +8,13 @@ public sealed class MonitoredService
     public string ServiceId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
+    public MonitorType MonitorType { get; set; } = MonitorType.HttpHealthEndpoint;
     public string? Group { get; set; }
     public string? Description { get; set; }
     public Uri HealthUrl { get; set; } = new("https://localhost");
+    [JsonIgnore]
+    public string? ConnectionString { get; set; }
+    public bool IgnoreCertificateErrors { get; set; }
     public bool IsEnabled { get; set; } = true;
     public TimeSpan PollingInterval { get; set; } = TimeSpan.FromMinutes(1);
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(10);

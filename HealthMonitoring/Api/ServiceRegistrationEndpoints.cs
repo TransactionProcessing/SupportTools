@@ -5,7 +5,7 @@ namespace HealthMonitoring.Api;
 
 public static class ServiceRegistrationEndpoints
 {
-    public static IEndpointRouteBuilder MapServiceRegistrationEndpoints(this IEndpointRouteBuilder endpoints)
+    public static IEndpointRouteBuilder MapServiceRegistrationEndpoints(this IEndpointRouteBuilder endpoints, string dashboardEnvironment)
     {
         endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
         {
@@ -13,7 +13,7 @@ public static class ServiceRegistrationEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors.ToDictionary(error => error, error => new[] { error }));
 
             var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
-            var service = ServiceConfigurationValidator.ToService(request, existing, preserveManagedSettings: true);
+            var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: true);
             await repository.UpsertServiceAsync(service, cancellationToken);
             var action = existing is null ? "created" : "acknowledged";
             return existing is null
@@ -28,7 +28,7 @@ public static class ServiceRegistrationEndpoints
             foreach (var service in services)
             {
                 var snapshot = await repository.GetSnapshotAsync(service.Id, cancellationToken);
-                results.Add(new ServiceSummary(service.ServiceId, service.Name, service.Environment, service.HealthUrl.ToString(), service.IsEnabled, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastObservedAtUtc, snapshot?.LastResponseDuration, snapshot?.LastError));
+                results.Add(new ServiceSummary(service.Id, service.ServiceId, service.Name, service.Environment, service.MonitorType, service.HealthUrl.ToString(), service.IsEnabled, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastObservedAtUtc, snapshot?.LastResponseDuration, snapshot?.LastError));
             }
 
             return Results.Ok(results);
@@ -48,7 +48,7 @@ public static class ServiceRegistrationEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors.ToDictionary(error => error, error => new[] { error }));
             var existing = await repository.GetServiceAsync(serviceId, cancellationToken);
             if (existing is null) return Results.NotFound();
-            var service = ServiceConfigurationValidator.ToService(request, existing, preserveManagedSettings: false);
+            var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: false);
             await repository.UpsertServiceAsync(service, cancellationToken);
             return Results.Ok(service);
         });

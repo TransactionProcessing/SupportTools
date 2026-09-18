@@ -1,0 +1,56 @@
+@page "/initialise"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Operational Support · Initialisation</PageTitle>
+<div class="initialisation-overview">
+    <div class="initialise-breadcrumb">Home <span>›</span> Initialisation</div>
+    <div class="initialise-heading">
+        <p class="eyebrow">OPERATIONAL SUPPORT</p>
+        <h1>Initialisation</h1>
+        <p class="muted">Set up and configure the areas of the Operational Support platform. Complete each section to enable full functionality.</p>
+    </div>
+
+    @if (_status is null)
+    {
+        <div class="panel">Loading initialisation status…</div>
+    }
+    else
+    {
+        <div class="initialisation-cards">
+            <section class="initialisation-card configured">
+                <div class="initialisation-icon">⌁</div>
+                <div class="initialisation-card-body">
+                    <div class="initialisation-card-heading"><h2>Health Monitoring</h2><span class="initialisation-status @(_status.Complete ? "complete" : "required")">@(_status.Complete ? "✓ Configured" : "Action required")</span></div>
+                    <p>Configure SQL Server and KurrentDB data sources for health monitoring.</p>
+                    <a class="initialisation-card-action" href="/health-monitoring/initialise">@(_status.Complete ? "Review settings" : "Set up Health Monitoring") <span>›</span></a>
+                </div>
+            </section>
+            <section class="initialisation-card future">
+                <div class="initialisation-icon">△</div>
+                <div class="initialisation-card-body"><div class="initialisation-card-heading"><h2>Incidents</h2><span class="initialisation-status soon">Coming soon</span></div><p>Set up incident management and notification integrations.</p><span class="initialisation-card-arrow">›</span></div>
+            </section>
+            <section class="initialisation-card future">
+                <div class="initialisation-icon">◇</div>
+                <div class="initialisation-card-body"><div class="initialisation-card-heading"><h2>Service Catalogue</h2><span class="initialisation-status soon">Coming soon</span></div><p>Configure service definitions, ownership, and support contacts.</p><span class="initialisation-card-arrow">›</span></div>
+            </section>
+            <section class="initialisation-card future">
+                <div class="initialisation-icon">▤</div>
+                <div class="initialisation-card-body"><div class="initialisation-card-heading"><h2>Runbooks</h2><span class="initialisation-status soon">Coming soon</span></div><p>Set up runbook repositories and operational recovery procedures.</p><span class="initialisation-card-arrow">›</span></div>
+            </section>
+        </div>
+        <div class="initialisation-footer"><span class="muted">You can return to this page at any time from Configuration.</span><a class="button" href="@(_status.Complete ? "/" : "/health-monitoring/initialise")">@(_status.Complete ? "Continue to dashboard" : "Continue setup")</a></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error)) { <p class="error">@_error</p> }
+</div>
+
+@code {
+    private InitializationStatus? _status;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _status = await Http.GetFromJsonAsync<InitializationStatus>(new Uri(new Uri(Navigation.BaseUri), "api/initialization/status")); }
+        catch (Exception exception) { _error = exception.Message; }
+    }
+}

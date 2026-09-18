@@ -38,9 +38,12 @@ public sealed class HealthMonitoringRepository(HealthMonitoringDbContext dbConte
         {
             existing.Name = service.Name;
             existing.Environment = service.Environment;
+            existing.MonitorType = service.MonitorType;
             existing.Group = service.Group;
             existing.Description = service.Description;
             existing.HealthUrl = service.HealthUrl;
+            existing.ConnectionString = service.ConnectionString;
+            existing.IgnoreCertificateErrors = service.IgnoreCertificateErrors;
             existing.IsEnabled = service.IsEnabled;
             existing.PollingInterval = service.PollingInterval;
             existing.RequestTimeout = service.RequestTimeout;
@@ -124,6 +127,42 @@ public sealed class HealthMonitoringRepository(HealthMonitoringDbContext dbConte
         await dbContext.HealthObservations
             .Where(observation => observation.MonitoredServiceId == serviceId && observation.ObservedAtUtc < cutoffUtc)
             .ExecuteDeleteAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ServiceDependencyLink>> ListDependencyLinksAsync(Guid serviceId, CancellationToken cancellationToken) =>
+        await dbContext.ServiceDependencyLinks.AsNoTracking()
+            .Where(link => link.MonitoredServiceId == serviceId)
+            .OrderBy(link => link.DependencyName)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ServiceDependencyLink> UpsertDependencyLinkAsync(ServiceDependencyLink link, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ServiceDependencyLinks.SingleOrDefaultAsync(
+            item => item.Id == link.Id,
+            cancellationToken);
+
+        if (existing is null)
+        {
+            dbContext.ServiceDependencyLinks.Add(link);
+        }
+        else
+        {
+            existing.MonitoredServiceId = link.MonitoredServiceId;
+            existing.DependencyName = link.DependencyName;
+            existing.TargetMonitoredServiceId = link.TargetMonitoredServiceId;
+            existing.UpdatedAtUtc = link.UpdatedAtUtc;
+            link = existing;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return link;
+    }
+
+    public async Task DeleteDependencyLinkAsync(Guid linkId, CancellationToken cancellationToken)
+    {
+        await dbContext.ServiceDependencyLinks
+            .Where(link => link.Id == linkId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 
     private static MonitoredService? HydratePolicy(MonitoredService? service)
     {

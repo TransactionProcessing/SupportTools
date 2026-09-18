@@ -9,23 +9,27 @@ public static class ServiceConfigurationValidator
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(request.ServiceId)) errors.Add("ServiceId is required.");
         if (string.IsNullOrWhiteSpace(request.Name)) errors.Add("Name is required.");
-        if (string.IsNullOrWhiteSpace(request.Environment)) errors.Add("Environment is required.");
-        if (!Uri.TryCreate(request.HealthUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) errors.Add("HealthUrl must be an absolute HTTP or HTTPS URL.");
+        if (!Enum.IsDefined(request.MonitorType)) errors.Add("MonitorType is invalid.");
+        if (request.MonitorType == MonitorType.HttpHealthEndpoint && (!Uri.TryCreate(request.HealthUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))) errors.Add("HealthUrl must be an absolute HTTP or HTTPS URL.");
+        if (request.MonitorType is MonitorType.KurrentDb or MonitorType.SqlServer && string.IsNullOrWhiteSpace(request.ConnectionString)) errors.Add("ConnectionString is required for database monitors.");
         if (request.PollingIntervalSeconds < 5) errors.Add("PollingIntervalSeconds must be at least 5.");
         if (request.RequestTimeoutSeconds < 1 || request.RequestTimeoutSeconds > request.PollingIntervalSeconds) errors.Add("RequestTimeoutSeconds must be between 1 and the polling interval.");
         if (request.RetentionDays < 1) errors.Add("RetentionDays must be positive.");
         return errors;
     }
 
-    public static MonitoredService ToService(ServiceRegistrationRequest request, MonitoredService? existing = null, bool preserveManagedSettings = true) => new()
+    public static MonitoredService ToService(ServiceRegistrationRequest request, string dashboardEnvironment, MonitoredService? existing = null, bool preserveManagedSettings = true) => new()
     {
         Id = existing?.Id ?? Guid.NewGuid(),
         ServiceId = request.ServiceId,
         Name = request.Name,
-        Environment = request.Environment,
+        Environment = dashboardEnvironment,
         Group = request.Group,
         Description = request.Description,
-        HealthUrl = new Uri(request.HealthUrl),
+        MonitorType = request.MonitorType,
+        HealthUrl = Uri.TryCreate(request.HealthUrl, UriKind.Absolute, out var healthUrl) ? healthUrl : new Uri("http://localhost/health"),
+        ConnectionString = request.ConnectionString,
+        IgnoreCertificateErrors = request.IgnoreCertificateErrors,
         IsEnabled = existing?.IsEnabled ?? true,
         PollingInterval = preserveManagedSettings && existing is not null ? existing.PollingInterval : TimeSpan.FromSeconds(request.PollingIntervalSeconds),
         RequestTimeout = preserveManagedSettings && existing is not null ? existing.RequestTimeout : TimeSpan.FromSeconds(request.RequestTimeoutSeconds),

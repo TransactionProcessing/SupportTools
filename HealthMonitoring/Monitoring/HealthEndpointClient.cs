@@ -16,7 +16,7 @@ public interface IHealthEndpointClient
     Task<HealthEndpointResult> CheckAsync(MonitoredService service, CancellationToken cancellationToken);
 }
 
-public sealed class HealthEndpointClient(HttpClient httpClient, IHealthStatusNormalizer normalizer) : IHealthEndpointClient
+public sealed class HealthEndpointClient(IHttpClientFactory httpClientFactory, IHealthStatusNormalizer normalizer) : IHealthEndpointClient
 {
     public async Task<HealthEndpointResult> CheckAsync(MonitoredService service, CancellationToken cancellationToken)
     {
@@ -25,6 +25,13 @@ public sealed class HealthEndpointClient(HttpClient httpClient, IHealthStatusNor
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(service.RequestTimeout);
+            using var customClient = service.IgnoreCertificateErrors && service.HealthUrl.Scheme == Uri.UriSchemeHttps
+                ? new HttpClient(new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                })
+                : null;
+            var httpClient = customClient ?? httpClientFactory.CreateClient();
             using var response = await httpClient.GetAsync(service.HealthUrl, timeout.Token);
             var raw = await response.Content.ReadAsStringAsync(timeout.Token);
             stopwatch.Stop();

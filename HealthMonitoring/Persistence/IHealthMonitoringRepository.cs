@@ -16,4 +16,7 @@ public interface IHealthMonitoringRepository
     Task AddIncidentAsync(ServiceIncident incident, CancellationToken cancellationToken);
     Task UpdateIncidentAsync(ServiceIncident incident, CancellationToken cancellationToken);
     Task<int> DeleteObservationsBeforeAsync(Guid serviceId, DateTimeOffset cutoffUtc, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ServiceDependencyLink>> ListDependencyLinksAsync(Guid serviceId, CancellationToken cancellationToken);
+    Task<ServiceDependencyLink> UpsertDependencyLinkAsync(ServiceDependencyLink link, CancellationToken cancellationToken);
+    Task DeleteDependencyLinkAsync(Guid linkId, CancellationToken cancellationToken);
 }

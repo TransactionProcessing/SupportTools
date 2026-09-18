@@ -12,7 +12,13 @@ public static class HealthMonitoringServiceCollectionExtensions
         services.AddScoped<IHealthMonitoringRepository>(provider => provider.GetRequiredService<HealthMonitoringRepository>());
         services.AddScoped<IMonitoringStateRepository>(provider => provider.GetRequiredService<HealthMonitoringRepository>());
         services.AddSingleton<IHealthStatusNormalizer, HealthStatusNormalizer>();
-        services.AddHttpClient<IHealthEndpointClient, HealthEndpointClient>();
+        // HealthEndpointClient selects the default or certificate-bypassing client per service,
+        // so it must receive IHttpClientFactory rather than be registered as a typed HttpClient.
+        services.AddScoped<IHealthEndpointClient, HealthEndpointClient>();
+        services.AddSingleton<IKurrentDbProbe, KurrentDbProbe>();
+        services.AddScoped<KurrentDbMonitorClient>();
+        services.AddSingleton<ISqlServerProbe, SqlServerProbe>();
+        services.AddScoped<SqlServerMonitorClient>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IAlertDispatcher, LoggingAlertDispatcher>();
         services.AddScoped<IncidentCalculator>();

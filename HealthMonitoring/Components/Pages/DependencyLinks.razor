@@ -1,0 +1,147 @@
+@page "/services/{ServiceId}/dependencies"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Operational Support · Dependency links</PageTitle>
+
+@if (_service is null)
+{
+    <p class="panel">Loading dependency links…</p>
+}
+else
+{
+    <div class="page-heading">
+        <div>
+            <a class="back-link" href="@($"/services/{ServiceId}")">← Back to @_service.Name</a>
+            <p class="eyebrow">CONFIGURATION</p>
+            <h1>Dependency links</h1>
+            <p class="muted">Map health checks to monitored services for drill-down navigation.</p>
+        </div>
+    </div>
+
+    <section class="panel mapping-panel">
+        @if (_links.Count == 0)
+        {
+            <p class="empty">No dependency links configured yet.</p>
+        }
+        else
+        {
+            <div class="mapping-heading"><span>Dependency check</span><span>Linked monitored service</span><span>Actions</span></div>
+            @foreach (var link in _links)
+            {
+                <div class="mapping-row">
+                    <strong>@link.DependencyName</strong>
+                    <a href="@($"/services/{link.TargetServiceId}")">@link.TargetServiceName</a>
+                    <div class="mapping-actions">
+                        <button class="link-button" @onclick="() => BeginEdit(link)">Edit</button>
+                        <button class="danger-button" @onclick="() => DeleteAsync(link.Id)">Delete</button>
+                    </div>
+                </div>
+            }
+        }
+
+        <div class="mapping-form">
+            <h2>@(_editingId is null ? "Add dependency link" : "Edit dependency link")</h2>
+            <div class="mapping-form-grid">
+                <label>Dependency name from health response<input @bind="_dependencyName" placeholder="For example, Eventstore" /></label>
+                <label>Linked monitored service<select @bind="_targetServiceId"><option value="">Select monitored service</option>@foreach (var service in _services.Where(service => service.ServiceId != ServiceId)) { <option value="@service.ServiceId">@service.Name (@service.Environment)</option> }</select></label>
+                <div class="mapping-form-actions"><button class="button" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Saving…" : _editingId is null ? "Add mapping" : "Save mapping")</button>@if (_editingId is not null) { <button class="button secondary" @onclick="CancelEdit">Cancel</button> }</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_error)) { <p class="error">@_error</p> }
+        </div>
+
+        <p class="mapping-note">Unmapped dependency checks remain visible without a drill-down link.</p>
+    </section>
+}
+
+@code {
+    [Parameter] public string ServiceId { get; set; } = string.Empty;
+    private MonitoredService? _service;
+    private List<DependencyLinkResponse> _links = [];
+    private List<ServiceSummary> _services = [];
+    private string _dependencyName = string.Empty;
+    private string _targetServiceId = string.Empty;
+    private Guid? _editingId;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _service = await Http.GetFromJsonAsync<MonitoredService>(ApiUri($"api/services/{ServiceId}"));
+        if (_service is null) return;
+        _links = await Http.GetFromJsonAsync<List<DependencyLinkResponse>>(ApiUri($"api/services/{ServiceId}/dependency-links")) ?? [];
+        _services = await Http.GetFromJsonAsync<List<ServiceSummary>>(ApiUri("api/services")) ?? [];
+    }
+
+    private void BeginEdit(DependencyLinkResponse link)
+    {
+        _editingId = link.Id;
+        _dependencyName = link.DependencyName;
+        _targetServiceId = link.TargetServiceId;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _dependencyName = string.Empty;
+        _targetServiceId = string.Empty;
+        _error = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_dependencyName) || string.IsNullOrWhiteSpace(_targetServiceId))
+            {
+                _error = "Dependency name and target service are required.";
+                return;
+            }
+
+            var target = _services.FirstOrDefault(service => service.ServiceId == _targetServiceId);
+            if (target is null)
+            {
+                _error = "Select an active monitored service.";
+                return;
+            }
+
+            var request = new DependencyLinkRequest(_dependencyName, target.Id);
+            HttpResponseMessage response;
+            if (_editingId is { } editingId)
+                response = await Http.PutAsJsonAsync(ApiUri($"api/services/{ServiceId}/dependency-links/{editingId}"), request);
+            else
+                response = await Http.PostAsJsonAsync(ApiUri($"api/services/{ServiceId}/dependency-links"), request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            CancelEdit();
+            _links = await Http.GetFromJsonAsync<List<DependencyLinkResponse>>(ApiUri($"api/services/{ServiceId}/dependency-links")) ?? [];
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(Guid linkId)
+    {
+        var response = await Http.DeleteAsync(ApiUri($"api/services/{ServiceId}/dependency-links/{linkId}"));
+        if (response.IsSuccessStatusCode)
+            _links = await Http.GetFromJsonAsync<List<DependencyLinkResponse>>(ApiUri($"api/services/{ServiceId}/dependency-links")) ?? [];
+        else
+            _error = await response.Content.ReadAsStringAsync();
+    }
+
+    private Uri ApiUri(string relativePath) => DashboardApiUri.Create(Navigation.BaseUri, relativePath);
+}

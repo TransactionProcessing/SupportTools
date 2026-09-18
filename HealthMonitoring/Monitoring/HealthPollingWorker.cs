@@ -36,6 +36,8 @@ public sealed class HealthPollingWorker(
         await using var scope = scopeFactory.CreateAsyncScope();
         var repository = scope.ServiceProvider.GetRequiredService<IHealthMonitoringRepository>();
         var endpointClient = scope.ServiceProvider.GetRequiredService<IHealthEndpointClient>();
+        var kurrentDbClient = scope.ServiceProvider.GetRequiredService<KurrentDbMonitorClient>();
+        var sqlServerClient = scope.ServiceProvider.GetRequiredService<SqlServerMonitorClient>();
         var calculator = scope.ServiceProvider.GetRequiredService<IncidentCalculator>();
         var services = await repository.ListServicesAsync(false, cancellationToken);
         var now = DateTimeOffset.UtcNow;
@@ -48,7 +50,12 @@ public sealed class HealthPollingWorker(
             }
 
             _nextPollAt[service.Id] = now.Add(service.PollingInterval);
-            var result = await endpointClient.CheckAsync(service, cancellationToken);
+            var result = service.MonitorType switch
+            {
+                MonitorType.KurrentDb => await kurrentDbClient.CheckAsync(service, cancellationToken),
+                MonitorType.SqlServer => await sqlServerClient.CheckAsync(service, cancellationToken),
+                _ => await endpointClient.CheckAsync(service, cancellationToken)
+            };
             var observation = ToObservation(service, result, now);
             await repository.AddObservationAsync(observation, cancellationToken);
             await calculator.ApplyAsync(service, observation, cancellationToken);

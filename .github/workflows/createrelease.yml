@@ -69,6 +69,12 @@ jobs:
         name: scheduledtasks
         path: ScheduledTasks
 
+    - name: Build and Publish Nuget Packages
+      if: ${{ github.event.release.prerelease == false }}
+      run: |
+        dotnet pack "HealthMonitoring.Client\HealthMonitoring.Client.csproj" /p:PackageVersion=${{ steps.get_version.outputs.VERSION }} --output Nugets
+        dotnet nuget push Nugets/HealthMonitoring.Client.${{ steps.get_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }} --skip-duplicate
+
   buildsqlagentjobdeploymenttool:
     name: "Build SQL Agent Job Deployment Tool"
     runs-on: windows-latest

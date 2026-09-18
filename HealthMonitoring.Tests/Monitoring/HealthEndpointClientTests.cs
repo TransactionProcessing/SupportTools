@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using HealthMonitoring.Domain;
 using HealthMonitoring.Monitoring;
+using Microsoft.Extensions.Http;
 
 namespace HealthMonitoring.Tests.Monitoring;
 
@@ -11,7 +12,7 @@ public sealed class HealthEndpointClientTests
     public async Task Parses_standard_aspnet_health_response()
     {
         var handler = new StubHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\",\"entries\":{\"database\":{\"status\":\"Healthy\",\"duration\":\"00:00:00.004\",\"data\":{}}}}" );
-        var client = new HealthEndpointClient(new HttpClient(handler), new HealthStatusNormalizer());
+        var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
         var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
@@ -25,7 +26,7 @@ public sealed class HealthEndpointClientTests
     public async Task Timeout_is_recorded_as_unhealthy_observation_candidate()
     {
         var handler = new StubHandler(new TaskCanceledException("timeout"));
-        var client = new HealthEndpointClient(new HttpClient(handler), new HealthStatusNormalizer());
+        var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
         var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
@@ -48,5 +49,10 @@ public sealed class HealthEndpointClientTests
             if (_exception is not null) return Task.FromException<HttpResponseMessage>(_exception);
             return Task.FromResult(new HttpResponseMessage(_status!.Value) { Content = new StringContent(_body!) });
         }
+    }
+
+    private sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 }

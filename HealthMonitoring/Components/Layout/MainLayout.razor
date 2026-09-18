@@ -2,12 +2,21 @@
 
 <div class="shell">
     <aside class="sidebar">
-        <div class="brand">HealthWatch</div>
+        <div class="brand">Operational Support<small>Service reliability workspace</small></div>
+        <div class="nav-section-label">Workspace</div>
         <nav>
-            <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
-            <NavLink href="/services/new">Register service</NavLink>
+            <NavLink href="/">Health Monitoring</NavLink>
+            <span class="nav-future" aria-disabled="true">Incidents <span>Soon</span></span>
+            <span class="nav-future" aria-disabled="true">Service Catalogue <span>Soon</span></span>
+            <span class="nav-future" aria-disabled="true">Runbooks <span>Soon</span></span>
         </nav>
-        <div class="sidebar-note">ASP.NET health monitoring<br />SQL Server history</div>
+        <div class="nav-section-label">Administration</div>
+        <nav>
+            <NavLink href="/initialise">Initialisation</NavLink>
+            <span class="nav-future" aria-disabled="true">Configuration <span>Soon</span></span>
+            <span class="nav-future" aria-disabled="true">Alerting <span>Soon</span></span>
+        </nav>
+        <div class="sidebar-note">Operational Support<br />Health Monitoring</div>
     </aside>
     <main class="main-content">@Body</main>
 </div>
