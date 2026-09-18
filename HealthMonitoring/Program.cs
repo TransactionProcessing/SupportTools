@@ -33,6 +33,7 @@ using (var scope = app.Services.CreateScope())
 app.MapServiceRegistrationEndpoints();
 app.MapHealthChecks("/health");
 app.UseStaticFiles();
+app.UseAntiforgery();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
