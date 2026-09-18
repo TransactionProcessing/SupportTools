@@ -52,9 +52,19 @@ internal sealed class SqlServerProbe : ISqlServerProbe
     {
         if (string.IsNullOrWhiteSpace(service.ConnectionString)) throw new InvalidOperationException("SQL Server connection string is not configured.");
 
+        SqlConnectionStringBuilder builder;
+        try
+        {
+            builder = new SqlConnectionStringBuilder(service.ConnectionString);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidOperationException("SQL Server connection string is invalid.", exception);
+        }
+
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(service.RequestTimeout);
-        await using var connection = new SqlConnection(service.ConnectionString);
+        await using var connection = new SqlConnection(builder.ConnectionString);
         await connection.OpenAsync(timeoutSource.Token);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT 1";
