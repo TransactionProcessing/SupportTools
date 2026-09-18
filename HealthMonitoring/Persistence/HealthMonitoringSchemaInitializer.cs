@@ -119,6 +119,9 @@ public static class HealthMonitoringSchemaInitializer
             case LegacyDurationColumn.LastResponseDuration:
                 await ConvertLegacySnapshotDurationAsync(dbContext, cancellationToken);
                 break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(migration), migration, "Unknown legacy duration column.");
         }
     }
 

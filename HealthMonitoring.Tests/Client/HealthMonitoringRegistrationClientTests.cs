@@ -112,8 +112,9 @@ public sealed class HealthMonitoringRegistrationClientTests
     {
         public HttpRequestMessage? Request { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Request = request;
             return Task.FromResult(responseFactory(request));
         }
@@ -124,8 +125,9 @@ public sealed class HealthMonitoringRegistrationClientTests
         private int _index;
         public List<HttpRequestMessage> Requests { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Requests.Add(request);
             return Task.FromResult(responses[_index++]);
         }

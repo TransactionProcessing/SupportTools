@@ -8,12 +8,14 @@ namespace HealthMonitoring.Tests.Monitoring;
 
 public sealed class HealthEndpointClientTests
 {
+    private const string HealthEndpointUrl = "https://service/health";
+
     [Fact]
     public async Task Parses_standard_aspnet_health_response()
     {
         var handler = new StubHandler(HttpStatusCode.OK, "{\"status\":\"Healthy\",\"entries\":{\"database\":{\"status\":\"Healthy\",\"duration\":\"00:00:00.004\",\"data\":{}}}}" );
         var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
-        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+        var service = new MonitoredService { HealthUrl = new Uri(HealthEndpointUrl) };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
 
@@ -27,7 +29,7 @@ public sealed class HealthEndpointClientTests
     {
         var handler = new StubHandler(new TaskCanceledException("timeout"));
         var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
-        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+        var service = new MonitoredService { HealthUrl = new Uri(HealthEndpointUrl) };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
 
@@ -41,7 +43,7 @@ public sealed class HealthEndpointClientTests
         var body = "{\"status\":\"Unhealthy\",\"entries\":{\"cache\":{\"status\":\"Unhealthy\",\"duration\":\"00:00:00.004\",\"data\":{}}}}";
         var handler = new StubHandler(HttpStatusCode.ServiceUnavailable, body);
         var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
-        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+        var service = new MonitoredService { HealthUrl = new Uri(HealthEndpointUrl) };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
 
@@ -56,7 +58,7 @@ public sealed class HealthEndpointClientTests
     {
         var handler = new StubHandler(HttpStatusCode.OK, body);
         var client = new HealthEndpointClient(new StubHttpClientFactory(handler), new HealthStatusNormalizer());
-        var service = new MonitoredService { HealthUrl = new Uri("https://service/health") };
+        var service = new MonitoredService { HealthUrl = new Uri(HealthEndpointUrl) };
 
         var result = await client.CheckAsync(service, CancellationToken.None);
 
@@ -73,8 +75,10 @@ public sealed class HealthEndpointClientTests
         public StubHandler(HttpStatusCode status, string body) { _status = status; _body = body; }
         public StubHandler(Exception exception) { _exception = exception; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            _ = request;
+            cancellationToken.ThrowIfCancellationRequested();
             if (_exception is not null) return Task.FromException<HttpResponseMessage>(_exception);
             return Task.FromResult(new HttpResponseMessage(_status!.Value) { Content = new StringContent(_body!) });
         }
@@ -82,6 +86,10 @@ public sealed class HealthEndpointClientTests
 
     private sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
-        public HttpClient CreateClient(string _) => new(handler, disposeHandler: false);
+        public HttpClient CreateClient(string name)
+        {
+            _ = name;
+            return new(handler, disposeHandler: false);
+        }
     }
 }

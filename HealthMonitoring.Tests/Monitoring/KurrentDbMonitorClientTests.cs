@@ -34,7 +34,11 @@ public sealed class KurrentDbMonitorClientTests
 
     private sealed class StubProbe(Exception? exception = null) : IKurrentDbProbe
     {
-        public Task ProbeAsync(MonitoredService _, CancellationToken cancellationToken) =>
-            exception is null ? Task.CompletedTask : Task.FromException(exception);
+        public Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken)
+        {
+            _ = service;
+            cancellationToken.ThrowIfCancellationRequested();
+            return exception is null ? Task.CompletedTask : Task.FromException(exception);
+        }
     }
 }
