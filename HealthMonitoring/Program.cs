@@ -11,14 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<HealthMonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("HealthMonitoring")));
-builder.Services.AddScoped<IHealthMonitoringRepository, HealthMonitoringRepository>();
-builder.Services.AddSingleton<IHealthStatusNormalizer, HealthStatusNormalizer>();
-builder.Services.AddHttpClient<IHealthEndpointClient, HealthEndpointClient>();
-builder.Services.AddSingleton<IClock, SystemClock>();
-builder.Services.AddScoped<IAlertDispatcher, LoggingAlertDispatcher>();
-builder.Services.AddScoped<IncidentCalculator>();
-builder.Services.AddHostedService<HealthPollingWorker>();
-builder.Services.AddHostedService<RetentionCleanupWorker>();
+builder.Services.AddHealthMonitoringServices();
 builder.Services.AddHttpClient();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddScoped<IDashboardQueryService, DashboardQueryService>();
