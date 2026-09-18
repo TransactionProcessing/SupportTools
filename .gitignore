@@ -357,3 +357,5 @@ MigrationBackup/
 /TransactionProcessing.MerchantPos/merchant.db-shm
 /TransactionProcessing.MerchantPos/merchant.db-wal
 /TransactionProcessor.SystemSetupTool/Properties/launchSettings.json
+# Codex implementation worktrees
+.worktrees/
