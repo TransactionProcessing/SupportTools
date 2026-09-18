@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">HealthWatch</div>
+        <nav>
+            <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
+            <NavLink href="/services/new">Register service</NavLink>
+        </nav>
+        <div class="sidebar-note">ASP.NET health monitoring<br />SQL Server history</div>
+    </aside>
+    <main class="main-content">@Body</main>
+</div>

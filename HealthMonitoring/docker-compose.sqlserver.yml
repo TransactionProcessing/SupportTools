@@ -1,0 +1,17 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "ChangeThisStrongPassword!123"
+    ports:
+      - "1433:1433"
+  health-monitoring:
+    build: .
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__HealthMonitoring: Server=sqlserver;Database=HealthMonitoring;User Id=sa;Password=ChangeThisStrongPassword!123;TrustServerCertificate=True
+    ports:
+      - "8080:8080"

@@ -1,0 +1,20 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #17212b; background: #f3f6f7; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; text-decoration: none; }
+.shell { display: flex; min-height: 100vh; }
+.sidebar { width: 230px; background: #17212b; color: #d7e1e5; padding: 28px 18px; display: flex; flex-direction: column; }
+.brand { color: #fff; font-size: 20px; font-weight: 800; margin: 0 12px 34px; }
+nav { display: grid; gap: 6px; } nav a { padding: 11px 12px; border-radius: 8px; } nav a.active, nav a:hover { background: #263946; color: #fff; }
+.sidebar-note { margin-top: auto; font-size: 12px; color: #91a3ad; line-height: 1.5; padding: 12px; }
+.main-content { max-width: 1280px; width: 100%; padding: 42px 48px; margin: 0 auto; }
+.page-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 28px; } h1 { margin: 4px 0; font-size: 32px; } h2 { font-size: 18px; margin: 0 0 18px; } .eyebrow { color: #6d7e88; font-size: 11px; letter-spacing: .12em; font-weight: 800; margin: 0; } .muted { color: #71818a; }
+.button { display: inline-block; border: 0; border-radius: 8px; background: #2563d8; color: #fff; padding: 11px 16px; font-weight: 700; cursor: pointer; } .button.secondary { background: #e1e8eb; color: #263641; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; } .stat-grid.three { grid-template-columns: repeat(3, 1fr); }
+.stat-card { background: #fff; border-radius: 11px; padding: 18px; border-left: 4px solid #a7b2b8; box-shadow: 0 2px 10px #23323c0b; } .stat-card span { display: block; color: #71818a; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; } .stat-card strong { display: block; font-size: 27px; margin-top: 8px; } .stat-card.healthy { border-color: #39c77c; } .stat-card.degraded { border-color: #e2aa3c; } .stat-card.unhealthy { border-color: #e14d5c; }
+.panel { background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 2px 10px #23323c0b; margin-bottom: 20px; } .table-heading, .service-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1.4fr; gap: 14px; align-items: center; } .table-heading { padding: 0 12px 12px; color: #71818a; font-size: 11px; font-weight: 800; text-transform: uppercase; } .service-row { padding: 15px 12px; border-top: 1px solid #edf0f1; font-size: 13px; } .service-row:hover { background: #f8fafb; } .service-row small, .service-row strong { display: block; } .service-row small { color: #71818a; margin-top: 3px; }
+.status { font-weight: 800; font-size: 13px; } .status.healthy { color: #1fa667; } .status.degraded { color: #b77b12; } .status.unhealthy { color: #d23b4b; } .status.unknown { color: #71818a; } .empty { color: #71818a; text-align: center; padding: 20px; }
+.detail-status { display: flex; gap: 16px; align-items: center; margin: -12px 0 20px; color: #71818a; } .timeline { display: flex; gap: 2px; height: 28px; } .timeline-segment { flex: 1; border-radius: 4px; min-width: 3px; } .timeline-segment.healthy { background: #39c77c; } .timeline-segment.degraded { background: #e2aa3c; } .timeline-segment.unhealthy { background: #e14d5c; } .timeline-segment.unknown { background: #a7b2b8; }
+.check-table .service-row { grid-template-columns: 1.5fr .8fr 1fr 2fr; } details summary { cursor: pointer; font-weight: 800; } pre { white-space: pre-wrap; overflow: auto; background: #17212b; color: #d7e1e5; padding: 16px; border-radius: 8px; }
+.form { max-width: 760px; display: grid; gap: 16px; } label { display: grid; gap: 7px; font-size: 13px; font-weight: 700; } input { border: 1px solid #ccd7dc; border-radius: 7px; padding: 11px; font: inherit; } .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; } .error { color: #c52f40; }
+@media (max-width: 900px) { .sidebar { width: 180px; } .main-content { padding: 28px 20px; } .stat-grid { grid-template-columns: repeat(2, 1fr); } .table-heading { display: none; } .service-row { grid-template-columns: 2fr 1fr 1fr; } .service-row > :nth-child(4), .service-row > :nth-child(5) { display: none; } }

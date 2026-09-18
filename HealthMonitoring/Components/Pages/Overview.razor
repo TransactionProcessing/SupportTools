@@ -1,0 +1,38 @@
+@page "/"
+@inject IDashboardQueryService Dashboard
+
+<PageTitle>HealthWatch · Overview</PageTitle>
+<div class="page-heading"><div><p class="eyebrow">OPERATIONS</p><h1>Services</h1><p class="muted">Live health and history for registered services.</p></div><a class="button" href="/services/new">Register service</a></div>
+
+@if (_overview is null)
+{
+    <p class="panel">Loading dashboard…</p>
+}
+else
+{
+    <div class="stat-grid">
+        <StatCard Label="Healthy" Value="@_overview.Healthy" Class="healthy" />
+        <StatCard Label="Degraded" Value="@_overview.Degraded" Class="degraded" />
+        <StatCard Label="Unhealthy" Value="@_overview.Unhealthy" Class="unhealthy" />
+        <StatCard Label="Open incidents" Value="@_overview.OpenIncidents" Class="neutral" />
+    </div>
+    <section class="panel service-table">
+        <div class="table-heading"><span>Service</span><span>Status</span><span>Response</span><span>Uptime (24h)</span><span>Last check</span></div>
+        @foreach (var service in _overview.Services)
+        {
+            <a class="service-row" href="/services/@service.ServiceId">
+                <div><strong>@service.Name</strong><small>@service.Environment</small></div>
+                <div><StatusBadge Status="@service.Status" /></div>
+                <div>@(service.ResponseDuration?.TotalMilliseconds.ToString("0") ?? "—") ms</div>
+                <div>@service.UptimePercent.ToString("0.00")%</div>
+                <div>@(service.LastChecked?.ToLocalTime().ToString("dd MMM, HH:mm:ss") ?? "Never")</div>
+            </a>
+        }
+        @if (_overview.Services.Count == 0) { <p class="empty">No services registered yet.</p> }
+    </section>
+}
+
+@code {
+    private DashboardOverview? _overview;
+    protected override async Task OnInitializedAsync() => _overview = await Dashboard.GetOverviewAsync(TimeSpan.FromHours(24), CancellationToken.None);
+}
