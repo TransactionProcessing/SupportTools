@@ -21,7 +21,7 @@
     private async Task RegisterAsync()
     {
         _saving = true;
-        try { var response = await Http.PostAsJsonAsync("/api/services/register", _request); if (response.IsSuccessStatusCode) Navigation.NavigateTo("/"); else _error = await response.Content.ReadAsStringAsync(); }
+        try { var response = await Http.PostAsJsonAsync(new Uri(new Uri(Navigation.BaseUri), "api/services/register"), _request); if (response.IsSuccessStatusCode) Navigation.NavigateTo("/"); else _error = await response.Content.ReadAsStringAsync(); }
         catch (Exception exception) { _error = exception.Message; }
         finally { _saving = false; }
     }
