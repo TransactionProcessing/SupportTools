@@ -13,6 +13,6 @@ public sealed class ConfigurationTests
             .AddJsonFile("appsettings.json")
             .Build();
 
-        Assert.Equal("Server=localhost;Database=HealthMonitoring;Trusted_Connection=True;TrustServerCertificate=True;", configuration.GetConnectionString("HealthMonitoring"));
+        Assert.Equal("Server=.;Database=HealthMonitoring;User Id=sa;Password=ChangeThisStrongPassword!123;TrustServerCertificate=True;Encrypt=False;", configuration.GetConnectionString("HealthMonitoring"));
     }
 }
