@@ -80,11 +80,17 @@ public sealed class HealthMonitoringRegistrationExtensionsTests
         public ServiceRegistrationOptions? Service { get; private set; }
         public IEnumerable<DependencyMappingOptions>? Dependencies { get; private set; }
 
-        public Task<ServiceRegistrationResult> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public Task<ServiceRegistrationResult> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException($"RegisterAsync is not used for {options.ServiceId}.");
+        }
 
-        public Task SetDependencyMappingsAsync(string serviceId, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public Task SetDependencyMappingsAsync(string serviceId, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException($"SetDependencyMappingsAsync is not used for {serviceId} with {mappings.Count()} mappings.");
+        }
 
         public Task<ServiceRegistrationResult> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
         {
