@@ -89,7 +89,7 @@ public sealed class SqlServerTestDatabase : IAsyncDisposable
             .UseSqlServer(connectionString)
             .Options;
         var context = new HealthMonitoringDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
         return new SqlServerTestDatabase(context);
     }
 
