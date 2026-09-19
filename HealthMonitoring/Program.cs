@@ -34,8 +34,10 @@ using (var scope = app.Services.CreateScope())
     var connectionString = app.Configuration.GetConnectionString("HealthMonitoring");
     if (!string.IsNullOrWhiteSpace(connectionString))
     {
-        await HealthMonitoringSchemaInitializer.InitializeAsync(
-            scope.ServiceProvider.GetRequiredService<HealthMonitoringDbContext>());
+        await scope.ServiceProvider
+            .GetRequiredService<HealthMonitoringDbContext>()
+            .Database
+            .MigrateAsync();
     }
 }
 

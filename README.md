@@ -9,11 +9,11 @@ Run locally with:
 dotnet run --project HealthMonitoring/HealthMonitoring.csproj
 ```
 
-Set `ConnectionStrings:HealthMonitoring` (or `HealthMonitoring__ConnectionStrings__HealthMonitoring`) to a SQL Server connection string before enabling persistence and migrations.
+Set `ConnectionStrings:HealthMonitoring` (or `HealthMonitoring__ConnectionStrings__HealthMonitoring`) to a SQL Server connection string before enabling persistence and migrations. The application applies pending EF Core migrations on startup.
 
 The checked-in local sample uses SQL authentication with user `sa` and the dummy password `ChangeThisStrongPassword!123`. Replace it with the actual local `sa` password, preferably through an environment variable or user secrets.
 
-The application creates its schema on startup for the first version. A local SQL Server plus the monitor can be started with:
+A local SQL Server plus the monitor can be started with:
 
 ```powershell
 docker compose -f HealthMonitoring/docker-compose.sqlserver.yml up --build
