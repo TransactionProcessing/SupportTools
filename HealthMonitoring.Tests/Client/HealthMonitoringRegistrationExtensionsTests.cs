@@ -94,6 +94,7 @@ public sealed class HealthMonitoringRegistrationExtensionsTests
 
         public Task<ServiceRegistrationResult> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Service = options;
             Dependencies = mappings;
             return Task.FromResult(new ServiceRegistrationResult(options.ServiceId, "created", Guid.NewGuid()));
