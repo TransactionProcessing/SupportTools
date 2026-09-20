@@ -1,5 +1,7 @@
 using HealthMonitoring.Domain;
 using HealthMonitoring.Persistence;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace HealthMonitoring.Api;
 
@@ -17,8 +19,12 @@ public static class ServiceRegistrationEndpoints
     }
 
     private static void MapRegistrationEndpoint(IEndpointRouteBuilder endpoints, string dashboardEnvironment) =>
-        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
+            loggerFactory.CreateLogger("HealthMonitoring.Api.ServiceRegistrationEndpoints").LogInformation(
+                "POST /api/services/register body: {RequestBody}",
+                ServiceRegistrationLogFormatter.Serialize(request));
+
             var errors = ServiceConfigurationValidator.Validate(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors.ToDictionary(error => error, error => new[] { error }));
 
@@ -71,4 +77,30 @@ public static class ServiceRegistrationEndpoints
             await repository.ArchiveServiceAsync(serviceId, DateTimeOffset.UtcNow, cancellationToken);
             return Results.NoContent();
         });
+}
+
+public static class ServiceRegistrationLogFormatter
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public static string Serialize(ServiceRegistrationRequest request) =>
+        JsonSerializer.Serialize(new
+        {
+            request.ServiceId,
+            request.Name,
+            request.HealthUrl,
+            request.MonitorType,
+            ConnectionString = string.IsNullOrWhiteSpace(request.ConnectionString)
+                ? request.ConnectionString
+                : "[REDACTED]",
+            request.IgnoreCertificateErrors,
+            request.PollingIntervalSeconds,
+            request.RequestTimeoutSeconds,
+            request.RetentionDays,
+            request.StatusPolicy,
+            request.Group,
+            request.Description,
+            request.Version,
+            request.Host
+        }, JsonOptions);
 }
