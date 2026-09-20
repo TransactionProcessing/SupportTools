@@ -8,16 +8,16 @@ public sealed class ServiceRegistrationLoggingTests
     [Fact]
     public void Registration_body_for_logging_redacts_connection_strings()
     {
-        var request = new ServiceRegistrationRequest("orders-db", "Orders DB", "http://orders/health")
+        var request = new ServiceRegistrationRequest("orders-db", "Orders DB", "https://orders/health")
         {
             MonitorType = MonitorType.SqlServer,
-            ConnectionString = "Server=orders;Password=secret"
+            ConnectionString = "Server=orders;Database=Orders;Authentication=Integrated Security"
         };
 
         var body = ServiceRegistrationLogFormatter.Serialize(request);
 
         Assert.Contains("orders-db", body);
         Assert.Contains("[REDACTED]", body);
-        Assert.DoesNotContain("Password=secret", body);
+        Assert.DoesNotContain("Integrated Security", body);
     }
 }

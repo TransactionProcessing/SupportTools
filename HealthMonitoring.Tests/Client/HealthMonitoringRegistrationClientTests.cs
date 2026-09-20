@@ -169,12 +169,20 @@ public sealed class HealthMonitoringRegistrationClientTests
     {
         public List<string> Messages { get; } = [];
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            _ = state;
+            return null;
+        }
 
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            _ = logLevel;
+            _ = eventId;
             Messages.Add(formatter(state, exception));
+        }
     }
 
     private static HttpResponseMessage JsonResponse(HttpStatusCode statusCode, object value) => new(statusCode)
