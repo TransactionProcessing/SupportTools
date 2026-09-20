@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using HealthMonitoring.Client;
+using Microsoft.Extensions.Logging;
 
 namespace HealthMonitoring.Tests.Client;
 
@@ -45,6 +46,37 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.Equal(0, payload.MonitorType);
         Assert.Equal(30, payload.PollingIntervalSeconds);
         Assert.True(payload.IgnoreCertificateErrors);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_logs_the_post_body_without_exposing_connection_strings()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(new
+            {
+                serviceId = PaymentsApiServiceId,
+                action = "created",
+                service = new { id = Guid.Parse("11111111-1111-1111-1111-111111111111") }
+            })
+        });
+        var logger = new RecordingLogger<HealthMonitoringRegistrationClient>();
+        var client = new HealthMonitoringRegistrationClient(
+            new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) },
+            logger);
+
+        await client.RegisterAsync(new ServiceRegistrationOptions
+        {
+            ServiceId = PaymentsApiServiceId,
+            Name = "Payments API",
+            HealthUrl = new Uri("https://payments-api/health"),
+            ConnectionString = "Server=secret;Password=super-secret"
+        });
+
+        Assert.Contains("payments-api", logger.Messages.Single());
+        Assert.Contains("/api/services/register", logger.Messages.Single());
+        Assert.Contains("REDACTED", logger.Messages.Single());
+        Assert.DoesNotContain("super-secret", logger.Messages.Single());
     }
 
     [Fact]
@@ -131,6 +163,18 @@ public sealed class HealthMonitoringRegistrationClientTests
             Requests.Add(request);
             return Task.FromResult(responses[_index++]);
         }
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
     }
 
     private static HttpResponseMessage JsonResponse(HttpStatusCode statusCode, object value) => new(statusCode)

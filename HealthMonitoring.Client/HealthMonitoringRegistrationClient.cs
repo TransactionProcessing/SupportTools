@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace HealthMonitoring.Client;
 
@@ -38,7 +39,9 @@ public interface IHealthMonitoringRegistrationClient
     Task<ServiceRegistrationResult> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default);
 }
 
-public sealed class HealthMonitoringRegistrationClient(HttpClient httpClient) : IHealthMonitoringRegistrationClient
+public sealed class HealthMonitoringRegistrationClient(
+    HttpClient httpClient,
+    ILogger<HealthMonitoringRegistrationClient>? logger = null) : IHealthMonitoringRegistrationClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -47,7 +50,7 @@ public sealed class HealthMonitoringRegistrationClient(HttpClient httpClient) : 
         ArgumentNullException.ThrowIfNull(options);
         ValidateServiceOptions(options);
 
-        using var response = await httpClient.PostAsJsonAsync("api/services/register", new ServiceRegistrationPayload(
+        var payload = new ServiceRegistrationPayload(
             options.ServiceId,
             options.Name,
             options.HealthUrl.ToString(),
@@ -61,7 +64,19 @@ public sealed class HealthMonitoringRegistrationClient(HttpClient httpClient) : 
             options.Group,
             options.Description,
             options.Version,
-            options.Host), JsonOptions, cancellationToken);
+            options.Host);
+
+        var loggedPayload = payload with
+        {
+            ConnectionString = string.IsNullOrWhiteSpace(payload.ConnectionString)
+                ? payload.ConnectionString
+                : "[REDACTED]"
+        };
+        logger?.LogInformation(
+            "POST /api/services/register body: {RequestBody}",
+            JsonSerializer.Serialize(loggedPayload, JsonOptions));
+
+        using var response = await httpClient.PostAsJsonAsync("api/services/register", payload, JsonOptions, cancellationToken);
 
         await EnsureSuccessAsync(response, "register service", cancellationToken);
         var result = await response.Content.ReadFromJsonAsync<ServiceRegistrationResponsePayload>(JsonOptions, cancellationToken)
