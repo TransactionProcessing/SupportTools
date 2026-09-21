@@ -149,6 +149,32 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.EndsWith($"/api/services/{PaymentsApiServiceId}/dependency-links/{linkId}", handler.Requests[2].RequestUri!.ToString());
     }
 
+    [Fact]
+    public async Task SetDependencyMappingsAsync_skips_dependencies_that_are_not_registered()
+    {
+        var targetId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var handler = new QueueHandler(
+            JsonResponse(HttpStatusCode.OK, Array.Empty<object>()),
+            JsonResponse(HttpStatusCode.NotFound, new { message = "service not found" }),
+            JsonResponse(HttpStatusCode.OK, new { id = targetId, serviceId = SecurityServiceId, name = SecurityServiceName }),
+            JsonResponse(HttpStatusCode.Created, new { }));
+        var logger = new RecordingLogger<HealthMonitoringRegistrationClient>();
+        var client = new HealthMonitoringRegistrationClient(
+            new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) },
+            logger);
+
+        await client.SetDependencyMappingsAsync(PaymentsApiServiceId, new[]
+        {
+            new DependencyMappingOptions("Missing Service", "missing-service"),
+            new DependencyMappingOptions(SecurityServiceName, SecurityServiceId)
+        });
+
+        Assert.Equal(4, handler.Requests.Count);
+        Assert.Equal($"{MonitoringBaseUrl}/api/services/{SecurityServiceId}", handler.Requests[2].RequestUri!.ToString());
+        Assert.Equal(HttpMethod.Post, handler.Requests[3].Method);
+        Assert.Contains(logger.Messages, message => message.Contains("missing-service", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static HealthMonitoringRegistrationClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) });
 
