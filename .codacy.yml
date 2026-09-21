@@ -1,6 +1,6 @@
 ---
 exclude_paths:
-  - "HealthMonitoring/Migrations/**"
+  - "**/Migrations/**"
   - "Scripts/Sales Reconciliation.js"
   - "**/Tests/**"
   - "**/*.Tests/**"
