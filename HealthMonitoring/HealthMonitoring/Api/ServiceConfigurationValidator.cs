@@ -21,7 +21,7 @@ public static class ServiceConfigurationValidator
             Group = request.Group,
             Description = request.Description,
             MonitorType = request.MonitorType,
-            HealthUrl = ParseHealthUrl(request.HealthUrl),
+            HealthUrl = ParseHealthUrl(request.MonitorType, request.HealthUrl),
             ConnectionString = request.ConnectionString,
             IgnoreCertificateErrors = request.IgnoreCertificateErrors,
             IsEnabled = existing?.IsEnabled ?? true,
@@ -56,11 +56,13 @@ public static class ServiceConfigurationValidator
         if (request.RetentionDays < 1) yield return "RetentionDays must be positive.";
     }
 
-    private static bool IsHttpUrl(string value) =>
+    private static bool IsHttpUrl(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 
-    private static Uri ParseHealthUrl(string value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : new Uri(DefaultHealthUrl);
+    private static Uri? ParseHealthUrl(MonitorType monitorType, string? value) =>
+        monitorType == MonitorType.HttpHealthEndpoint
+            ? Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : new Uri(DefaultHealthUrl)
+            : null;
 
     private static TimeSpan GetPollingInterval(ServiceRegistrationRequest request, MonitoredService? existing, bool preserveManagedSettings) =>
         preserveManagedSettings && existing is not null ? existing.PollingInterval : TimeSpan.FromSeconds(request.PollingIntervalSeconds);

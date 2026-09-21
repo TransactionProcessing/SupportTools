@@ -128,7 +128,6 @@ namespace HealthMonitoring.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("HealthUrl")
-                        .IsRequired()
                         .HasMaxLength(2048)
                         .HasColumnType("nvarchar(2048)");
 

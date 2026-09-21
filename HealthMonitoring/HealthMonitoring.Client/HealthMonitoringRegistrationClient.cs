@@ -8,7 +8,7 @@ public sealed class ServiceRegistrationOptions
 {
     public string ServiceId { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
-    public Uri HealthUrl { get; init; } = new("http://localhost/health");
+    public Uri? HealthUrl { get; init; } = new("http://localhost/health");
     public string MonitorType { get; init; } = "HttpHealthEndpoint";
     public string? ConnectionString { get; init; }
     public bool IgnoreCertificateErrors { get; init; }
@@ -42,13 +42,14 @@ public sealed class HealthMonitoringRegistrationClient(
     public async Task<ServiceRegistrationResult> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidateServiceOptions(options);
+        var monitorType = ParseMonitorType(options.MonitorType);
+        ValidateServiceOptions(options, monitorType);
 
         var payload = new ServiceRegistrationPayload(
             options.ServiceId,
             options.Name,
-            options.HealthUrl.ToString(),
-            ParseMonitorType(options.MonitorType),
+            monitorType == 0 ? options.HealthUrl?.ToString() : null,
+            monitorType,
             options.ConnectionString,
             options.IgnoreCertificateErrors,
             ToSeconds(options.PollingInterval, nameof(options.PollingInterval)),
@@ -146,14 +147,14 @@ public sealed class HealthMonitoringRegistrationClient(
         return (int)value.TotalDays;
     }
 
-    private static void ValidateServiceOptions(ServiceRegistrationOptions options)
+    private static void ValidateServiceOptions(ServiceRegistrationOptions options, int monitorType)
     {
         if (string.IsNullOrWhiteSpace(options.ServiceId)) throw new ArgumentException("A service ID is required.", nameof(options));
         if (string.IsNullOrWhiteSpace(options.Name)) throw new ArgumentException("A service name is required.", nameof(options));
-        if (!options.HealthUrl.IsAbsoluteUri) throw new ArgumentException("The health URL must be absolute.", nameof(options));
+        if (monitorType == 0 && (options.HealthUrl is null || !options.HealthUrl.IsAbsoluteUri)) throw new ArgumentException("The health URL must be absolute.", nameof(options));
     }
 
-    private sealed record ServiceRegistrationPayload(string ServiceId, string Name, string HealthUrl, int MonitorType, string? ConnectionString, bool IgnoreCertificateErrors, int PollingIntervalSeconds, int RequestTimeoutSeconds, int RetentionDays, object? StatusPolicy, string? Group, string? Description, string? Version, string? Host);
+    private sealed record ServiceRegistrationPayload(string ServiceId, string Name, string? HealthUrl, int MonitorType, string? ConnectionString, bool IgnoreCertificateErrors, int PollingIntervalSeconds, int RequestTimeoutSeconds, int RetentionDays, object? StatusPolicy, string? Group, string? Description, string? Version, string? Host);
     private sealed record ServiceRegistrationResponsePayload(string ServiceId, string Action, ServiceIdentityPayload Service);
     private sealed record ServiceIdentityPayload(Guid Id, string ServiceId, string Name);
     private sealed record DependencyMappingPayload(string DependencyName, Guid TargetMonitoredServiceId);

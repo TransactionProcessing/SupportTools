@@ -8,7 +8,7 @@ public sealed class ServiceRegistrationRequest
     public ServiceRegistrationRequest(string serviceId, string name, string healthUrl) { ServiceId = serviceId; Name = name; HealthUrl = healthUrl; }
     public string ServiceId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public string HealthUrl { get; set; } = string.Empty;
+    public string? HealthUrl { get; set; }
     public MonitorType MonitorType { get; set; } = MonitorType.HttpHealthEndpoint;
     public string? ConnectionString { get; set; }
     public bool IgnoreCertificateErrors { get; set; }
@@ -30,7 +30,7 @@ public sealed record ServiceSummary(
     string Name,
     string Environment,
     MonitorType MonitorType,
-    string HealthUrl,
+    string? HealthUrl,
     bool IsEnabled,
     HealthStatus Status,
     DateTimeOffset? LastObservedAtUtc,

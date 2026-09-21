@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using HealthMonitoring.Domain;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace HealthMonitoring.Monitoring;
@@ -9,6 +11,63 @@ namespace HealthMonitoring.Monitoring;
 public interface ISqlServerProbe
 {
     Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken);
+    Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken);
+}
+
+public static partial class SqlServerVersionFormatter
+{
+    private static readonly IReadOnlyDictionary<int, int> MajorVersionYears = new Dictionary<int, int>
+    {
+        [16] = 2022,
+        [15] = 2019,
+        [14] = 2017,
+        [13] = 2016,
+        [12] = 2014,
+        [11] = 2012,
+        [10] = 2008,
+        [9] = 2005,
+        [8] = 2000
+    };
+
+    public static string? Format(string? rawVersion)
+    {
+        if (string.IsNullOrWhiteSpace(rawVersion)) return null;
+
+        var bannerMatch = BannerRegex().Match(rawVersion);
+        if (bannerMatch.Success) return $"SQL Server {bannerMatch.Groups[1].Value}";
+
+        var productVersionMatch = ProductVersionRegex().Match(rawVersion.Trim());
+        if (!productVersionMatch.Success || !int.TryParse(productVersionMatch.Groups[1].Value, out var majorVersion))
+            return null;
+
+        if (!MajorVersionYears.TryGetValue(majorVersion, out var year)) return null;
+        if (majorVersion == 10 && int.TryParse(productVersionMatch.Groups[2].Value, out var minorVersion) && minorVersion >= 50)
+            year = 2008;
+
+        return $"SQL Server {year}";
+    }
+
+    [GeneratedRegex(@"\b(?:Microsoft\s+)?SQL\s+Server\s+(20\d{2})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex BannerRegex();
+
+    [GeneratedRegex(@"^(\d+)(?:\.(\d+))?(?:\.|$)")]
+    private static partial Regex ProductVersionRegex();
+}
+
+public sealed class SqlServerRegistrationVersionResolver(ISqlServerProbe probe, ILogger<SqlServerRegistrationVersionResolver> logger)
+{
+    public async Task<string?> ResolveAsync(MonitoredService service, string? fallback, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return SqlServerVersionFormatter.Format(await probe.GetVersionAsync(service, cancellationToken)) ?? fallback;
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception, "Unable to determine SQL Server version while registering a service.");
+            return fallback;
+        }
+    }
 }
 
 public sealed class SqlServerMonitorOptions
@@ -67,6 +126,21 @@ internal sealed class SqlServerProbe(IOptions<SqlServerMonitorOptions> options) 
         command.CommandText = "SELECT 1";
         command.CommandTimeout = Math.Max(1, (int)Math.Ceiling(service.RequestTimeout.TotalSeconds));
         await command.ExecuteScalarAsync(timeoutSource.Token);
+    }
+
+    public async Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(service.ConnectionString)) throw new InvalidOperationException("SQL Server connection string is not configured.");
+        var connectionString = ValidateConnectionString(service.ConnectionString, options.Value.AllowedDataSources);
+
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(service.RequestTimeout);
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(timeoutSource.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CAST(@@VERSION AS nvarchar(max))";
+        command.CommandTimeout = Math.Max(1, (int)Math.Ceiling(service.RequestTimeout.TotalSeconds));
+        return Convert.ToString(await command.ExecuteScalarAsync(timeoutSource.Token));
     }
 
     private static string ValidateConnectionString(string connectionString, IReadOnlyCollection<string> allowedDataSources)

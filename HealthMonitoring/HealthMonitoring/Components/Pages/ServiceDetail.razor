@@ -8,7 +8,7 @@
 }
 else
 {
-<div class="page-heading"><div><p class="eyebrow">SERVICE DETAIL · @_model.Service.Environment</p><h1>@_model.Service.Name</h1><p class="muted">@(_model.Service.MonitorType == MonitorType.KurrentDb ? "KurrentDB monitor" : _model.Service.HealthUrl.ToString())</p><p class="service-version-detail">Version: <strong>@(string.IsNullOrWhiteSpace(_model.Service.Version) ? "not reported" : _model.Service.Version)</strong></p></div><div><a class="button secondary" href="@($"/services/{ServiceId}/dependencies")">Manage dependency links</a> <a class="button secondary" href="/">Back to overview</a></div></div>
+<div class="page-heading"><div><p class="eyebrow">SERVICE DETAIL · @_model.Service.Environment</p><h1>@_model.Service.Name</h1><p class="muted">@MonitorDescription</p><p class="service-version-detail">Version: <strong>@(string.IsNullOrWhiteSpace(_model.Service.Version) ? "not reported" : _model.Service.Version)</strong></p></div><div><a class="button secondary" href="@($"/services/{ServiceId}/dependencies")">Manage dependency links</a> <a class="button secondary" href="/">Back to overview</a></div></div>
     <div class="detail-status"><StatusBadge Status="@_model.Summary.Status" /> <span>Last checked @( _model.Summary.LastChecked?.ToLocalTime().ToString("dd MMM, HH:mm:ss") ?? "never")</span></div>
     <div class="stat-grid three"><StatCard Label="Uptime (24 hours)" Value="@UptimeText" Class="healthy" /><StatCard Label="Observations" Value="@_model.Observations.Count" Class="neutral" /><StatCard Label="Response" Value="@ResponseText" Class="neutral" /></div>
     <section class="panel"><h2>Status timeline</h2><div class="timeline">@foreach (var observation in _model.Observations.OrderBy(item => item.ObservedAtUtc)) { <span class="timeline-segment @observation.Status.ToString().ToLowerInvariant()" title="@observation.ObservedAtUtc.ToLocalTime()"></span> }</div></section>
@@ -26,6 +26,12 @@ else
         ?? [];
     private string UptimeText => $"{_model?.Summary.UptimePercent:0.00}%";
     private string ResponseText => _model?.Summary.ResponseDuration is { } duration ? $"{duration.TotalMilliseconds:0} ms" : "—";
+    private string MonitorDescription => _model?.Service.MonitorType switch
+    {
+        MonitorType.KurrentDb => "KurrentDB monitor",
+        MonitorType.SqlServer => "SQL Server monitor",
+        _ => _model?.Service.HealthUrl?.ToString() ?? "HTTP health monitor"
+    } ?? "Service monitor";
     protected override async Task OnParametersSetAsync() => _model = await Dashboard.GetServiceDetailAsync(ServiceId, TimeSpan.FromHours(24), CancellationToken.None);
 
     private sealed record ObservedCheck(HealthCheckResult Result, DateTimeOffset ObservedAtUtc);

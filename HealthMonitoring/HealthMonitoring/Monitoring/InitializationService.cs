@@ -49,7 +49,8 @@ public sealed class InitializationService(
     IHealthMonitoringRepository repository,
     InitializationOptions options,
     SqlServerMonitorClient sqlServerClient,
-    KurrentDbMonitorClient kurrentDbClient) : IInitializationService
+    KurrentDbMonitorClient kurrentDbClient,
+    SqlServerRegistrationVersionResolver versionResolver) : IInitializationService
 {
     public async Task<InitializationStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
@@ -150,6 +151,9 @@ public sealed class InitializationService(
         var errors = ServiceConfigurationValidator.Validate(request);
         if (errors.Count > 0) throw new ArgumentException(string.Join(" ", errors));
         var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
-        await repository.UpsertServiceAsync(ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: false), cancellationToken);
+        var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: false);
+        if (request.MonitorType == MonitorType.SqlServer)
+            service.Version = await versionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
+        await repository.UpsertServiceAsync(service, cancellationToken);
     }
 }

@@ -20,19 +20,20 @@ public sealed class HealthEndpointClient(IHttpClientFactory httpClientFactory, I
 {
     public async Task<HealthEndpointResult> CheckAsync(MonitoredService service, CancellationToken cancellationToken)
     {
+        var healthUrl = service.HealthUrl ?? throw new InvalidOperationException("HTTP health endpoint URL is not configured.");
         var stopwatch = Stopwatch.StartNew();
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(service.RequestTimeout);
-            using var customClient = service.IgnoreCertificateErrors && service.HealthUrl.Scheme == Uri.UriSchemeHttps
+            using var customClient = service.IgnoreCertificateErrors && healthUrl.Scheme == Uri.UriSchemeHttps
                 ? new HttpClient(new HttpClientHandler
                 {
                     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                 })
                 : null;
             var httpClient = customClient ?? httpClientFactory.CreateClient();
-            using var response = await httpClient.GetAsync(service.HealthUrl, timeout.Token);
+            using var response = await httpClient.GetAsync(healthUrl, timeout.Token);
             var raw = await response.Content.ReadAsStringAsync(timeout.Token);
             stopwatch.Stop();
             try

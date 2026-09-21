@@ -18,6 +18,7 @@ public static class HealthMonitoringServiceCollectionExtensions
         services.AddSingleton<IKurrentDbProbe, KurrentDbProbe>();
         services.AddScoped<KurrentDbMonitorClient>();
         services.AddSingleton<ISqlServerProbe, SqlServerProbe>();
+        services.AddSingleton<SqlServerRegistrationVersionResolver>();
         services.AddScoped<SqlServerMonitorClient>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IAlertDispatcher, LoggingAlertDispatcher>();

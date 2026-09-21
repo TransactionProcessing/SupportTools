@@ -34,7 +34,7 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
             entity.Property(service => service.Name).HasMaxLength(300).IsRequired();
             entity.Property(service => service.Environment).HasMaxLength(100).IsRequired();
             entity.Property(service => service.MonitorType).HasConversion<string>().HasMaxLength(50).IsRequired();
-            entity.Property(service => service.HealthUrl).HasConversion<string>().HasMaxLength(2048).IsRequired();
+            entity.Property(service => service.HealthUrl).HasConversion<string>().HasMaxLength(2048).IsRequired(false);
             entity.Property(service => service.ConnectionString).HasColumnType(NvarcharMaxColumnType);
             entity.Property(service => service.StatusPolicyJson).HasColumnType(NvarcharMaxColumnType).IsRequired();
             entity.Property(service => service.PollingInterval).HasConversion(TimeSpanTicksConverter).HasColumnType(BigintColumnType);

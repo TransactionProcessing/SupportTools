@@ -124,4 +124,22 @@ public sealed class ServiceConfigurationValidatorTests
         Assert.DoesNotContain(errors, error => error.Contains("HealthUrl", StringComparison.Ordinal));
         Assert.Contains(errors, error => error.Contains("ConnectionString", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData(MonitorType.SqlServer)]
+    [InlineData(MonitorType.KurrentDb)]
+    public void Database_monitor_registration_does_not_store_a_health_url(MonitorType monitorType)
+    {
+        var request = new ServiceRegistrationRequest
+        {
+            ServiceId = "database",
+            Name = "Database",
+            MonitorType = monitorType,
+            ConnectionString = "configured"
+        };
+
+        var result = ServiceConfigurationValidator.ToService(request, "Development");
+
+        Assert.Null(result.HealthUrl);
+    }
 }
