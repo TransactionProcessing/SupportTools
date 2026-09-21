@@ -11,7 +11,7 @@ public sealed class MonitoredService
     public MonitorType MonitorType { get; set; } = MonitorType.HttpHealthEndpoint;
     public string? Group { get; set; }
     public string? Description { get; set; }
-    public Uri HealthUrl { get; set; } = new("https://localhost");
+    public Uri? HealthUrl { get; set; }
     [JsonIgnore]
     public string? ConnectionString { get; set; }
     public bool IgnoreCertificateErrors { get; set; }

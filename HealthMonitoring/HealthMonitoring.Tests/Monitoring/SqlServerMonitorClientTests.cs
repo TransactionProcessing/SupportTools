@@ -39,5 +39,8 @@ public sealed class SqlServerMonitorClientTests
             cancellationToken.ThrowIfCancellationRequested();
             return exception is null ? Task.CompletedTask : Task.FromException(exception);
         }
+
+        public Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 }

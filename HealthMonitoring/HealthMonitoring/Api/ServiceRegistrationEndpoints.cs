@@ -1,4 +1,5 @@
 using HealthMonitoring.Domain;
+using HealthMonitoring.Monitoring;
 using HealthMonitoring.Persistence;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public static class ServiceRegistrationEndpoints
     }
 
     private static void MapRegistrationEndpoint(IEndpointRouteBuilder endpoints, string dashboardEnvironment) =>
-        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, ILoggerFactory loggerFactory, SqlServerRegistrationVersionResolver versionResolver, CancellationToken cancellationToken) =>
         {
             loggerFactory.CreateLogger("HealthMonitoring.Api.ServiceRegistrationEndpoints").LogInformation(
                 "POST /api/services/register body: {RequestBody}",
@@ -30,6 +31,8 @@ public static class ServiceRegistrationEndpoints
 
             var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
             var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: true);
+            if (request.MonitorType == MonitorType.SqlServer)
+                service.Version = await versionResolver.ResolveAsync(service, request.Version, cancellationToken);
             await repository.UpsertServiceAsync(service, cancellationToken);
             var action = existing is null ? "created" : "acknowledged";
             return existing is null
@@ -45,7 +48,7 @@ public static class ServiceRegistrationEndpoints
             foreach (var service in services)
             {
                 var snapshot = await repository.GetSnapshotAsync(service.Id, cancellationToken);
-                results.Add(new ServiceSummary(service.Id, service.ServiceId, service.Name, service.Environment, service.MonitorType, service.HealthUrl.ToString(), service.IsEnabled, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastObservedAtUtc, snapshot?.LastResponseDuration, snapshot?.LastError));
+                results.Add(new ServiceSummary(service.Id, service.ServiceId, service.Name, service.Environment, service.MonitorType, service.HealthUrl?.ToString(), service.IsEnabled, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastObservedAtUtc, snapshot?.LastResponseDuration, snapshot?.LastError));
             }
 
             return Results.Ok(results);
