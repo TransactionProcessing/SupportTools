@@ -72,7 +72,7 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Restore Health Monitoring solution
-      run: dotnet restore HealthMonitoring/HealthMonitoring.sln
+      run: dotnet restore HealthMonitoring/HealthMonitoring/HealthMonitoring.sln
 
     - name: Run Health Monitoring unit tests
-      run: dotnet test HealthMonitoring.Tests/HealthMonitoring.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName!~ConfigurationTests"
+      run: dotnet test HealthMonitoring/HealthMonitoring.Tests/HealthMonitoring.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName!~ConfigurationTests"
