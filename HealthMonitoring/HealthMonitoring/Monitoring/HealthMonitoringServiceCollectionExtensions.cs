@@ -17,6 +17,8 @@ public static class HealthMonitoringServiceCollectionExtensions
         services.AddScoped<IHealthEndpointClient, HealthEndpointClient>();
         services.AddSingleton<IKurrentDbProbe, KurrentDbProbe>();
         services.AddScoped<KurrentDbMonitorClient>();
+        services.AddSingleton<IKurrentDbVersionProbe, KurrentDbVersionProbe>();
+        services.AddSingleton<KurrentDbRegistrationVersionResolver>();
         services.AddSingleton<ISqlServerProbe, SqlServerProbe>();
         services.AddSingleton<SqlServerRegistrationVersionResolver>();
         services.AddScoped<SqlServerMonitorClient>();

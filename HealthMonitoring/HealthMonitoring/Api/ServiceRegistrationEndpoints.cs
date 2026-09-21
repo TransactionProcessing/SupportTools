@@ -20,7 +20,7 @@ public static class ServiceRegistrationEndpoints
     }
 
     private static void MapRegistrationEndpoint(IEndpointRouteBuilder endpoints, string dashboardEnvironment) =>
-        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, ILoggerFactory loggerFactory, SqlServerRegistrationVersionResolver versionResolver, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/services/register", async (ServiceRegistrationRequest request, IHealthMonitoringRepository repository, ILoggerFactory loggerFactory, SqlServerRegistrationVersionResolver sqlServerVersionResolver, KurrentDbRegistrationVersionResolver kurrentDbVersionResolver, CancellationToken cancellationToken) =>
         {
             loggerFactory.CreateLogger("HealthMonitoring.Api.ServiceRegistrationEndpoints").LogInformation(
                 "POST /api/services/register body: {RequestBody}",
@@ -32,7 +32,9 @@ public static class ServiceRegistrationEndpoints
             var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
             var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: true);
             if (request.MonitorType == MonitorType.SqlServer)
-                service.Version = await versionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
+                service.Version = await sqlServerVersionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
+            else if (request.MonitorType == MonitorType.KurrentDb)
+                service.Version = await kurrentDbVersionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
             await repository.UpsertServiceAsync(service, cancellationToken);
             var action = existing is null ? "created" : "acknowledged";
             return existing is null

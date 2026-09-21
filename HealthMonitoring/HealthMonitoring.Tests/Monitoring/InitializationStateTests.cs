@@ -50,7 +50,8 @@ public sealed class InitializationStateTests
         var sqlServerClient = new SqlServerMonitorClient(sqlServerProbe);
         var kurrentDbClient = new KurrentDbMonitorClient(new NoOpKurrentDbProbe());
         var resolver = new SqlServerRegistrationVersionResolver(sqlServerProbe, NullLogger<SqlServerRegistrationVersionResolver>.Instance);
-        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = true, RequireKurrentDb = false }, sqlServerClient, kurrentDbClient, resolver);
+        var kurrentResolver = new KurrentDbRegistrationVersionResolver(new NoOpKurrentDbVersionProbe(), NullLogger<KurrentDbRegistrationVersionResolver>.Instance);
+        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = true, RequireKurrentDb = false }, sqlServerClient, kurrentDbClient, resolver, kurrentResolver);
 
         await service.InitializeAsync(new InitializationRequest("Server=localhost;Database=Orders;", string.Empty) { TestConnections = false }, "Development", CancellationToken.None);
 
@@ -73,11 +74,28 @@ public sealed class InitializationStateTests
         var sqlServerClient = new SqlServerMonitorClient(sqlServerProbe);
         var kurrentDbClient = new KurrentDbMonitorClient(new NoOpKurrentDbProbe());
         var resolver = new SqlServerRegistrationVersionResolver(sqlServerProbe, NullLogger<SqlServerRegistrationVersionResolver>.Instance);
-        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = true, RequireKurrentDb = false }, sqlServerClient, kurrentDbClient, resolver);
+        var kurrentResolver = new KurrentDbRegistrationVersionResolver(new NoOpKurrentDbVersionProbe(), NullLogger<KurrentDbRegistrationVersionResolver>.Instance);
+        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = true, RequireKurrentDb = false }, sqlServerClient, kurrentDbClient, resolver, kurrentResolver);
 
         await service.InitializeAsync(new InitializationRequest("Server=localhost;Database=Orders;", string.Empty) { TestConnections = false }, "Development", CancellationToken.None);
 
         Assert.Equal("SQL Server 2019", repository.SavedService?.Version);
+    }
+
+    [Fact]
+    public async Task Initialization_registration_captures_the_kurrentdb_version()
+    {
+        var repository = new InMemoryRepository();
+        var sqlServerProbe = new VersionProbe("16.0.1000.6");
+        var sqlServerClient = new SqlServerMonitorClient(sqlServerProbe);
+        var kurrentDbClient = new KurrentDbMonitorClient(new NoOpKurrentDbProbe());
+        var sqlResolver = new SqlServerRegistrationVersionResolver(sqlServerProbe, NullLogger<SqlServerRegistrationVersionResolver>.Instance);
+        var kurrentResolver = new KurrentDbRegistrationVersionResolver(new KurrentVersionProbe("25.0.0.1673-build.1"), NullLogger<KurrentDbRegistrationVersionResolver>.Instance);
+        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = false, RequireKurrentDb = true }, sqlServerClient, kurrentDbClient, sqlResolver, kurrentResolver);
+
+        await service.InitializeAsync(new InitializationRequest(string.Empty, "esdb://admin:password@localhost:2113?tls=false") { TestConnections = false }, "Development", CancellationToken.None);
+
+        Assert.Equal("KurrentDB 25.0.0", repository.SavedService?.Version);
     }
 
     private sealed class VersionProbe(string version) : ISqlServerProbe
@@ -98,6 +116,16 @@ public sealed class InitializationStateTests
     private sealed class NoOpKurrentDbProbe : IKurrentDbProbe
     {
         public Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class NoOpKurrentDbVersionProbe : IKurrentDbVersionProbe
+    {
+        public Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class KurrentVersionProbe(string version) : IKurrentDbVersionProbe
+    {
+        public Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken) => Task.FromResult<string?>(version);
     }
 
     private sealed class InMemoryRepository : IHealthMonitoringRepository
