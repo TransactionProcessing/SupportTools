@@ -50,7 +50,8 @@ public sealed class InitializationService(
     InitializationOptions options,
     SqlServerMonitorClient sqlServerClient,
     KurrentDbMonitorClient kurrentDbClient,
-    SqlServerRegistrationVersionResolver versionResolver) : IInitializationService
+    SqlServerRegistrationVersionResolver sqlServerVersionResolver,
+    KurrentDbRegistrationVersionResolver kurrentDbVersionResolver) : IInitializationService
 {
     public async Task<InitializationStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
@@ -153,7 +154,9 @@ public sealed class InitializationService(
         var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
         var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: false);
         if (request.MonitorType == MonitorType.SqlServer)
-            service.Version = await versionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
+            service.Version = await sqlServerVersionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
+        else if (request.MonitorType == MonitorType.KurrentDb)
+            service.Version = await kurrentDbVersionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
         await repository.UpsertServiceAsync(service, cancellationToken);
     }
 }
