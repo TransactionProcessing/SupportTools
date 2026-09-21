@@ -7,6 +7,7 @@
 <EditForm Model="_request" OnValidSubmit="RegisterAsync" class="panel form">
     <label>Service ID<input @bind="_request.ServiceId" required /></label>
     <label>Display name<input @bind="_request.Name" required /></label>
+    <label>Version<input @bind="_request.Version" placeholder="e.g. 2.4.1" /></label>
     <label>Monitor type<select @bind="_request.MonitorType"><option value="HttpHealthEndpoint">ASP.NET health endpoint</option><option value="KurrentDb">KurrentDB</option><option value="SqlServer">SQL Server</option></select></label>
     @if (_request.MonitorType is MonitorType.KurrentDb or MonitorType.SqlServer)
     {

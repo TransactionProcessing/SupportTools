@@ -51,6 +51,6 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
         var total = observations.Count;
         var healthy = observations.Count(observation => observation.Status == HealthStatus.Healthy);
         var uptime = total == 0 ? 0 : healthy * 100d / total;
-        return new ServiceDashboardRow(service.ServiceId, service.Name, service.Environment, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastResponseDuration, uptime, snapshot?.LastObservedAtUtc, snapshot?.LastError);
+        return new ServiceDashboardRow(service.ServiceId, service.Name, service.Environment, service.Version, snapshot?.Status ?? HealthStatus.Unknown, snapshot?.LastResponseDuration, uptime, snapshot?.LastObservedAtUtc, snapshot?.LastError);
     }
 }

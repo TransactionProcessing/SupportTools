@@ -21,7 +21,7 @@ else
         @foreach (var service in _overview.Services)
         {
             <a class="service-row" href="/services/@service.ServiceId">
-                <div><strong>@service.Name</strong><small>@service.Environment</small></div>
+                <div><strong>@service.Name</strong><small>@service.Environment</small><small class="service-version">Version: @(string.IsNullOrWhiteSpace(service.Version) ? "not reported" : service.Version)</small></div>
                 <div><StatusBadge Status="@service.Status" /></div>
                 <div>@(service.ResponseDuration?.TotalMilliseconds.ToString("0") ?? "—") ms</div>
                 <div>@service.UptimePercent.ToString("0.00")%</div>
