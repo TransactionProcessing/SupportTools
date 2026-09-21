@@ -1,3 +1,4 @@
 ---
 exclude_paths:
   - "HealthMonitoring/Migrations/**"
+  - "Scripts/Sales Reconciliation.js"
