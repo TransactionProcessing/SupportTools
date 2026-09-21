@@ -38,6 +38,7 @@ public sealed class HealthMonitoringRegistrationClientTests
             Version = "1.2.3"
         });
 
+        Assert.NotNull(result);
         Assert.Equal("created", result.Action);
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), result.MonitoredServiceId);
         Assert.Equal(HttpMethod.Post, handler.Request!.Method);
@@ -79,6 +80,29 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.Contains("/api/services/register", logger.Messages.Single());
         Assert.Contains("REDACTED", logger.Messages.Single());
         Assert.DoesNotContain("super-secret", logger.Messages.Single());
+    }
+
+    [Fact]
+    public async Task RegisterAsync_returns_null_and_logs_when_registration_call_fails()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("monitoring unavailable")
+        });
+        var logger = new RecordingLogger<HealthMonitoringRegistrationClient>();
+        var client = new HealthMonitoringRegistrationClient(
+            new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) },
+            logger);
+
+        var result = await client.RegisterAsync(new ServiceRegistrationOptions
+        {
+            ServiceId = PaymentsApiServiceId,
+            Name = "Payments API",
+            HealthUrl = new Uri("https://payments-api/health")
+        });
+
+        Assert.Null(result);
+        Assert.Contains(logger.Messages, message => message.Contains("register service", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

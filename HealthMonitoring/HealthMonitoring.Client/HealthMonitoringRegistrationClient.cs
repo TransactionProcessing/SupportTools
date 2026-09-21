@@ -28,9 +28,9 @@ public sealed record ServiceRegistrationResult(string ServiceId, string Action, 
 
 public interface IHealthMonitoringRegistrationClient
 {
-    Task<ServiceRegistrationResult> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default);
+    Task<ServiceRegistrationResult?> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default);
     Task SetDependencyMappingsAsync(string serviceId, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default);
-    Task<ServiceRegistrationResult> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default);
+    Task<ServiceRegistrationResult?> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default);
 }
 
 public sealed class HealthMonitoringRegistrationClient(
@@ -39,7 +39,7 @@ public sealed class HealthMonitoringRegistrationClient(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<ServiceRegistrationResult> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default)
+    public async Task<ServiceRegistrationResult?> RegisterAsync(ServiceRegistrationOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
         var monitorType = ParseMonitorType(options.MonitorType);
@@ -71,12 +71,20 @@ public sealed class HealthMonitoringRegistrationClient(
             "POST /api/services/register body: {RequestBody}",
             JsonSerializer.Serialize(loggedPayload, JsonOptions));
 
-        using var response = await httpClient.PostAsJsonAsync("api/services/register", payload, JsonOptions, cancellationToken);
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync("api/services/register", payload, JsonOptions, cancellationToken);
 
-        await EnsureSuccessAsync(response, "register service", cancellationToken);
-        var result = await response.Content.ReadFromJsonAsync<ServiceRegistrationResponsePayload>(JsonOptions, cancellationToken)
-            ?? throw new InvalidOperationException("The monitoring server returned an empty registration response.");
-        return new ServiceRegistrationResult(result.ServiceId, result.Action, result.Service.Id);
+            await EnsureSuccessAsync(response, "register service", cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<ServiceRegistrationResponsePayload>(JsonOptions, cancellationToken)
+                ?? throw new InvalidOperationException("The monitoring server returned an empty registration response.");
+            return new ServiceRegistrationResult(result.ServiceId, result.Action, result.Service.Id);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger?.LogWarning(exception, "Unable to register service '{ServiceId}' with health monitoring.", options.ServiceId);
+            return null;
+        }
     }
 
     public async Task SetDependencyMappingsAsync(string serviceId, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
@@ -100,9 +108,10 @@ public sealed class HealthMonitoringRegistrationClient(
         }
     }
 
-    public async Task<ServiceRegistrationResult> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
+    public async Task<ServiceRegistrationResult?> RegisterAndConfigureAsync(ServiceRegistrationOptions options, IEnumerable<DependencyMappingOptions> mappings, CancellationToken cancellationToken = default)
     {
         var result = await RegisterAsync(options, cancellationToken);
+        if (result is null) return null;
         await SetDependencyMappingsAsync(options.ServiceId, mappings, cancellationToken);
         return result;
     }
