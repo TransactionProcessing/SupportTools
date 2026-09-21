@@ -43,16 +43,19 @@ jobs:
       run: |
         dotnet restore TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
         dotnet restore TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
+        dotnet restore HealthMonitoring/HealthMonitoring.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
 
     - name: Build Code
       run: |
         dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
         dotnet build TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --configuration Release
+        dotnet build HealthMonitoring/HealthMonitoring.sln --configuration Release
 
     - name: Publish API
       run: |
         dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained
         dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained
+        dotnet publish "HealthMonitoring/HealthMonitoring.csproj" --configuration Release --output HealthMonitoring/publishOutput -r win-x64 --self-contained
           
     - name: Build Release Package (Merchant Pos)
       run: |
@@ -83,7 +86,19 @@ jobs:
       with:
         name: scheduledtasks
         path: ScheduledTasks
-        
+
+    - name: Build Release Package (Health Monitoring)
+      run: |
+         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.HealthMonitoring/publishOutput
+         zip -r ../healthmonitoring.zip ./*
+         echo "Zip file created at: $(realpath ../healthmonitoring.zip)"
+    
+    - name: Upload the artifact (Health Monitoring)    
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: healthmonitoring
+        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.HealthMonitoring/healthmonitoring.zip
+
     - name: Build and Publish Nuget Packages
       run: |
         dotnet pack "HealthMonitoring.Client\HealthMonitoring.Client.csproj" /p:PackageVersion=${{ steps.next_version.outputs.VERSION }} --output Nugets
@@ -297,3 +312,29 @@ jobs:
                    
           New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
           Start-Service -Name $serviceName
+
+      - name: Download the artifact (Health Monitoring) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: healthmonitoring
+          
+      - name: Remove existing Windows service (Health Monitoring)
+        run: |
+          $serviceName = "Transaction Processing - Health Monitoring"
+          # Check if the service exists
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Stop-Service -Name $serviceName
+            sc.exe delete $serviceName
+          }
+
+      - name: Unzip the files (Health Monitoring)
+        run: |
+          Expand-Archive -Path healthmonitoring.zip -DestinationPath "C:\txnproc\transactionprocessing\healthmonitoring" -Force
+  
+      - name: Install as a Windows service (Health Monitoring)
+        run: |
+          $serviceName = "Transaction Processing - Health Monitoring"
+          $servicePath = "C:\txnproc\transactionprocessing\healthmonitoring\TransactionProcessing.HealthMonitoring.exe"
+                   
+          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          Start-Service -Name $serviceName          

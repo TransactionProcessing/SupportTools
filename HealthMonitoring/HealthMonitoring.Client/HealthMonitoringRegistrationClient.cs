@@ -1,14 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace HealthMonitoring.Client;
-
-public sealed class HealthMonitoringRegistrationClientOptions
-{
-    public Uri MonitoringServerUrl { get; set; } = new("http://localhost:9620");
-}
 
 public sealed class ServiceRegistrationOptions
 {
@@ -164,21 +158,4 @@ public sealed class HealthMonitoringRegistrationClient(
     private sealed record ServiceIdentityPayload(Guid Id, string ServiceId, string Name);
     private sealed record DependencyMappingPayload(string DependencyName, Guid TargetMonitoredServiceId);
     private sealed record DependencyLinkResponsePayload(Guid Id, string DependencyName, Guid TargetMonitoredServiceId, string TargetServiceId, string TargetServiceName);
-}
-
-public static class HealthMonitoringRegistrationClientServiceCollectionExtensions
-{
-    public static IHttpClientBuilder AddHealthMonitoringRegistrationClient(this IServiceCollection services, Action<HealthMonitoringRegistrationClientOptions> configure)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configure);
-        var options = new HealthMonitoringRegistrationClientOptions();
-        configure(options);
-        if (!options.MonitoringServerUrl.IsAbsoluteUri) throw new ArgumentException("The monitoring server URL must be absolute.", nameof(configure));
-
-        return services.AddHttpClient<IHealthMonitoringRegistrationClient, HealthMonitoringRegistrationClient>(client =>
-        {
-            client.BaseAddress = options.MonitoringServerUrl;
-        });
-    }
 }
