@@ -15,7 +15,15 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Transaction Processing - Health Monitoring";
 });
 
-builder.Configuration.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("/home/txnproc/config/appsettings.json", true, true)
+    .AddJsonFile($"/home/txnproc/config/appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+    .AddJsonFile($"/home/txnproc/config/appsettings.local.json", optional: true)
+    .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
 builder.Services.AddSingleton(new InitializationOptions
 {
     RequireSqlServer = builder.Configuration.GetValue("Initialization:RequireSqlServer", true),
