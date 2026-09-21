@@ -64,7 +64,7 @@ public sealed class SqlServerRegistrationVersionResolver(ISqlServerProbe probe, 
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception, "Unable to determine SQL Server version while registering service {ServiceId}.", service.ServiceId);
+            logger.LogWarning(exception, "Unable to determine SQL Server version while registering a service.");
             return fallback;
         }
     }

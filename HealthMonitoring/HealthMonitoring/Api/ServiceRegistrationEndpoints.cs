@@ -32,7 +32,7 @@ public static class ServiceRegistrationEndpoints
             var existing = await repository.GetServiceAsync(request.ServiceId, cancellationToken);
             var service = ServiceConfigurationValidator.ToService(request, dashboardEnvironment, existing, preserveManagedSettings: true);
             if (request.MonitorType == MonitorType.SqlServer)
-                service.Version = await versionResolver.ResolveAsync(service, request.Version, cancellationToken);
+                service.Version = await versionResolver.ResolveAsync(service, request.Version ?? existing?.Version, cancellationToken);
             await repository.UpsertServiceAsync(service, cancellationToken);
             var action = existing is null ? "created" : "acknowledged";
             return existing is null

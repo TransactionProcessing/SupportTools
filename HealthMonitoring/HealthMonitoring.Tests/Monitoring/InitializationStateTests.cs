@@ -57,11 +57,42 @@ public sealed class InitializationStateTests
         Assert.Equal("SQL Server 2022", repository.SavedService?.Version);
     }
 
+    [Fact]
+    public async Task Initialization_registration_preserves_an_existing_sql_server_version_when_query_fails()
+    {
+        var repository = new InMemoryRepository
+        {
+            SavedService = new MonitoredService
+            {
+                ServiceId = "sql-server",
+                Version = "SQL Server 2019",
+                MonitorType = MonitorType.SqlServer
+            }
+        };
+        var sqlServerProbe = new FailingVersionProbe();
+        var sqlServerClient = new SqlServerMonitorClient(sqlServerProbe);
+        var kurrentDbClient = new KurrentDbMonitorClient(new NoOpKurrentDbProbe());
+        var resolver = new SqlServerRegistrationVersionResolver(sqlServerProbe, NullLogger<SqlServerRegistrationVersionResolver>.Instance);
+        var service = new InitializationService(repository, new InitializationOptions { RequireSqlServer = true, RequireKurrentDb = false }, sqlServerClient, kurrentDbClient, resolver);
+
+        await service.InitializeAsync(new InitializationRequest("Server=localhost;Database=Orders;", string.Empty) { TestConnections = false }, "Development", CancellationToken.None);
+
+        Assert.Equal("SQL Server 2019", repository.SavedService?.Version);
+    }
+
     private sealed class VersionProbe(string version) : ISqlServerProbe
     {
         public Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken) => Task.FromResult<string?>(version);
+    }
+
+    private sealed class FailingVersionProbe : ISqlServerProbe
+    {
+        public Task ProbeAsync(MonitoredService service, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<string?> GetVersionAsync(MonitoredService service, CancellationToken cancellationToken) =>
+            Task.FromException<string?>(new InvalidOperationException("version query failed"));
     }
 
     private sealed class NoOpKurrentDbProbe : IKurrentDbProbe
@@ -71,7 +102,7 @@ public sealed class InitializationStateTests
 
     private sealed class InMemoryRepository : IHealthMonitoringRepository
     {
-        public MonitoredService? SavedService { get; private set; }
+        public MonitoredService? SavedService { get; set; }
 
         public Task<MonitoredService?> GetServiceAsync(string serviceId, CancellationToken cancellationToken) => Task.FromResult(SavedService);
         public Task<MonitoredService> UpsertServiceAsync(MonitoredService service, CancellationToken cancellationToken) { SavedService = service; return Task.FromResult(service); }

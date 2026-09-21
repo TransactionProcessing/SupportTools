@@ -1,9 +1,13 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using HealthMonitoring.Persistence;
 
 #nullable disable
 
 namespace HealthMonitoring.Migrations;
 
+[DbContext(typeof(HealthMonitoringDbContext))]
+[Migration("20260921180000_MakeHealthUrlOptional")]
 public partial class MakeHealthUrlOptional : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
