@@ -10,6 +10,11 @@ using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Transaction Processing - Health Monitoring";
+});
+
 builder.Configuration.AddJsonFile("hosting.json", optional: true, reloadOnChange: true);
 builder.Services.AddSingleton(new InitializationOptions
 {
