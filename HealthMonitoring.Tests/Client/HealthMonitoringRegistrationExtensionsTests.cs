@@ -18,6 +18,7 @@ public sealed class HealthMonitoringRegistrationExtensionsTests
                 ["HealthMonitoring:Service:Name"] = "Mobile Configuration",
                 ["HealthMonitoring:Service:HealthUrl"] = "https://mobile.example/healthui",
                 ["HealthMonitoring:Service:Description"] = "Mobile Configuration",
+                ["HealthMonitoring:Service:Version"] = "1.2.3",
                 ["HealthMonitoring:Service:PollingInterval"] = "00:02:00",
                 ["HealthMonitoring:Dependencies:0:DependencyName"] = "Security Service",
                 ["HealthMonitoring:Dependencies:0:TargetServiceId"] = "security-service"
@@ -33,6 +34,7 @@ public sealed class HealthMonitoringRegistrationExtensionsTests
 
         Assert.Equal(new Uri("https://monitoring.example/"), options.MonitoringServerUrl);
         Assert.Equal("mobile-configuration", options.Service.ServiceId);
+        Assert.Equal("1.2.3", options.Service.Version);
         Assert.Equal(TimeSpan.FromMinutes(2), options.Service.PollingInterval);
         Assert.Single(options.Dependencies);
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is HealthMonitoringRegistrationHostedService);

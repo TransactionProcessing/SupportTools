@@ -34,7 +34,8 @@ public sealed class HealthMonitoringRegistrationClientTests
             PollingInterval = TimeSpan.FromSeconds(30),
             RequestTimeout = TimeSpan.FromSeconds(8),
             RetentionPeriod = TimeSpan.FromDays(90),
-            IgnoreCertificateErrors = true
+            IgnoreCertificateErrors = true,
+            Version = "1.2.3"
         });
 
         Assert.Equal("created", result.Action);
@@ -46,6 +47,7 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.Equal(0, payload.MonitorType);
         Assert.Equal(30, payload.PollingIntervalSeconds);
         Assert.True(payload.IgnoreCertificateErrors);
+        Assert.Equal("1.2.3", payload.Version);
     }
 
     [Fact]
@@ -132,6 +134,7 @@ public sealed class HealthMonitoringRegistrationClientTests
         public int MonitorType { get; set; }
         public int PollingIntervalSeconds { get; set; }
         public bool IgnoreCertificateErrors { get; set; }
+        public string? Version { get; set; }
     }
 
     private sealed class DependencyMappingPayload
