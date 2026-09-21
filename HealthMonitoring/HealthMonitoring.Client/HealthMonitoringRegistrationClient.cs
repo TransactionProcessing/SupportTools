@@ -98,7 +98,16 @@ public sealed class HealthMonitoringRegistrationClient(
             if (string.IsNullOrWhiteSpace(mapping.DependencyName)) throw new ArgumentException("A dependency name is required.", nameof(mappings));
             if (string.IsNullOrWhiteSpace(mapping.TargetServiceId)) throw new ArgumentException("A target service ID is required.", nameof(mappings));
 
-            var target = await GetServiceAsync(mapping.TargetServiceId, cancellationToken);
+            ServiceIdentityPayload target;
+            try
+            {
+                target = await GetServiceAsync(mapping.TargetServiceId, cancellationToken);
+            }
+            catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound && !cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogWarning(exception, "Skipping dependency mapping because target service '{TargetServiceId}' is not registered.", mapping.TargetServiceId);
+                continue;
+            }
             var payload = new DependencyMappingPayload(mapping.DependencyName, target.Id);
             var current = existing.FirstOrDefault(link => string.Equals(link.DependencyName.Trim(), mapping.DependencyName.Trim(), StringComparison.OrdinalIgnoreCase));
             using var response = current is null
