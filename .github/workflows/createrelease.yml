@@ -38,9 +38,9 @@ jobs:
 
     - name: Publish API
       run: |
-        dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained
-        dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained
-        dotnet publish "HealthMonitoring/HealthMonitoring/HealthMonitoring.csproj" --configuration Release --output HealthMonitoring/publishOutput -r win-x64 --self-contained
+        dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.get_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.get_version.outputs.VERSION }} -p:FileVersion=${{ steps.get_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.get_version.outputs.VERSION }}
+        dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.get_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.get_version.outputs.VERSION }} -p:FileVersion=${{ steps.get_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.get_version.outputs.VERSION }}
+        dotnet publish "HealthMonitoring/HealthMonitoring/HealthMonitoring.csproj" --configuration Release --output HealthMonitoring/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.get_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.get_version.outputs.VERSION }} -p:FileVersion=${{ steps.get_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.get_version.outputs.VERSION }}
           
     - name: Build Release Package (Merchant Pos)
       run: |
