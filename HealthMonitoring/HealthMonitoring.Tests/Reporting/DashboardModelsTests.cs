@@ -39,4 +39,14 @@ public sealed class DashboardModelsTests
         Assert.Equal(observations[1].ObservedAtUtc, selected[0].ObservedAtUtc);
         Assert.Equal(observations[100].ObservedAtUtc, selected[^1].ObservedAtUtc);
     }
+
+    [Fact]
+    public void TimelineObservationSelector_exposes_maximum_segments_as_read_only_property()
+    {
+        var property = typeof(TimelineObservationSelector).GetProperty(nameof(TimelineObservationSelector.MaximumSegments));
+
+        Assert.NotNull(property);
+        Assert.False(property!.CanWrite);
+        Assert.Equal(100, property.GetValue(null));
+    }
 }
