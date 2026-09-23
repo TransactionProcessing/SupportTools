@@ -359,3 +359,4 @@ MigrationBackup/
 /TransactionProcessor.SystemSetupTool/Properties/launchSettings.json
 # Codex implementation worktrees
 .worktrees/
+/MerchantPosData

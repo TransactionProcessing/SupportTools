@@ -1,6 +1,7 @@
 using ClientProxyBase;
 using FileProcessor.Client;
 using HealthChecks.UI.Client;
+using HealthMonitoring.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -10,6 +11,7 @@ using NLog.Extensions.Logging;
 using SecurityService.Client;
 using Shared.Monitoring;
 using Shared.Serialisation;
+using System.Reflection;
 using TransactionProcessing.MerchantFileProcessor;
 using TransactionProcessing.MerchantFileProcessor.Clients;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
@@ -17,8 +19,8 @@ using TransactionProcessing.MerchantFileProcessor.FileBuilding;
 using TransactionProcessing.MerchantFileProcessor.Persistence;
 using TransactionProcessing.MerchantFileProcessor.Reporting;
 using TransactionProcessing.MerchantFileProcessor.Services;
-using SharedLogger = Shared.Logger.Logger;
 using TransactionProcessor.Client;
+using SharedLogger = Shared.Logger.Logger;
 
 var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
                       ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
@@ -49,6 +51,10 @@ try
         .AddJsonFile("/home/txnproc/config/merchant-processing.bootstrap.local.json", optional: true, reloadOnChange: true)
         .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["HealthMonitoring:Service:Version"] = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0.0"
+        })
         .AddCommandLine(args);
 
     builder.WebHost.UseConfiguration(builder.Configuration);
@@ -131,7 +137,7 @@ try
     builder.Services.AddSingleton<IOperationsDashboardService, OperationsDashboardService>();
 
     builder.Services.AddHealthChecks();
-    builder.Services.AddUptimeKuma();
+    builder.Services.AddHealthMonitoringRegistration(builder.Configuration);
 
     var app = builder.Build();
 
@@ -176,14 +182,6 @@ try
             Predicate = _ => true,
             ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
         });
-
-    app.Lifetime.ApplicationStarted.Register(() =>
-    {
-        app.RegisterWithUptimeKumaAsync()
-            .GetAwaiter()
-            .GetResult();
-    });
-
 
     await app.RunAsync();
 }
