@@ -1,15 +1,17 @@
 using ClientProxyBase;
+using HealthChecks.UI.Client;
 using MerchantPos.EF.Persistence;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Extensions.Logging;
 using NLog.Web;
 using SecurityService.Client;
-using Shared.Serialisation;
-using System.Text.Json;
-using HealthChecks.UI.Client;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Shared.Monitoring;
+using Shared.Serialisation;
+using System.Reflection;
+using System.Text.Json;
+using HealthMonitoring.Client;
 using TransactionProcessing.MerchantPos.Persistence;
 using TransactionProcessing.MerchantPos.Runtime;
 using TransactionProcessor.Client;
@@ -41,6 +43,10 @@ try
         .AddJsonFile($"appsettings.local.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"/home/txnproc/config/appsettings.local.json", optional: true, reloadOnChange: true)
         .AddEnvironmentVariables()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["HealthMonitoring:Service:Version"] = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0.0"
+        })
         .AddCommandLine(args);
 
     builder.Host.UseNLog();
@@ -95,8 +101,8 @@ try
     });
 
     builder.Services.AddHealthChecks();
-    builder.Services.AddUptimeKuma();
-    
+    builder.Services.AddHealthMonitoringRegistration(builder.Configuration);
+
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
@@ -133,13 +139,6 @@ try
             Predicate = _ => true,
             ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
         });
-
-    app.Lifetime.ApplicationStarted.Register(() =>
-    {
-        app.RegisterWithUptimeKumaAsync()
-            .GetAwaiter()
-            .GetResult();
-    });
 
     await app.RunAsync();
 }

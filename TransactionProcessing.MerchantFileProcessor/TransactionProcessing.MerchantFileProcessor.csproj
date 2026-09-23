@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="FileProcessor.Client" Version="2026.9.2.153" />
+    <PackageReference Include="HealthMonitoring.Client" Version="2026.9.2.30" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
