@@ -35,7 +35,12 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
         var service = await dbContext.MonitoredServices.AsNoTracking().SingleOrDefaultAsync(item => item.ServiceId == serviceId && item.ArchivedAtUtc == null, cancellationToken);
         if (service is null) return null;
         var from = DateTimeOffset.UtcNow.Subtract(range);
-        var observations = await dbContext.HealthObservations.AsNoTracking().Include(item => item.Checks).Where(item => item.MonitoredServiceId == service.Id && item.ObservedAtUtc >= from).OrderByDescending(item => item.ObservedAtUtc).ToListAsync(cancellationToken);
+        var observationQuery = dbContext.HealthObservations.AsNoTracking().Where(item => item.MonitoredServiceId == service.Id && item.ObservedAtUtc >= from);
+        var observationMetrics = await observationQuery
+            .GroupBy(_ => 1)
+            .Select(group => new ObservationMetrics(group.Count(), group.Count(item => item.Status == HealthStatus.Healthy)))
+            .SingleOrDefaultAsync(cancellationToken) ?? new ObservationMetrics(0, 0);
+        var observations = await observationQuery.AsSplitQuery().Include(item => item.Checks).OrderByDescending(item => item.ObservedAtUtc).Take(TimelineObservationSelector.MaximumSegments).ToListAsync(cancellationToken);
         var incidents = await dbContext.ServiceIncidents.AsNoTracking().Where(item => item.MonitoredServiceId == service.Id && (item.EndedAtUtc == null || item.EndedAtUtc >= from)).OrderByDescending(item => item.StartedAtUtc).ToListAsync(cancellationToken);
         var snapshot = await dbContext.ServiceStatusSnapshots.AsNoTracking().SingleOrDefaultAsync(item => item.MonitoredServiceId == service.Id, cancellationToken);
         var checks = observations.SelectMany(item => item.Checks).ToArray();
@@ -43,7 +48,8 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
             .Where(link => link.MonitoredServiceId == service.Id)
             .Join(dbContext.MonitoredServices.AsNoTracking(), link => link.TargetMonitoredServiceId, target => target.Id, (link, target) => new ResolvedDependencyLink(link.DependencyName, target.ServiceId, target.Name))
             .ToListAsync(cancellationToken);
-        return new ServiceDetailModel(service, ToRow(service, snapshot, observations), observations, incidents, checks, dependencyLinks);
+        var summary = ToRow(service, snapshot, observations) with { UptimePercent = observationMetrics.UptimePercent };
+        return new ServiceDetailModel(service, summary, observationMetrics.TotalCount, observations, incidents, checks, dependencyLinks);
     }
 
     private static ServiceDashboardRow ToRow(MonitoredService service, ServiceStatusSnapshot? snapshot, IReadOnlyList<HealthObservation> observations)
