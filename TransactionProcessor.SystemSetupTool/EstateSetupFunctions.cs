@@ -576,20 +576,18 @@ public class EstateSetupFunctions {
 
     private async Task<Result> CreateFloats(CancellationToken cancellationToken) {
 
-        var getContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getContractsResult.IsFailed)
-            return ResultHelpers.CreateFailure(getContractsResult);
+        var getOperatorsResult = await this.TransactionProcessorClient.GetOperators(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
+        if (getOperatorsResult.IsFailed)
+            return ResultHelpers.CreateFailure(getOperatorsResult);
 
-        foreach (ContractResponse contractResponse in getContractsResult.Data) {
-            foreach (ContractProduct contractProduct in contractResponse.Products) {
-                
-                // Create the required floats
-                CreateFloatForContractProductRequest request = new CreateFloatForContractProductRequest { ContractId = contractResponse.ContractId, ProductId = contractProduct.ProductId, CreateDateTime = DateTime.Now };
-                
-                Result createFloatResult = await this.TransactionProcessorClient.CreateFloatForContractProduct(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
-                if (createFloatResult.IsFailed)
-                    return ResultHelpers.CreateFailure(createFloatResult);
-            }
+        foreach (var operatorResponse in getOperatorsResult.Data)
+        {
+            // Create the required floats
+            CreateFloatRequest request = new CreateFloatRequest { FloatId = operatorResponse.OperatorId, CreateDateTime = DateTime.Now };
+
+            Result createFloatResult = await this.TransactionProcessorClient.CreateFloat(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
+            if (createFloatResult.IsFailed)
+                return ResultHelpers.CreateFailure(createFloatResult);
         }
 
         return Result.Success();
