@@ -90,7 +90,9 @@ The default configuration file is `daily-support-check.json` beside the script:
 }
 ```
 
-`DefaultMinimumFreePercent` is the minimum free-space percentage applied to every filesystem drive. An entry in `DriveOverrides` replaces that threshold for the matching drive. Low free space produces a `Warning`; a configuration or inspection error produces a `Failed` result.
+If `daily-support-check.local.json` exists beside the base configuration, it is loaded automatically after the base file and its values override or extend the base configuration. Use this ignored local file for machine-specific settings and secrets. A starter example is provided as `daily-support-check.local.example.json`; copy it to `daily-support-check.local.json` and replace the placeholder values locally. The local file is excluded from source control.
+
+`ReportRetentionDays` controls how long generated JSON and HTML reports are kept. It defaults to `7` and only matching `daily-support-check-*` report files are removed. `DefaultMinimumFreePercent` is the minimum free-space percentage applied to every filesystem drive. An entry in `DriveOverrides` replaces that threshold for the matching drive. Low free space produces a `Warning`; a configuration or inspection error produces a `Failed` result.
 
 The `HealthMonitoring` check calls the configured services endpoint. All services must be `Healthy` for the check to pass. `Degraded` produces a `Warning`; `Unhealthy`, `Unknown`, an empty response, or an unavailable endpoint produces a `Failed` result, except that an empty service list is reported as a warning because the endpoint responded but has nothing registered.
 
@@ -169,9 +171,19 @@ Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\Scheduled
 
 Run under an account that can access the systems checked and write to the configured report directory.
 
-## Configure report delivery later
+## Configure Brevo report delivery
 
-`Send-SupportReport` currently returns a `LocalFiles` transport result containing the JSON and HTML paths. Once the delivery mechanism is confirmed, replace or extend that function to send the report by email, Teams, webhook, or another approved transport. The check and report code should not need to change.
+Reports are always written locally. Email delivery is optional and is enabled through the ignored local configuration file so the API key is not committed.
+
+Copy the example file and replace its placeholder values:
+
+```powershell
+Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json
+```
+
+Set `Email.Enabled` to `true`, provide the Brevo API key, a verified sender address, and one or more recipients. `AttachHtmlReport` and `AttachJsonReport` control whether the generated reports are attached. The script sends the HTML report as the email body and records a Brevo failure in the run result if delivery fails; the local files remain available.
+
+The Brevo API key is sent in the `api-key` header. Create and manage the key in Brevo, and do not add `daily-support-check.local.json` to source control.
 
 ## Tests
 

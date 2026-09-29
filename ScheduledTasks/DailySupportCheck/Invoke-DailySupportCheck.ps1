@@ -109,6 +109,26 @@ function Test-TemplateConfiguration {
     New-CheckResult -Name 'Template Configuration' -Status Passed -Summary 'Template configuration is ready for additional checks.' -Details 'Replace or extend the registered checks for environment-specific support actions.'
 }
 
+function Merge-SupportConfiguration {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [psobject] $Base,
+        [Parameter(Mandatory)] [psobject] $Override
+    )
+
+    foreach ($property in $Override.PSObject.Properties) {
+        $baseProperty = $Base.PSObject.Properties[$property.Name]
+        if ($null -ne $baseProperty -and $baseProperty.Value -is [pscustomobject] -and $property.Value -is [pscustomobject]) {
+            Merge-SupportConfiguration -Base $baseProperty.Value -Override $property.Value | Out-Null
+        }
+        else {
+            $Base | Add-Member -MemberType NoteProperty -Name $property.Name -Value $property.Value -Force
+        }
+    }
+
+    $Base
+}
+
 function Get-SupportConfiguration {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string] $Path)
@@ -118,6 +138,17 @@ function Get-SupportConfiguration {
     }
 
     $configuration = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $localPath = Join-Path (Split-Path -Parent $Path) (([IO.Path]::GetFileNameWithoutExtension($Path)) + '.local.json')
+    if (Test-Path -LiteralPath $localPath -PathType Leaf) {
+        $localConfiguration = Get-Content -LiteralPath $localPath -Raw | ConvertFrom-Json
+        $configuration = Merge-SupportConfiguration -Base $configuration -Override $localConfiguration
+    }
+    if (-not $configuration.PSObject.Properties['ReportRetentionDays']) {
+        $configuration | Add-Member -MemberType NoteProperty -Name ReportRetentionDays -Value 7
+    }
+    if ([int] $configuration.ReportRetentionDays -lt 1) {
+        throw 'ReportRetentionDays must be greater than zero.'
+    }
     if ($null -eq $configuration.DiskSpace) {
         throw 'Configuration must contain a DiskSpace section.'
     }
@@ -405,6 +436,18 @@ function Test-SubscriptionService {
         }
 
         $subscriptions = @(& $provider $uri $timeoutSeconds)
+        if ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId'] -and $subscriptions[0].subscriptionId -is [array]) {
+            $wrappedSubscriptions = $subscriptions[0]
+            $subscriptionCount = @($wrappedSubscriptions.subscriptionId).Count
+            $subscriptions = for ($index = 0; $index -lt $subscriptionCount; $index++) {
+                $subscription = [ordered]@{}
+                foreach ($property in $wrappedSubscriptions.PSObject.Properties) {
+                    $value = $property.Value
+                    $subscription[$property.Name] = if ($value -is [array] -and $value.Count -eq $subscriptionCount) { $value[$index] } else { $value }
+                }
+                [pscustomobject] $subscription
+            }
+        }
         if ($subscriptions.Count -eq 0) {
             return New-CheckResult -Name 'Subscription Service' -Status Warning -Summary 'Subscription service returned no subscriptions.' -Details @()
         }
@@ -893,8 +936,13 @@ function Write-SupportReports {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [object] $Report,
-        [Parameter(Mandatory)] [string] $OutputPath
+        [Parameter(Mandatory)] [string] $OutputPath,
+        [int] $RetentionDays = 7
     )
+
+    if ($RetentionDays -lt 1) {
+        throw 'RetentionDays must be greater than zero.'
+    }
 
     New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
     $stamp = [datetime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
@@ -908,10 +956,18 @@ function Write-SupportReports {
     foreach ($check in @($Report.Checks)) {
         $status = [System.Net.WebUtility]::HtmlEncode([string] $check.Status)
         $name = [System.Net.WebUtility]::HtmlEncode([string] $check.Name)
-        $summary = [System.Net.WebUtility]::HtmlEncode([string] $check.Summary)
-        $details = [System.Net.WebUtility]::HtmlEncode((ConvertTo-ReportText $check.Details))
-        $error = [System.Net.WebUtility]::HtmlEncode((ConvertTo-ReportText $check.Error))
-        [void] $rows.AppendLine("<tr class=`"status-$status`"><td>$name</td><td>$status</td><td>$summary</td><td><pre>$details</pre></td><td><pre>$error</pre></td></tr>")
+        $summaryText = [string] $check.Summary
+        if ($summaryText.Length -gt 160) {
+            $summaryText = $summaryText.Substring(0, 157).TrimEnd() + '…'
+        }
+        $summary = [System.Net.WebUtility]::HtmlEncode($summaryText)
+        $statusIcon = switch ([string] $check.Status) {
+            'Passed' { '🟢' }
+            'Warning' { '🟠' }
+            'Failed' { '🔴' }
+            default { '⚪' }
+        }
+        [void] $rows.AppendLine("<tr class=`"status-$status`"><td>$name</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$status`">$statusIcon</span> $status</td><td>$summary</td></tr>")
     }
 
     $overallStatus = [System.Net.WebUtility]::HtmlEncode([string] $Report.OverallStatus)
@@ -919,14 +975,19 @@ function Write-SupportReports {
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Daily Support Check</title>
-<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}.status-Failed{background:#fde2e2}.status-Warning{background:#fff4cc}.status-Passed{background:#e4f4e4}pre{white-space:pre-wrap;margin:0}</style>
+<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}.status-Failed{background:#fde2e2}.status-Warning{background:#fff4cc}.status-Passed{background:#e4f4e4}.status-icon{font-size:1.15em;white-space:nowrap}</style>
 </head>
 <body><h1>Daily Support Check</h1><p><strong>Overall status:</strong> $overallStatus</p>
 <p><strong>Started:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.StartedAt))<br><strong>Completed:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.CompletedAt))</p>
-<table><thead><tr><th>Check</th><th>Status</th><th>Summary</th><th>Details</th><th>Error</th></tr></thead><tbody>$rows</tbody></table>
+<table><thead><tr><th>Check</th><th>Status</th><th>Summary</th></tr></thead><tbody>$rows</tbody></table>
 </body></html>
 "@
     $html | Set-Content -LiteralPath $htmlPath -Encoding UTF8
+
+    $cutoffUtc = [datetime]::UtcNow.AddDays(-$RetentionDays)
+    Get-ChildItem -LiteralPath $OutputPath -File | Where-Object {
+        $_.Name -like 'daily-support-check-*.json' -or $_.Name -like 'daily-support-check-*.html'
+    } | Where-Object { $_.LastWriteTimeUtc -lt $cutoffUtc } | Remove-Item -Force
 
     [pscustomobject]@{ JsonPath = $jsonPath; HtmlPath = $htmlPath }
 }
@@ -935,14 +996,115 @@ function Send-SupportReport {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [object] $Report,
-        [Parameter(Mandatory)] [object] $ReportPaths
+        [Parameter(Mandatory)] [object] $ReportPaths,
+        [object] $Configuration,
+        [scriptblock] $EmailProvider
     )
 
-    [pscustomobject]@{
-        Transport = 'LocalFiles'
-        Status    = 'Ready'
-        Paths     = $ReportPaths
-        Message   = 'Reports are available as local files. Replace this function when a delivery transport is confirmed.'
+    $email = if ($Configuration -and $Configuration.PSObject.Properties['Email']) { $Configuration.Email } else { $null }
+    if ($null -eq $email -or -not [bool] $email.Enabled) {
+        return [pscustomobject]@{
+            Transport = 'LocalFiles'
+            Status    = 'Ready'
+            Paths     = $ReportPaths
+            Message   = 'Reports are available as local files. Email delivery is disabled.'
+        }
+    }
+
+    try {
+        $providerName = if ([string]::IsNullOrWhiteSpace([string] $email.Provider)) { 'Brevo' } else { [string] $email.Provider }
+        if ($providerName -ne 'Brevo') {
+            throw "Unsupported email provider '$providerName'."
+        }
+
+        foreach ($required in @('ApiUrl', 'ApiKey', 'From')) {
+            if ([string]::IsNullOrWhiteSpace([string] $email.$required)) {
+                throw "Email.$required must be configured when email delivery is enabled."
+            }
+        }
+
+        $recipients = @($email.To | ForEach-Object { [string] $_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($recipients.Count -eq 0) {
+            throw 'Email.To must contain at least one recipient when email delivery is enabled.'
+        }
+
+        $counts = if ($Report.Counts) { $Report.Counts } else { [pscustomobject]@{ Passed = 0; Warning = 0; Failed = 0 } }
+        $textLines = @(
+            'Daily Support Check'
+            "Overall status: $($Report.OverallStatus)"
+            "Passed: $($counts.Passed); Warning: $($counts.Warning); Failed: $($counts.Failed)"
+        )
+        foreach ($check in @($Report.Checks | Where-Object { $_.Status -ne 'Passed' })) {
+            $textLines += "[$($check.Status)] $($check.Name): $($check.Summary)"
+            if ($check.Error) { $textLines += "Error: $($check.Error)" }
+        }
+        $textBody = $textLines -join [Environment]::NewLine
+
+        $htmlBody = $null
+        if ($ReportPaths.HtmlPath -and (Test-Path -LiteralPath $ReportPaths.HtmlPath)) {
+            $htmlBody = Get-Content -LiteralPath $ReportPaths.HtmlPath -Raw
+        }
+        if ([string]::IsNullOrWhiteSpace($htmlBody)) {
+            $htmlBody = "<html><body><h1>Daily Support Check</h1><p>Overall status: $([System.Net.WebUtility]::HtmlEncode([string] $Report.OverallStatus))</p></body></html>"
+        }
+
+        $attachments = @()
+        $attachHtmlReport = if ($email.PSObject.Properties['AttachHtmlReport']) { [bool] $email.AttachHtmlReport } else { $false }
+        $attachJsonReport = if ($email.PSObject.Properties['AttachJsonReport']) { [bool] $email.AttachJsonReport } else { $false }
+        $attachmentDefinitions = @(
+            [pscustomobject]@{ Enabled = $attachHtmlReport; Path = $ReportPaths.HtmlPath; MimeType = 'text/html' }
+            [pscustomobject]@{ Enabled = $attachJsonReport; Path = $ReportPaths.JsonPath; MimeType = 'application/json' }
+        )
+        foreach ($definition in $attachmentDefinitions) {
+            if ($definition.Enabled -and $definition.Path -and (Test-Path -LiteralPath $definition.Path)) {
+                $attachments += [pscustomobject]@{
+                    name    = [IO.Path]::GetFileName($definition.Path)
+                    content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($definition.Path))
+                }
+            }
+        }
+
+        $configuredSubjectPrefix = if ($email.PSObject.Properties['SubjectPrefix']) { [string] $email.SubjectPrefix } else { '' }
+        $subjectPrefix = if ([string]::IsNullOrWhiteSpace($configuredSubjectPrefix)) { 'Daily Support Check' } else { $configuredSubjectPrefix }
+        $serverName = if ([string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { 'Unknown Server' } else { $env:COMPUTERNAME }
+        $runDate = try { ([datetime]::Parse([string] $Report.StartedAt)).ToString('yyyy-MM-dd') } catch { (Get-Date).ToString('yyyy-MM-dd') }
+        $payload = [ordered]@{
+            sender     = [ordered]@{ email = [string] $email.From }
+            to         = @($recipients | ForEach-Object { [ordered]@{ email = $_ } })
+            subject    = "$subjectPrefix - $($Report.OverallStatus) - $serverName - $runDate"
+            textContent = $textBody
+            htmlContent = $htmlBody
+        }
+        if ($attachments.Count -gt 0) { $payload.attachments = $attachments }
+
+        if (-not $EmailProvider) {
+            $EmailProvider = {
+                param($requestUri, $headers, $requestPayload)
+                Invoke-RestMethod -Uri $requestUri -Method Post -Headers $headers -ContentType 'application/json' -Body ($requestPayload | ConvertTo-Json -Depth 12)
+            }
+        }
+
+        $headers = @{
+            'api-key' = [string] $email.ApiKey
+            Accept = 'application/json'
+            'Content-Type' = 'application/json'
+        }
+        $response = & $EmailProvider ([string] $email.ApiUrl) $headers $payload
+
+        [pscustomobject]@{
+            Transport = 'Brevo'
+            Status    = 'Sent'
+            Paths     = $ReportPaths
+            Message   = 'Report sent via Brevo.'
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            Transport = 'Brevo'
+            Status    = 'Failed'
+            Paths     = $ReportPaths
+            Message   = $_.Exception.Message
+        }
     }
 }
 
@@ -965,6 +1127,7 @@ function Invoke-DailySupportCheck {
     catch {
         $configurationError = $_.Exception.Message
         $configuration = [pscustomobject]@{
+            ReportRetentionDays = 7
             DiskSpace = [pscustomobject]@{
                 Enabled = $false
                 DefaultMinimumFreePercent = 15
@@ -988,8 +1151,8 @@ function Invoke-DailySupportCheck {
     }
 
     $report = New-SupportReport -StartedAt $startedAt -Results @($results)
-    $paths = Write-SupportReports -Report $report -OutputPath $OutputPath
-    $transport = Send-SupportReport -Report $report -ReportPaths $paths
+    $paths = Write-SupportReports -Report $report -OutputPath $OutputPath -RetentionDays ([int] $configuration.ReportRetentionDays)
+    $transport = Send-SupportReport -Report $report -ReportPaths $paths -Configuration $configuration
     $report | Add-Member -NotePropertyName ReportPaths -NotePropertyValue $paths
     $report | Add-Member -NotePropertyName Transport -NotePropertyValue $transport
 

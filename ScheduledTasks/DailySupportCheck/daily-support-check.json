@@ -1,4 +1,5 @@
 {
+  "ReportRetentionDays": 7,
   "DiskSpace": {
     "Enabled": true,
     "DefaultMinimumFreePercent": 15,

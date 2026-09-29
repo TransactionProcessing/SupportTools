@@ -55,6 +55,7 @@ jobs:
           './ScheduledTasks/Tests'
           './ScheduledTasks/ReplayParkedQueue/Tests'
           './ScheduledTasks/SettlementProcessing/Tests'
+          './ScheduledTasks/DailySupportCheck/Tests'
         ) -CI
 
   health-monitoring-tests:

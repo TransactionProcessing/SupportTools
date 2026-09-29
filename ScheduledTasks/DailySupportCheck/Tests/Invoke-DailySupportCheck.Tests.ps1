@@ -83,7 +83,8 @@ Describe 'Daily support check' {
 
     It 'preserves details in JSON and HTML-encodes report content' {
         $outputPath = Join-Path $testOutputRoot 'content'
-        $check = New-CheckResult -Name 'Content Check' -Status Warning -Summary '<needs review>' -Details 'detail & value'
+        $longSummary = ('failure detail ' * 20).Trim()
+        $check = New-CheckResult -Name 'Content Check' -Status Warning -Summary $longSummary -Details 'detail & value'
         $check.Error = 'error <text>'
         $report = New-SupportReport -StartedAt ([datetime]::UtcNow) -Results @($check)
 
@@ -92,9 +93,40 @@ Describe 'Daily support check' {
         $html = Get-Content -Raw -Path $paths.HtmlPath
 
         $json.Checks[0].Details | Should -Be 'detail & value'
-        $html | Should -Match '&lt;needs review&gt;'
-        $html | Should -Match 'detail &amp; value'
-        $html | Should -Match 'error &lt;text&gt;'
+        $html | Should -Match '<th>Check</th><th>Status</th><th>Summary</th>'
+        $html | Should -Match '🟠</span> Warning'
+        $html | Should -Match 'failure detail failure detail'
+        $html | Should -Match '…'
+        $html | Should -Not -Match 'Details'
+        $html | Should -Not -Match 'detail &amp; value'
+        $html | Should -Not -Match 'error &lt;text&gt;'
+    }
+
+    It 'removes matching reports older than the configured retention period' {
+        $outputPath = Join-Path $testOutputRoot 'retention'
+        New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
+        $oldJsonPath = Join-Path $outputPath 'daily-support-check-old.json'
+        $oldHtmlPath = Join-Path $outputPath 'daily-support-check-old.html'
+        $recentJsonPath = Join-Path $outputPath 'daily-support-check-recent.json'
+        $unrelatedPath = Join-Path $outputPath 'unrelated.json'
+        'old' | Set-Content -LiteralPath $oldJsonPath
+        'old' | Set-Content -LiteralPath $oldHtmlPath
+        'recent' | Set-Content -LiteralPath $recentJsonPath
+        'unrelated' | Set-Content -LiteralPath $unrelatedPath
+        $oldTime = [DateTime]::UtcNow.AddDays(-8)
+        [IO.File]::SetLastWriteTimeUtc($oldJsonPath, $oldTime)
+        [IO.File]::SetLastWriteTimeUtc($oldHtmlPath, $oldTime)
+        [IO.File]::SetLastWriteTimeUtc($unrelatedPath, $oldTime)
+
+        $report = New-SupportReport -StartedAt ([datetime]::UtcNow) -Results @(
+            (New-CheckResult -Name 'Retention Check' -Status Passed -Summary 'ok')
+        )
+        Write-SupportReports -Report $report -OutputPath $outputPath -RetentionDays 7 | Out-Null
+
+        Test-Path -LiteralPath $oldJsonPath | Should -BeFalse
+        Test-Path -LiteralPath $oldHtmlPath | Should -BeFalse
+        Test-Path -LiteralPath $recentJsonPath | Should -BeTrue
+        Test-Path -LiteralPath $unrelatedPath | Should -BeTrue
     }
 
     It 'returns the generated files from the local transport seam' {
@@ -105,6 +137,71 @@ Describe 'Daily support check' {
         $transport.Status | Should -Be 'Ready'
         $transport.Paths.JsonPath | Should -Be 'report.json'
         $transport.Paths.HtmlPath | Should -Be 'report.html'
+    }
+
+    It 'sends a Brevo email with the report summary and attachments' {
+        $jsonPath = Join-Path $testOutputRoot 'report.json'
+        $htmlPath = Join-Path $testOutputRoot 'report.html'
+        '{"OverallStatus":"Passed"}' | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+        '<html><body>Passed</body></html>' | Set-Content -LiteralPath $htmlPath -Encoding UTF8
+        $captured = $null
+        $configuration = [pscustomobject]@{
+            Email = [pscustomobject]@{
+                Enabled = $true
+                Provider = 'Brevo'
+                ApiUrl = 'https://brevo.test/v3/smtp/email'
+                ApiKey = 'api-test-key'
+                From = 'support@example.com'
+                To = @('recipient@example.com')
+                SubjectPrefix = 'Daily Support Check'
+                AttachHtmlReport = $true
+                AttachJsonReport = $true
+            }
+        }
+        $provider = {
+            param($requestUri, $headers, $payload)
+            $script:captured = [pscustomobject]@{ Uri = $requestUri; Headers = $headers; Payload = $payload }
+            [pscustomobject]@{ messageId = '<message-id>' }
+        }
+
+        $transport = Send-SupportReport `
+            -Report ([pscustomobject]@{ OverallStatus = 'Passed'; StartedAt = '2026-09-29T15:30:00.0000000Z'; Counts = [pscustomobject]@{ Passed = 1; Warning = 0; Failed = 0 }; Checks = @() }) `
+            -ReportPaths ([pscustomobject]@{ JsonPath = $jsonPath; HtmlPath = $htmlPath }) `
+            -Configuration $configuration `
+            -EmailProvider $provider
+
+        $transport.Transport | Should -Be 'Brevo'
+        $transport.Status | Should -Be 'Sent'
+        $script:captured.Uri | Should -Be 'https://brevo.test/v3/smtp/email'
+        $script:captured.Headers['api-key'] | Should -Be 'api-test-key'
+        $script:captured.Payload.subject | Should -Be "Daily Support Check - Passed - $env:COMPUTERNAME - 2026-09-29"
+        $script:captured.Payload.sender.email | Should -Be 'support@example.com'
+        $script:captured.Payload.to.email | Should -Contain 'recipient@example.com'
+        $script:captured.Payload.attachments.name | Should -Contain 'report.html'
+        $script:captured.Payload.attachments.name | Should -Contain 'report.json'
+    }
+
+    It 'reports a Brevo API failure without exposing the API key' {
+        $configuration = [pscustomobject]@{
+            Email = [pscustomobject]@{
+                Enabled = $true
+                Provider = 'Brevo'
+                ApiUrl = 'https://brevo.test/v3/smtp/email'
+                ApiKey = 'api-secret-key'
+                From = 'support@example.com'
+                To = @('recipient@example.com')
+            }
+        }
+        $transport = Send-SupportReport `
+            -Report ([pscustomobject]@{ OverallStatus = 'Failed'; Counts = [pscustomobject]@{ Passed = 0; Warning = 0; Failed = 1 }; Checks = @() }) `
+            -ReportPaths ([pscustomobject]@{ JsonPath = 'report.json'; HtmlPath = 'report.html' }) `
+            -Configuration $configuration `
+            -EmailProvider { param($requestUri, $headers, $payload) throw 'Brevo rejected the request.' }
+
+        $transport.Transport | Should -Be 'Brevo'
+        $transport.Status | Should -Be 'Failed'
+        $transport.Message | Should -Match 'rejected'
+        $transport.Message | Should -Not -Match 'api-secret-key'
     }
 
     It 'loads disk-space settings from a JSON configuration file' {
@@ -183,6 +280,7 @@ Describe 'Daily support check' {
         $configuration.HealthMonitoring.BaseUrl | Should -Be 'http://localhost:9620'
         $configuration.SubscriptionService.Enabled | Should -BeTrue
         $configuration.SubscriptionService.BaseUrl | Should -Be 'http://localhost:8080'
+        $configuration.ReportRetentionDays | Should -Be 7
         $configuration.KurrentDbProjections.Enabled | Should -BeTrue
         $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('MerchantBalanceProjection')
         $configuration.ScheduledTasks.Enabled | Should -BeTrue
@@ -192,6 +290,39 @@ Describe 'Daily support check' {
         $configuration.KurrentDbWriteActivity.Enabled | Should -BeTrue
         $configuration.KurrentDbWriteActivity.Streams.Count | Should -Be 1
         $configuration.KurrentDbWriteActivity.Streams[0].Name | Should -Be '$idx-ce-TransactionAggregate'
+    }
+
+    It 'merges the optional local configuration override without changing the base file' {
+        $configPath = Join-Path $testOutputRoot 'daily-support-check.json'
+        $localConfigPath = Join-Path $testOutputRoot 'daily-support-check.local.json'
+        @'
+{
+  "DiskSpace": {
+    "Enabled": false,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {}
+  },
+  "Email": {
+    "Enabled": false,
+    "From": "tracked@example.com"
+  }
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
+        @'
+{
+  "Email": {
+    "Enabled": true,
+    "ApiKey": "local-secret"
+  }
+}
+'@ | Set-Content -LiteralPath $localConfigPath -Encoding UTF8
+
+        $configuration = Get-SupportConfiguration -Path $configPath
+
+        $configuration.Email.Enabled | Should -BeTrue
+        $configuration.Email.From | Should -Be 'tracked@example.com'
+        $configuration.Email.ApiKey | Should -Be 'local-secret'
+        (Get-Content -Raw -LiteralPath $configPath) | Should -Match 'tracked@example.com'
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -332,6 +463,36 @@ Describe 'Daily support check' {
 
         $result.Status | Should -Be 'Passed'
         $result.Summary | Should -Match '1 subscription'
+    }
+
+    It 'expands a wrapped subscription response into individual subscriptions' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                SubscriptionService = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://subscription-service'
+                    StatusPath = '/subscriptions/status'
+                    TimeoutSeconds = 10
+                }
+            }
+            SubscriptionServiceProvider = {
+                [pscustomobject]@{
+                    subscriptionId = @('subscription-1', 'subscription-2')
+                    tag = @('Main', 'Ordered')
+                    isRunning = @($true, $true)
+                    health = @('Healthy', 'Healthy')
+                    parkedEventCount = @(0, 2)
+                    operationalReason = @($null, $null)
+                    runtimeFailureReason = @($null, $null)
+                }
+            }
+        }
+
+        $result = Test-SubscriptionService -Context $context
+
+        $result.Status | Should -Be 'Warning'
+        $result.Summary | Should -Match '1 subscription\(s\) have parked messages'
+        $result.Details.Count | Should -Be 2
     }
 
     It 'fails when a subscription is stopped and warns when parked messages exist' {
