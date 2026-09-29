@@ -134,6 +134,21 @@ function Get-SupportConfiguration {
         }
     }
 
+    if ($configuration.PSObject.Properties['HealthMonitoring']) {
+        if (-not [bool] $configuration.HealthMonitoring.Enabled) {
+            return $configuration
+        }
+
+        $healthMonitoringUri = $null
+        if (-not [uri]::TryCreate([string] $configuration.HealthMonitoring.BaseUrl, [UriKind]::Absolute, [ref] $healthMonitoringUri)) {
+            throw 'HealthMonitoring.BaseUrl must be an absolute URI.'
+        }
+
+        if ([int] $configuration.HealthMonitoring.TimeoutSeconds -le 0) {
+            throw 'HealthMonitoring.TimeoutSeconds must be greater than zero.'
+        }
+    }
+
     return $configuration
 }
 
@@ -211,11 +226,72 @@ function Test-DiskSpace {
     }
 }
 
+function Test-HealthMonitoring {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    if (-not $Context.Configuration.PSObject.Properties['HealthMonitoring'] -or -not [bool] $Context.Configuration.HealthMonitoring.Enabled) {
+        return New-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary 'HealthMonitoring check is disabled by configuration.' -Details @()
+    }
+
+    try {
+        $settings = $Context.Configuration.HealthMonitoring
+        $uri = ([uri]::new("$($settings.BaseUrl.TrimEnd('/'))/$($settings.ServicesPath.TrimStart('/'))")).AbsoluteUri
+        $timeoutSeconds = [int] $settings.TimeoutSeconds
+        $provider = {
+            param($requestUri, $requestTimeoutSeconds)
+            Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $requestTimeoutSeconds
+        }
+        if ($Context.PSObject.Properties['HealthMonitoringProvider']) {
+            $provider = $Context.HealthMonitoringProvider
+        }
+
+        $services = @(& $provider $uri $timeoutSeconds)
+        if ($services.Count -eq 0) {
+            return New-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary 'HealthMonitoring returned no monitored services.' -Details @()
+        }
+
+        $details = foreach ($service in $services) {
+            $status = [string] $service.Status
+            if ([string]::IsNullOrWhiteSpace($status)) {
+                $status = 'Unknown'
+            }
+            $status = (Get-Culture).TextInfo.ToTitleCase($status.ToLowerInvariant())
+            [pscustomobject]@{
+                ServiceId         = [string] $service.ServiceId
+                Name              = [string] $service.Name
+                Status            = $status
+                LastObservedAtUtc = if ($service.PSObject.Properties['LastObservedAtUtc']) { $service.LastObservedAtUtc } else { $null }
+                LastError         = if ($service.PSObject.Properties['LastError']) { $service.LastError } else { $null }
+            }
+        }
+
+        $failed = @($details | Where-Object Status -in @('Unhealthy', 'Unknown'))
+        $warnings = @($details | Where-Object Status -eq 'Degraded')
+        if ($failed.Count -gt 0) {
+            return New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary "$($failed.Count) monitored service(s) are unhealthy or unknown." -Details @($details)
+        }
+        if ($warnings.Count -gt 0) {
+            return New-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary "$($warnings.Count) monitored service(s) are degraded." -Details @($details)
+        }
+
+        New-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary "All $($details.Count) monitored service(s) are healthy." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring endpoint query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
+}
+
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
         [pscustomobject]@{ Name = 'Report Output Directory'; Action = ${function:Test-ReportOutputDirectory} }
         [pscustomobject]@{ Name = 'Disk Space'; Action = ${function:Test-DiskSpace} }
+        [pscustomobject]@{ Name = 'HealthMonitoring'; Action = ${function:Test-HealthMonitoring} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }

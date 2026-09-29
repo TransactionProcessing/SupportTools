@@ -3,5 +3,11 @@
     "Enabled": true,
     "DefaultMinimumFreePercent": 15,
     "DriveOverrides": {}
+  },
+  "HealthMonitoring": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "ServicesPath": "/api/services",
+    "TimeoutSeconds": 10
   }
 }

@@ -32,18 +32,27 @@ The default configuration file is `daily-support-check.json` beside the script:
       "C:": 10,
       "D:": 20
     }
+  },
+  "HealthMonitoring": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "ServicesPath": "/api/services",
+    "TimeoutSeconds": 10
   }
 }
 ```
 
 `DefaultMinimumFreePercent` is the minimum free-space percentage applied to every filesystem drive. An entry in `DriveOverrides` replaces that threshold for the matching drive. Low free space produces a `Warning`; a configuration or inspection error produces a `Failed` result.
 
+The `HealthMonitoring` check calls the configured services endpoint. All services must be `Healthy` for the check to pass. `Degraded` produces a `Warning`; `Unhealthy`, `Unknown`, an empty response, or an unavailable endpoint produces a `Failed` result, except that an empty service list is reported as a warning because the endpoint responded but has nothing registered.
+
 The default template checks are:
 
 1. `PowerShell Runtime`
 2. `Report Output Directory`
 3. `Disk Space`
-4. `Template Configuration`
+4. `HealthMonitoring`
+5. `Template Configuration`
 
 Replace or extend these with checks that are meaningful for the target environment. Set `DiskSpace.Enabled` to `false` when disk-space monitoring is not required for a particular host.
 

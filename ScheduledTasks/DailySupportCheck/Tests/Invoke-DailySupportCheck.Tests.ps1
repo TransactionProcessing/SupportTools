@@ -24,6 +24,7 @@ Describe 'Daily support check' {
             'PowerShell Runtime'
             'Report Output Directory'
             'Disk Space'
+            'HealthMonitoring'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -98,6 +99,12 @@ Describe 'Daily support check' {
       "C:": 10,
       "D:": 20
     }
+  },
+  "HealthMonitoring": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "ServicesPath": "/api/services",
+    "TimeoutSeconds": 10
   }
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -107,6 +114,8 @@ Describe 'Daily support check' {
         $configuration.DiskSpace.Enabled | Should -BeTrue
         $configuration.DiskSpace.DefaultMinimumFreePercent | Should -Be 15
         $configuration.DiskSpace.DriveOverrides.'C:' | Should -Be 10
+        $configuration.HealthMonitoring.Enabled | Should -BeTrue
+        $configuration.HealthMonitoring.BaseUrl | Should -Be 'http://localhost:9620'
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -151,5 +160,72 @@ Describe 'Daily support check' {
 
         $result.Status | Should -Be 'Failed'
         $result.Error | Should -Match 'disk query failed'
+    }
+
+    It 'passes the HealthMonitoring check when all services are healthy' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                HealthMonitoring = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://health-monitoring'
+                    ServicesPath = '/api/services'
+                    TimeoutSeconds = 10
+                }
+            }
+            HealthMonitoringProvider = {
+                @(
+                    [pscustomobject]@{ ServiceId = 'orders'; Name = 'Orders'; Status = 'Healthy'; LastObservedAtUtc = '2026-09-29T12:00:00Z'; LastError = $null }
+                    [pscustomobject]@{ ServiceId = 'payments'; Name = 'Payments'; Status = 'Healthy'; LastObservedAtUtc = '2026-09-29T12:00:00Z'; LastError = $null }
+                )
+            }
+        }
+
+        $result = Test-HealthMonitoring -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 2
+        $result.Summary | Should -Match '2 monitored service'
+    }
+
+    It 'returns Warning for degraded services and Failed for unhealthy services' {
+        $configuration = [pscustomobject]@{
+            HealthMonitoring = [pscustomobject]@{
+                Enabled = $true
+                BaseUrl = 'http://health-monitoring'
+                ServicesPath = '/api/services'
+                TimeoutSeconds = 10
+            }
+        }
+
+        $degradedContext = [pscustomobject]@{
+            Configuration = $configuration
+            HealthMonitoringProvider = { @([pscustomobject]@{ ServiceId = 'orders'; Name = 'Orders'; Status = 'Degraded' }) }
+        }
+        $unhealthyContext = [pscustomobject]@{
+            Configuration = $configuration
+            HealthMonitoringProvider = { @([pscustomobject]@{ ServiceId = 'payments'; Name = 'Payments'; Status = 'Unhealthy' }) }
+        }
+
+        (Test-HealthMonitoring -Context $degradedContext).Status | Should -Be 'Warning'
+        (Test-HealthMonitoring -Context $unhealthyContext).Status | Should -Be 'Failed'
+    }
+
+    It 'fails the HealthMonitoring check when the endpoint cannot be queried' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                HealthMonitoring = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://health-monitoring'
+                    ServicesPath = '/api/services'
+                    TimeoutSeconds = 10
+                }
+            }
+            HealthMonitoringProvider = { throw 'health endpoint unavailable' }
+        }
+
+        $result = Test-HealthMonitoring -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Error | Should -Match 'health endpoint unavailable'
     }
 }
