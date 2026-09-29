@@ -149,6 +149,21 @@ function Get-SupportConfiguration {
         }
     }
 
+    if ($configuration.PSObject.Properties['SubscriptionService']) {
+        if (-not [bool] $configuration.SubscriptionService.Enabled) {
+            return $configuration
+        }
+
+        $subscriptionServiceUri = $null
+        if (-not [uri]::TryCreate([string] $configuration.SubscriptionService.BaseUrl, [UriKind]::Absolute, [ref] $subscriptionServiceUri)) {
+            throw 'SubscriptionService.BaseUrl must be an absolute URI.'
+        }
+
+        if ([int] $configuration.SubscriptionService.TimeoutSeconds -le 0) {
+            throw 'SubscriptionService.TimeoutSeconds must be greater than zero.'
+        }
+    }
+
     return $configuration
 }
 
@@ -286,12 +301,73 @@ function Test-HealthMonitoring {
     }
 }
 
+function Test-SubscriptionService {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription service configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    if (-not $Context.Configuration.PSObject.Properties['SubscriptionService'] -or -not [bool] $Context.Configuration.SubscriptionService.Enabled) {
+        return New-CheckResult -Name 'Subscription Service' -Status Passed -Summary 'Subscription service check is disabled by configuration.' -Details @()
+    }
+
+    try {
+        $settings = $Context.Configuration.SubscriptionService
+        $uri = ([uri]::new("$($settings.BaseUrl.TrimEnd('/'))/$($settings.StatusPath.TrimStart('/'))")).AbsoluteUri
+        $timeoutSeconds = [int] $settings.TimeoutSeconds
+        $provider = {
+            param($requestUri, $requestTimeoutSeconds)
+            Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $requestTimeoutSeconds
+        }
+        if ($Context.PSObject.Properties['SubscriptionServiceProvider']) {
+            $provider = $Context.SubscriptionServiceProvider
+        }
+
+        $subscriptions = @(& $provider $uri $timeoutSeconds)
+        if ($subscriptions.Count -eq 0) {
+            return New-CheckResult -Name 'Subscription Service' -Status Warning -Summary 'Subscription service returned no subscriptions.' -Details @()
+        }
+
+        $details = foreach ($subscription in $subscriptions) {
+            $isRunning = [bool] $subscription.isRunning
+            $parkedEventCount = if ($subscription.PSObject.Properties['parkedEventCount'] -and $null -ne $subscription.parkedEventCount) { [int64] $subscription.parkedEventCount } else { 0 }
+            [pscustomobject]@{
+                SubscriptionId       = [string] $subscription.subscriptionId
+                Tag                  = [string] $subscription.tag
+                IsRunning            = $isRunning
+                Health               = [string] $subscription.health
+                ParkedEventCount     = $parkedEventCount
+                OperationalReason    = if ($subscription.PSObject.Properties['operationalReason']) { $subscription.operationalReason } else { $null }
+                RuntimeFailureReason = if ($subscription.PSObject.Properties['runtimeFailureReason']) { $subscription.runtimeFailureReason } else { $null }
+                Status               = if (-not $isRunning) { 'Failed' } elseif ($parkedEventCount -gt 0) { 'Warning' } else { 'Passed' }
+            }
+        }
+
+        $stopped = @($details | Where-Object Status -eq 'Failed')
+        $parked = @($details | Where-Object Status -eq 'Warning')
+        if ($stopped.Count -gt 0) {
+            return New-CheckResult -Name 'Subscription Service' -Status Failed -Summary "$($stopped.Count) subscription(s) are not running." -Details @($details)
+        }
+        if ($parked.Count -gt 0) {
+            return New-CheckResult -Name 'Subscription Service' -Status Warning -Summary "$($parked.Count) subscription(s) have parked messages." -Details @($details)
+        }
+
+        New-CheckResult -Name 'Subscription Service' -Status Passed -Summary "All $($details.Count) subscription(s) are running without parked messages." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription status endpoint query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
+}
+
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
         [pscustomobject]@{ Name = 'Report Output Directory'; Action = ${function:Test-ReportOutputDirectory} }
         [pscustomobject]@{ Name = 'Disk Space'; Action = ${function:Test-DiskSpace} }
         [pscustomobject]@{ Name = 'HealthMonitoring'; Action = ${function:Test-HealthMonitoring} }
+        [pscustomobject]@{ Name = 'Subscription Service'; Action = ${function:Test-SubscriptionService} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }

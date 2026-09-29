@@ -25,6 +25,7 @@ Describe 'Daily support check' {
             'Report Output Directory'
             'Disk Space'
             'HealthMonitoring'
+            'Subscription Service'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -105,6 +106,12 @@ Describe 'Daily support check' {
     "BaseUrl": "http://localhost:9620",
     "ServicesPath": "/api/services",
     "TimeoutSeconds": 10
+  },
+  "SubscriptionService": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:8080",
+    "StatusPath": "/subscriptions/status",
+    "TimeoutSeconds": 10
   }
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -116,6 +123,8 @@ Describe 'Daily support check' {
         $configuration.DiskSpace.DriveOverrides.'C:' | Should -Be 10
         $configuration.HealthMonitoring.Enabled | Should -BeTrue
         $configuration.HealthMonitoring.BaseUrl | Should -Be 'http://localhost:9620'
+        $configuration.SubscriptionService.Enabled | Should -BeTrue
+        $configuration.SubscriptionService.BaseUrl | Should -Be 'http://localhost:8080'
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -227,5 +236,75 @@ Describe 'Daily support check' {
 
         $result.Status | Should -Be 'Failed'
         $result.Error | Should -Match 'health endpoint unavailable'
+    }
+
+    It 'passes the subscription check when all subscriptions are running without parked messages' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                SubscriptionService = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://subscription-service'
+                    StatusPath = '/subscriptions/status'
+                    TimeoutSeconds = 10
+                }
+            }
+            SubscriptionServiceProvider = {
+                @([pscustomobject]@{
+                    subscriptionId = 'subscription-1'
+                    tag = 'Main'
+                    isRunning = $true
+                    health = 'Healthy'
+                    parkedEventCount = 0
+                    operationalReason = $null
+                    runtimeFailureReason = $null
+                })
+            }
+        }
+
+        $result = Test-SubscriptionService -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Summary | Should -Match '1 subscription'
+    }
+
+    It 'fails when a subscription is stopped and warns when parked messages exist' {
+        $configuration = [pscustomobject]@{
+            SubscriptionService = [pscustomobject]@{
+                Enabled = $true
+                BaseUrl = 'http://subscription-service'
+                StatusPath = '/subscriptions/status'
+                TimeoutSeconds = 10
+            }
+        }
+        $stoppedContext = [pscustomobject]@{
+            Configuration = $configuration
+            SubscriptionServiceProvider = { @([pscustomobject]@{ subscriptionId = 'stopped'; tag = 'Stopped'; isRunning = $false; health = 'Unhealthy'; parkedEventCount = 0 }) }
+        }
+        $parkedContext = [pscustomobject]@{
+            Configuration = $configuration
+            SubscriptionServiceProvider = { @([pscustomobject]@{ subscriptionId = 'parked'; tag = 'Parked'; isRunning = $true; health = 'Healthy'; parkedEventCount = 3 }) }
+        }
+
+        (Test-SubscriptionService -Context $stoppedContext).Status | Should -Be 'Failed'
+        (Test-SubscriptionService -Context $parkedContext).Status | Should -Be 'Warning'
+    }
+
+    It 'fails the subscription check when the status endpoint cannot be queried' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                SubscriptionService = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://subscription-service'
+                    StatusPath = '/subscriptions/status'
+                    TimeoutSeconds = 10
+                }
+            }
+            SubscriptionServiceProvider = { throw 'subscription endpoint unavailable' }
+        }
+
+        $result = Test-SubscriptionService -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Error | Should -Match 'subscription endpoint unavailable'
     }
 }

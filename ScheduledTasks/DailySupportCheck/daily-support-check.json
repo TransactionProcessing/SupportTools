@@ -9,5 +9,11 @@
     "BaseUrl": "http://localhost:9620",
     "ServicesPath": "/api/services",
     "TimeoutSeconds": 10
+  },
+  "SubscriptionService": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:8080",
+    "StatusPath": "/subscriptions/status",
+    "TimeoutSeconds": 10
   }
 }
