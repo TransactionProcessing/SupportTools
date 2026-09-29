@@ -174,7 +174,8 @@ Describe 'Daily support check' {
         $transport.Status | Should -Be 'Sent'
         $script:captured.Uri | Should -Be 'https://brevo.test/v3/smtp/email'
         $script:captured.Headers['api-key'] | Should -Be 'api-test-key'
-        $script:captured.Payload.subject | Should -Be "Daily Support Check - Passed - $env:COMPUTERNAME - 2026-09-29"
+        $expectedServerName = if ([string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { 'Unknown Server' } else { $env:COMPUTERNAME }
+        $script:captured.Payload.subject | Should -Be "Daily Support Check - Passed - $expectedServerName - 2026-09-29"
         $script:captured.Payload.sender.email | Should -Be 'support@example.com'
         $script:captured.Payload.to.email | Should -Contain 'recipient@example.com'
         $script:captured.Payload.attachments.name | Should -Contain 'report.html'
