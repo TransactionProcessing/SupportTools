@@ -185,6 +185,23 @@ function Get-SupportConfiguration {
         }
     }
 
+    if ($configuration.PSObject.Properties['ScheduledTasks']) {
+        if (-not [bool] $configuration.ScheduledTasks.Enabled) {
+            return $configuration
+        }
+
+        if ($configuration.ScheduledTasks.PSObject.Properties['Tasks']) {
+            foreach ($task in @($configuration.ScheduledTasks.Tasks)) {
+                if ([string]::IsNullOrWhiteSpace([string] $task.Name)) {
+                    throw 'ScheduledTasks entries must specify a Name.'
+                }
+                if ($task.PSObject.Properties['MaxLastRunAgeHours'] -and [double] $task.MaxLastRunAgeHours -le 0) {
+                    throw "Scheduled task '$($task.Name)' MaxLastRunAgeHours must be greater than zero."
+                }
+            }
+        }
+    }
+
     return $configuration
 }
 
@@ -460,6 +477,104 @@ function Test-KurrentDbProjections {
     }
 }
 
+function Test-ScheduledTasks {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    if (-not $Context.Configuration.PSObject.Properties['ScheduledTasks'] -or -not [bool] $Context.Configuration.ScheduledTasks.Enabled) {
+        return New-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary 'Scheduled-task check is disabled by configuration.' -Details @()
+    }
+
+    $taskConfigurations = @($Context.Configuration.ScheduledTasks.Tasks)
+    if ($taskConfigurations.Count -eq 0) {
+        return New-CheckResult -Name 'Scheduled Tasks' -Status Warning -Summary 'No scheduled tasks are configured for checking.' -Details @()
+    }
+
+    try {
+        $provider = {
+            param($taskConfiguration)
+            $task = Get-ScheduledTask -TaskName $taskConfiguration.Name -TaskPath $taskConfiguration.Path -ErrorAction Stop
+            $info = Get-ScheduledTaskInfo -TaskName $taskConfiguration.Name -TaskPath $taskConfiguration.Path -ErrorAction Stop
+            [pscustomobject]@{
+                Name            = $task.TaskName
+                Path            = $task.TaskPath
+                State           = [string] $task.State
+                LastTaskResult  = $info.LastTaskResult
+                LastRunTime     = $info.LastRunTime
+                NextRunTime     = $info.NextRunTime
+            }
+        }
+        if ($Context.PSObject.Properties['ScheduledTaskProvider']) {
+            $provider = $Context.ScheduledTaskProvider
+        }
+
+        $now = [datetime]::Now
+        $details = foreach ($taskConfiguration in $taskConfigurations) {
+            try {
+                $task = & $provider $taskConfiguration
+                $state = [string] $task.State
+                $lastTaskResult = [int64] $task.LastTaskResult
+                $lastRunTime = if ($task.PSObject.Properties['LastRunTime']) { $task.LastRunTime } else { $null }
+                $nextRunTime = if ($task.PSObject.Properties['NextRunTime']) { $task.NextRunTime } else { $null }
+                $failureReasons = [System.Collections.Generic.List[string]]::new()
+
+                if ($state -eq 'Disabled') { $failureReasons.Add('Disabled') }
+                if ($lastTaskResult -ne 0) { $failureReasons.Add("LastTaskResult=$lastTaskResult") }
+                if ($null -eq $lastRunTime) {
+                    $failureReasons.Add('No successful run recorded')
+                }
+                elseif ($taskConfiguration.PSObject.Properties['MaxLastRunAgeHours'] -and $lastRunTime -lt $now.AddHours(-[double] $taskConfiguration.MaxLastRunAgeHours)) {
+                    $failureReasons.Add('Last run is too old')
+                }
+                if ($null -ne $nextRunTime -and $nextRunTime -lt $now -and $state -ne 'Running') {
+                    $failureReasons.Add('Next run is overdue')
+                }
+                if ($state -notin @('Ready', 'Running', 'Disabled')) {
+                    $failureReasons.Add("Unexpected state '$state'")
+                }
+
+                [pscustomobject]@{
+                    Name            = [string] $taskConfiguration.Name
+                    Path            = [string] $taskConfiguration.Path
+                    State           = $state
+                    LastTaskResult  = $lastTaskResult
+                    LastRunTime     = $lastRunTime
+                    NextRunTime     = $nextRunTime
+                    Status          = if ($failureReasons.Count -gt 0) { 'Failed' } else { 'Passed' }
+                    FailureReason   = if ($failureReasons.Count -gt 0) { $failureReasons -join '; ' } else { $null }
+                }
+            }
+            catch {
+                [pscustomobject]@{
+                    Name = [string] $taskConfiguration.Name
+                    Path = [string] $taskConfiguration.Path
+                    State = 'Missing'
+                    LastTaskResult = $null
+                    LastRunTime = $null
+                    NextRunTime = $null
+                    Status = 'Failed'
+                    FailureReason = $_.Exception.Message
+                }
+            }
+        }
+
+        $failed = @($details | Where-Object Status -eq 'Failed')
+        if ($failed.Count -gt 0) {
+            $summary = ($failed | ForEach-Object { "$($_.Name) [$($_.FailureReason)]" }) -join ', '
+            return New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary "Scheduled task(s) require attention: $summary" -Details @($details)
+        }
+
+        New-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary "All $($details.Count) configured scheduled task(s) are healthy." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task status query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
+}
+
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
@@ -468,6 +583,7 @@ function Get-SupportCheckDefinitions {
         [pscustomobject]@{ Name = 'HealthMonitoring'; Action = ${function:Test-HealthMonitoring} }
         [pscustomobject]@{ Name = 'Subscription Service'; Action = ${function:Test-SubscriptionService} }
         [pscustomobject]@{ Name = 'KurrentDB Projections'; Action = ${function:Test-KurrentDbProjections} }
+        [pscustomobject]@{ Name = 'Scheduled Tasks'; Action = ${function:Test-ScheduledTasks} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }

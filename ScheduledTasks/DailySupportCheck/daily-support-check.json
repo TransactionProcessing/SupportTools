@@ -22,5 +22,9 @@
     "ProjectionsPath": "/projections/any",
     "ProjectionNames": [],
     "TimeoutSeconds": 10
+  },
+  "ScheduledTasks": {
+    "Enabled": false,
+    "Tasks": []
   }
 }

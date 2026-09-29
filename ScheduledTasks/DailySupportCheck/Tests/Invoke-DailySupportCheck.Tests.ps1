@@ -27,6 +27,7 @@ Describe 'Daily support check' {
             'HealthMonitoring'
             'Subscription Service'
             'KurrentDB Projections'
+            'Scheduled Tasks'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -123,6 +124,16 @@ Describe 'Daily support check' {
       "MerchantAggregator"
     ],
     "TimeoutSeconds": 10
+  },
+  "ScheduledTasks": {
+    "Enabled": true,
+    "Tasks": [
+      {
+        "Name": "Daily Support Check",
+        "Path": "\\",
+        "MaxLastRunAgeHours": 24
+      }
+    ]
   }
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -138,6 +149,8 @@ Describe 'Daily support check' {
         $configuration.SubscriptionService.BaseUrl | Should -Be 'http://localhost:8080'
         $configuration.KurrentDbProjections.Enabled | Should -BeTrue
         $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('TransactionProcessor', 'MerchantAggregator')
+        $configuration.ScheduledTasks.Enabled | Should -BeTrue
+        $configuration.ScheduledTasks.Tasks[0].Name | Should -Be 'Daily Support Check'
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -407,5 +420,78 @@ Describe 'Daily support check' {
 
         $result.Status | Should -Be 'Failed'
         $result.Error | Should -Match 'projection endpoint unavailable'
+    }
+
+    It 'passes when configured scheduled tasks are enabled and have successful recent runs' {
+        $now = [datetime]::Now
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                ScheduledTasks = [pscustomobject]@{
+                    Enabled = $true
+                    Tasks = @([pscustomobject]@{ Name = 'Daily Support Check'; Path = '\'; MaxLastRunAgeHours = 24 })
+                }
+            }
+            ScheduledTaskProvider = {
+                param($taskConfiguration)
+                [pscustomobject]@{
+                    Name = $taskConfiguration.Name
+                    Path = $taskConfiguration.Path
+                    State = 'Ready'
+                    LastTaskResult = 0
+                    LastRunTime = $now.AddHours(-1)
+                    NextRunTime = $now.AddHours(23)
+                }
+            }
+        }
+
+        $result = Test-ScheduledTasks -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details[0].LastTaskResult | Should -Be 0
+    }
+
+    It 'fails for missing, disabled, failed, or overdue scheduled tasks' {
+        $now = [datetime]::Now
+        $configuration = [pscustomobject]@{
+            ScheduledTasks = [pscustomobject]@{
+                Enabled = $true
+                Tasks = @(
+                    [pscustomobject]@{ Name = 'Missing'; Path = '\'; MaxLastRunAgeHours = 24 }
+                    [pscustomobject]@{ Name = 'Disabled'; Path = '\'; MaxLastRunAgeHours = 24 }
+                    [pscustomobject]@{ Name = 'Failed'; Path = '\'; MaxLastRunAgeHours = 24 }
+                    [pscustomobject]@{ Name = 'Overdue'; Path = '\'; MaxLastRunAgeHours = 24 }
+                )
+            }
+        }
+        $context = [pscustomobject]@{
+            Configuration = $configuration
+            ScheduledTaskProvider = {
+                param($taskConfiguration)
+                switch ($taskConfiguration.Name) {
+                    'Missing' { throw 'task not found' }
+                    'Disabled' { [pscustomobject]@{ Name = 'Disabled'; Path = '\'; State = 'Disabled'; LastTaskResult = 0; LastRunTime = $now.AddHours(-1); NextRunTime = $now.AddHours(23) } }
+                    'Failed' { [pscustomobject]@{ Name = 'Failed'; Path = '\'; State = 'Ready'; LastTaskResult = 1; LastRunTime = $now.AddHours(-1); NextRunTime = $now.AddHours(23) } }
+                    'Overdue' { [pscustomobject]@{ Name = 'Overdue'; Path = '\'; State = 'Ready'; LastTaskResult = 0; LastRunTime = $now.AddHours(-25); NextRunTime = $now.AddHours(-1) } }
+                }
+            }
+        }
+
+        $result = Test-ScheduledTasks -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Summary | Should -Match 'Missing'
+        $result.Summary | Should -Match 'Disabled'
+        $result.Summary | Should -Match 'Failed'
+        $result.Summary | Should -Match 'Overdue'
+    }
+
+    It 'warns when no scheduled tasks are configured' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                ScheduledTasks = [pscustomobject]@{ Enabled = $true; Tasks = @() }
+            }
+        }
+
+        (Test-ScheduledTasks -Context $context).Status | Should -Be 'Warning'
     }
 }
