@@ -3,6 +3,13 @@ Describe 'Daily support check' {
         . (Join-Path $PSScriptRoot '..\Invoke-DailySupportCheck.ps1')
     }
 
+    It 'converts an environment password to a read-only SecureString' {
+        $securePassword = New-EnvironmentPasswordSecureString -Password 'test-password'
+
+        $securePassword.IsReadOnly() | Should -BeTrue
+        [System.Net.NetworkCredential]::new('', $securePassword).Password | Should -Be 'test-password'
+    }
+
     BeforeEach {
         $testOutputRoot = Join-Path ([IO.Path]::GetTempPath()) (Join-Path 'DailySupportCheckTests' ([guid]::NewGuid().ToString('N')))
         New-Item -ItemType Directory -Path $testOutputRoot -Force | Out-Null

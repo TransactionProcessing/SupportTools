@@ -10,6 +10,20 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function New-EnvironmentPasswordSecureString {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Password
+    )
+
+    $securePassword = [System.Security.SecureString]::new()
+    foreach ($character in $Password.ToCharArray()) {
+        $securePassword.AppendChar($character)
+    }
+    $securePassword.MakeReadOnly()
+    return $securePassword
+}
+
 function New-CheckResult {
     [CmdletBinding()]
     param(
@@ -514,7 +528,7 @@ function Test-KurrentDbProjections {
                 if ([string]::IsNullOrWhiteSpace($password)) {
                     throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
                 }
-                $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+                $securePassword = New-EnvironmentPasswordSecureString -Password $password
                 $request.Authentication = 'Basic'
                 $request.Credential = [pscredential]::new([string] $settings.Username, $securePassword)
             }
