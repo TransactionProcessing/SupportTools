@@ -4,7 +4,7 @@ Describe 'Daily support check' {
     }
 
     It 'converts an environment password to a read-only SecureString' {
-        $securePassword = New-EnvironmentPasswordSecureString -Password 'test-password'
+        $securePassword = Get-EnvironmentPasswordSecureString -PasswordCharacters 'test-password'.ToCharArray()
 
         $securePassword.IsReadOnly() | Should -BeTrue
         [System.Net.NetworkCredential]::new('', $securePassword).Password | Should -Be 'test-password'
@@ -66,7 +66,7 @@ Describe 'Daily support check' {
             }),
             (Invoke-SupportCheck -Name 'Following Check' -Action {
                 $script:followingCheckRan = $true
-                New-CheckResult -Name 'Following Check' -Status Passed -Summary 'ran'
+                Get-CheckResult -Name 'Following Check' -Status Passed -Summary 'ran'
             })
         )
 
@@ -78,22 +78,22 @@ Describe 'Daily support check' {
 
     It 'calculates status precedence as Failed, then Warning, then Passed' {
         Get-OverallStatus -Results @(
-            (New-CheckResult -Name 'Pass' -Status Passed -Summary 'ok'),
-            (New-CheckResult -Name 'Warning' -Status Warning -Summary 'attention')
+            (Get-CheckResult -Name 'Pass' -Status Passed -Summary 'ok'),
+            (Get-CheckResult -Name 'Warning' -Status Warning -Summary 'attention')
         ) | Should -Be 'Warning'
 
         Get-OverallStatus -Results @(
-            (New-CheckResult -Name 'Warning' -Status Warning -Summary 'attention'),
-            (New-CheckResult -Name 'Fail' -Status Failed -Summary 'broken')
+            (Get-CheckResult -Name 'Warning' -Status Warning -Summary 'attention'),
+            (Get-CheckResult -Name 'Fail' -Status Failed -Summary 'broken')
         ) | Should -Be 'Failed'
     }
 
     It 'preserves details in JSON and HTML-encodes report content' {
         $outputPath = Join-Path $testOutputRoot 'content'
         $longSummary = ('failure detail ' * 20).Trim()
-        $check = New-CheckResult -Name 'Content Check' -Status Warning -Summary $longSummary -Details 'detail & value'
+        $check = Get-CheckResult -Name 'Content Check' -Status Warning -Summary $longSummary -Details 'detail & value'
         $check.Error = 'error <text>'
-        $report = New-SupportReport -StartedAt ([datetime]::UtcNow) -Results @($check)
+        $report = Get-SupportReport -StartedAt ([datetime]::UtcNow) -Results @($check)
 
         $paths = Write-SupportReports -Report $report -OutputPath $outputPath
         $json = Get-Content -Raw -Path $paths.JsonPath | ConvertFrom-Json
@@ -125,8 +125,8 @@ Describe 'Daily support check' {
         [IO.File]::SetLastWriteTimeUtc($oldHtmlPath, $oldTime)
         [IO.File]::SetLastWriteTimeUtc($unrelatedPath, $oldTime)
 
-        $report = New-SupportReport -StartedAt ([datetime]::UtcNow) -Results @(
-            (New-CheckResult -Name 'Retention Check' -Status Passed -Summary 'ok')
+        $report = Get-SupportReport -StartedAt ([datetime]::UtcNow) -Results @(
+            (Get-CheckResult -Name 'Retention Check' -Status Passed -Summary 'ok')
         )
         Write-SupportReports -Report $report -OutputPath $outputPath -RetentionDays 7 | Out-Null
 

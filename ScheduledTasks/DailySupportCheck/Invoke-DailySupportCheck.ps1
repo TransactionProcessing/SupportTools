@@ -10,21 +10,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function New-EnvironmentPasswordSecureString {
+function Get-EnvironmentPasswordSecureString {
+    [OutputType([System.Security.SecureString])]
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [string] $Password
+        [Parameter(Mandatory)] [char[]] $PasswordCharacters
     )
 
     $securePassword = [System.Security.SecureString]::new()
-    foreach ($character in $Password.ToCharArray()) {
+    foreach ($character in $PasswordCharacters) {
         $securePassword.AppendChar($character)
     }
     $securePassword.MakeReadOnly()
     return $securePassword
 }
 
-function New-CheckResult {
+function Get-CheckResult {
+    [OutputType([pscustomobject])]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $Name,
@@ -34,7 +36,7 @@ function New-CheckResult {
         [datetime] $StartedAt = ([datetime]::UtcNow),
         [datetime] $CompletedAt = ([datetime]::UtcNow),
         [double] $DurationMs = 0,
-        [string] $Error
+        [string] $ErrorMessage
     )
 
     [pscustomobject]@{
@@ -45,7 +47,7 @@ function New-CheckResult {
         StartedAt   = $StartedAt.ToUniversalTime().ToString('o')
         CompletedAt = $CompletedAt.ToUniversalTime().ToString('o')
         DurationMs  = [math]::Round($DurationMs, 2)
-        Error       = $Error
+        Error       = $ErrorMessage
     }
 }
 
@@ -79,11 +81,12 @@ function Invoke-SupportCheck {
     }
     catch {
         $stopwatch.Stop()
-        return New-CheckResult -Name $Name -Status Failed -Summary 'The check raised an exception.' -Details $_.Exception.Message -StartedAt $startedAt -CompletedAt ([datetime]::UtcNow) -DurationMs $stopwatch.Elapsed.TotalMilliseconds -Error $_.Exception.ToString()
+        return Get-CheckResult -Name $Name -Status Failed -Summary 'The check raised an exception.' -Details $_.Exception.Message -StartedAt $startedAt -CompletedAt ([datetime]::UtcNow) -DurationMs $stopwatch.Elapsed.TotalMilliseconds -ErrorMessage $_.Exception.ToString()
     }
 }
 
 function Get-OverallStatus {
+    [OutputType([string])]
     [CmdletBinding()]
     param([Parameter(Mandatory)] [object[]] $Results)
 
@@ -95,7 +98,7 @@ function Get-OverallStatus {
 function Test-PowerShellRuntime {
     param([object] $Context)
 
-    New-CheckResult -Name 'PowerShell Runtime' -Status Passed -Summary "PowerShell $($PSVersionTable.PSVersion) is available." -Details ([pscustomobject]@{
+    Get-CheckResult -Name 'PowerShell Runtime' -Status Passed -Summary "PowerShell $($PSVersionTable.PSVersion) is available." -Details ([pscustomobject]@{
             Edition = $PSVersionTable.PSEdition
             Version = $PSVersionTable.PSVersion.ToString()
         })
@@ -110,17 +113,17 @@ function Test-ReportOutputDirectory {
     'write-test' | Set-Content -LiteralPath $probe -Encoding UTF8
     Remove-Item -LiteralPath $probe -Force
 
-    New-CheckResult -Name 'Report Output Directory' -Status Passed -Summary "Report output directory is writable: $path" -Details $path
+    Get-CheckResult -Name 'Report Output Directory' -Status Passed -Summary "Report output directory is writable: $path" -Details $path
 }
 
 function Test-TemplateConfiguration {
     param([object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'Template Configuration' -Status Failed -Summary 'Configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'Template Configuration' -Status Failed -Summary 'Configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
-    New-CheckResult -Name 'Template Configuration' -Status Passed -Summary 'Template configuration is ready for additional checks.' -Details 'Replace or extend the registered checks for environment-specific support actions.'
+    Get-CheckResult -Name 'Template Configuration' -Status Passed -Summary 'Template configuration is ready for additional checks.' -Details 'Replace or extend the registered checks for environment-specific support actions.'
 }
 
 function Merge-SupportConfiguration {
@@ -292,6 +295,7 @@ function Get-SupportConfiguration {
 }
 
 function Get-DiskSpaceSnapshot {
+    [OutputType([System.Array])]
     [CmdletBinding()]
     param()
 
@@ -311,12 +315,12 @@ function Test-DiskSpace {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     $settings = $Context.Configuration.DiskSpace
     if (-not [bool] $settings.Enabled) {
-        return New-CheckResult -Name 'Disk Space' -Status Passed -Summary 'Disk-space check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'Disk Space' -Status Passed -Summary 'Disk-space check is disabled by configuration.' -Details @()
     }
 
     try {
@@ -326,7 +330,7 @@ function Test-DiskSpace {
         }
         $snapshots = @(& $provider)
         if ($snapshots.Count -eq 0) {
-            return New-CheckResult -Name 'Disk Space' -Status Warning -Summary 'No filesystem drives were found.' -Details @()
+            return Get-CheckResult -Name 'Disk Space' -Status Warning -Summary 'No filesystem drives were found.' -Details @()
         }
 
         $details = foreach ($snapshot in $snapshots) {
@@ -355,13 +359,13 @@ function Test-DiskSpace {
         $belowThreshold = @($details | Where-Object Status -eq 'Warning')
         if ($belowThreshold.Count -gt 0) {
             $drives = $belowThreshold.Drive -join ', '
-            return New-CheckResult -Name 'Disk Space' -Status Warning -Summary "Drive(s) below free-space threshold: $drives" -Details @($details)
+            return Get-CheckResult -Name 'Disk Space' -Status Warning -Summary "Drive(s) below free-space threshold: $drives" -Details @($details)
         }
 
-        New-CheckResult -Name 'Disk Space' -Status Passed -Summary "All $($details.Count) filesystem drive(s) meet the configured free-space threshold." -Details @($details)
+        Get-CheckResult -Name 'Disk Space' -Status Passed -Summary "All $($details.Count) filesystem drive(s) meet the configured free-space threshold." -Details @($details)
     }
     catch {
-        New-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space inspection failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space inspection failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -370,11 +374,11 @@ function Test-HealthMonitoring {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     if (-not $Context.Configuration.PSObject.Properties['HealthMonitoring'] -or -not [bool] $Context.Configuration.HealthMonitoring.Enabled) {
-        return New-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary 'HealthMonitoring check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary 'HealthMonitoring check is disabled by configuration.' -Details @()
     }
 
     try {
@@ -391,7 +395,7 @@ function Test-HealthMonitoring {
 
         $services = @(& $provider $uri $timeoutSeconds)
         if ($services.Count -eq 0) {
-            return New-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary 'HealthMonitoring returned no monitored services.' -Details @()
+            return Get-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary 'HealthMonitoring returned no monitored services.' -Details @()
         }
 
         $details = foreach ($service in $services) {
@@ -412,16 +416,16 @@ function Test-HealthMonitoring {
         $failed = @($details | Where-Object Status -in @('Unhealthy', 'Unknown'))
         $warnings = @($details | Where-Object Status -eq 'Degraded')
         if ($failed.Count -gt 0) {
-            return New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary "$($failed.Count) monitored service(s) are unhealthy or unknown." -Details @($details)
+            return Get-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary "$($failed.Count) monitored service(s) are unhealthy or unknown." -Details @($details)
         }
         if ($warnings.Count -gt 0) {
-            return New-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary "$($warnings.Count) monitored service(s) are degraded." -Details @($details)
+            return Get-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary "$($warnings.Count) monitored service(s) are degraded." -Details @($details)
         }
 
-        New-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary "All $($details.Count) monitored service(s) are healthy." -Details @($details)
+        Get-CheckResult -Name 'HealthMonitoring' -Status Passed -Summary "All $($details.Count) monitored service(s) are healthy." -Details @($details)
     }
     catch {
-        New-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring endpoint query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary 'HealthMonitoring endpoint query failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -430,11 +434,11 @@ function Test-SubscriptionService {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription service configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription service configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     if (-not $Context.Configuration.PSObject.Properties['SubscriptionService'] -or -not [bool] $Context.Configuration.SubscriptionService.Enabled) {
-        return New-CheckResult -Name 'Subscription Service' -Status Passed -Summary 'Subscription service check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'Subscription Service' -Status Passed -Summary 'Subscription service check is disabled by configuration.' -Details @()
     }
 
     try {
@@ -463,7 +467,7 @@ function Test-SubscriptionService {
             }
         }
         if ($subscriptions.Count -eq 0) {
-            return New-CheckResult -Name 'Subscription Service' -Status Warning -Summary 'Subscription service returned no subscriptions.' -Details @()
+            return Get-CheckResult -Name 'Subscription Service' -Status Warning -Summary 'Subscription service returned no subscriptions.' -Details @()
         }
 
         $details = foreach ($subscription in $subscriptions) {
@@ -484,16 +488,16 @@ function Test-SubscriptionService {
         $stopped = @($details | Where-Object Status -eq 'Failed')
         $parked = @($details | Where-Object Status -eq 'Warning')
         if ($stopped.Count -gt 0) {
-            return New-CheckResult -Name 'Subscription Service' -Status Failed -Summary "$($stopped.Count) subscription(s) are not running." -Details @($details)
+            return Get-CheckResult -Name 'Subscription Service' -Status Failed -Summary "$($stopped.Count) subscription(s) are not running." -Details @($details)
         }
         if ($parked.Count -gt 0) {
-            return New-CheckResult -Name 'Subscription Service' -Status Warning -Summary "$($parked.Count) subscription(s) have parked messages." -Details @($details)
+            return Get-CheckResult -Name 'Subscription Service' -Status Warning -Summary "$($parked.Count) subscription(s) have parked messages." -Details @($details)
         }
 
-        New-CheckResult -Name 'Subscription Service' -Status Passed -Summary "All $($details.Count) subscription(s) are running without parked messages." -Details @($details)
+        Get-CheckResult -Name 'Subscription Service' -Status Passed -Summary "All $($details.Count) subscription(s) are running without parked messages." -Details @($details)
     }
     catch {
-        New-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription status endpoint query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'Subscription Service' -Status Failed -Summary 'Subscription status endpoint query failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -502,18 +506,18 @@ function Test-KurrentDbProjections {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     if (-not $Context.Configuration.PSObject.Properties['KurrentDbProjections'] -or -not [bool] $Context.Configuration.KurrentDbProjections.Enabled) {
-        return New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary 'KurrentDB projection check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary 'KurrentDB projection check is disabled by configuration.' -Details @()
     }
 
     try {
         $settings = $Context.Configuration.KurrentDbProjections
         $configuredNames = @($settings.ProjectionNames | ForEach-Object { [string] $_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         if ($configuredNames.Count -eq 0) {
-            return New-CheckResult -Name 'KurrentDB Projections' -Status Warning -Summary 'No KurrentDB projections are configured for checking.' -Details @()
+            return Get-CheckResult -Name 'KurrentDB Projections' -Status Warning -Summary 'No KurrentDB projections are configured for checking.' -Details @()
         }
 
         $uri = ([uri]::new("$($settings.BaseUrl.TrimEnd('/'))/$($settings.ProjectionsPath.TrimStart('/'))")).AbsoluteUri
@@ -528,7 +532,7 @@ function Test-KurrentDbProjections {
                 if ([string]::IsNullOrWhiteSpace($password)) {
                     throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
                 }
-                $securePassword = New-EnvironmentPasswordSecureString -Password $password
+                $securePassword = Get-EnvironmentPasswordSecureString -PasswordCharacters $password.ToCharArray()
                 $request.Authentication = 'Basic'
                 $request.Credential = [pscredential]::new([string] $settings.Username, $securePassword)
             }
@@ -581,13 +585,13 @@ function Test-KurrentDbProjections {
         $notRunning = @($details | Where-Object { $_.Status -ne 'Running' })
         if ($notRunning.Count -gt 0) {
             $summary = ($notRunning | ForEach-Object { "$($_.Name) [$($_.Status)]" }) -join ', '
-            return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary "Projection(s) not running: $summary" -Details $resultDetails
+            return Get-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary "Projection(s) not running: $summary" -Details $resultDetails
         }
 
-        New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary "All $($details.Count) configured KurrentDB projection(s) are running." -Details $resultDetails
+        Get-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary "All $($details.Count) configured KurrentDB projection(s) are running." -Details $resultDetails
     }
     catch {
-        New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection status query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection status query failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -596,16 +600,16 @@ function Test-ScheduledTasks {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     if (-not $Context.Configuration.PSObject.Properties['ScheduledTasks'] -or -not [bool] $Context.Configuration.ScheduledTasks.Enabled) {
-        return New-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary 'Scheduled-task check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary 'Scheduled-task check is disabled by configuration.' -Details @()
     }
 
     $taskConfigurations = @($Context.Configuration.ScheduledTasks.Tasks)
     if ($taskConfigurations.Count -eq 0) {
-        return New-CheckResult -Name 'Scheduled Tasks' -Status Warning -Summary 'No scheduled tasks are configured for checking.' -Details @()
+        return Get-CheckResult -Name 'Scheduled Tasks' -Status Warning -Summary 'No scheduled tasks are configured for checking.' -Details @()
     }
 
     try {
@@ -689,13 +693,13 @@ function Test-ScheduledTasks {
         $failed = @($details | Where-Object Status -eq 'Failed')
         if ($failed.Count -gt 0) {
             $summary = ($failed | ForEach-Object { "$($_.Name) [$($_.FailureReason)]" }) -join ', '
-            return New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary "Scheduled task(s) require attention: $summary" -Details @($details)
+            return Get-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary "Scheduled task(s) require attention: $summary" -Details @($details)
         }
 
-        New-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary "All $($details.Count) configured scheduled task(s) are healthy." -Details @($details)
+        Get-CheckResult -Name 'Scheduled Tasks' -Status Passed -Summary "All $($details.Count) configured scheduled task(s) are healthy." -Details @($details)
     }
     catch {
-        New-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task status query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'Scheduled Tasks' -Status Failed -Summary 'Scheduled-task status query failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -740,11 +744,11 @@ function Test-KurrentDbWriteActivity {
     param([Parameter(Mandatory)] [object] $Context)
 
     if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
-        return New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+        return Get-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity configuration could not be loaded.' -Details $Context.ConfigurationError -ErrorMessage $Context.ConfigurationError
     }
 
     if (-not $Context.Configuration.PSObject.Properties['KurrentDbWriteActivity'] -or -not [bool] $Context.Configuration.KurrentDbWriteActivity.Enabled) {
-        return New-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary 'KurrentDB write-activity check is disabled by configuration.' -Details @()
+        return Get-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary 'KurrentDB write-activity check is disabled by configuration.' -Details @()
     }
 
     try {
@@ -759,7 +763,7 @@ function Test-KurrentDbWriteActivity {
             @()
         }
         if ($streamConfigurations.Count -eq 0) {
-            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary 'No KurrentDB streams are configured for write-activity checking.' -Details @()
+            return Get-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary 'No KurrentDB streams are configured for write-activity checking.' -Details @()
         }
 
         $timeoutSeconds = if ($settings.PSObject.Properties['TimeoutSeconds']) { [int] $settings.TimeoutSeconds } else { 10 }
@@ -815,12 +819,12 @@ function Test-KurrentDbWriteActivity {
                 $events = [System.Collections.Generic.List[object]]::new()
                 try {
                     while ($enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult()) {
-                        $event = $enumerator.Current.Event
+                        $currentEvent = $enumerator.Current.Event
                         $events.Add([pscustomobject]@{
-                                EventId = [string] $event.EventId
-                                EventType = [string] $event.EventType
-                                Timestamp = $event.Created.ToUniversalTime().ToString('o')
-                                Title = [string] $event.EventStreamId
+                                EventId = [string] $currentEvent.EventId
+                                EventType = [string] $currentEvent.EventType
+                                Timestamp = $currentEvent.Created.ToUniversalTime().ToString('o')
+                                Title = [string] $currentEvent.EventStreamId
                             })
                     }
                 }
@@ -885,17 +889,17 @@ function Test-KurrentDbWriteActivity {
         $warnings = @($details | Where-Object Status -eq 'Warning')
         if ($failed.Count -gt 0) {
             $summary = ($failed | ForEach-Object { "$($_.StreamName) [$($_.FailureReason)]" }) -join ', '
-            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary "KurrentDB stream(s) require attention: $summary" -Details @($details) -Error $summary
+            return Get-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary "KurrentDB stream(s) require attention: $summary" -Details @($details) -ErrorMessage $summary
         }
         if ($warnings.Count -gt 0) {
             $summary = ($warnings | ForEach-Object { "$($_.StreamName) [$($_.FailureReason)]" }) -join ', '
-            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary "KurrentDB stream(s) returned fewer events than requested: $summary" -Details @($details)
+            return Get-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary "KurrentDB stream(s) returned fewer events than requested: $summary" -Details @($details)
         }
 
-        New-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary "All $($details.Count) configured KurrentDB stream(s) contain recent events." -Details @($details)
+        Get-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary "All $($details.Count) configured KurrentDB stream(s) contain recent events." -Details @($details)
     }
     catch {
-        New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+        Get-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity query failed.' -Details $_.Exception.Message -ErrorMessage $_.Exception.ToString()
     }
 }
 
@@ -913,7 +917,8 @@ function Get-SupportCheckDefinitions {
     )
 }
 
-function New-SupportReport {
+function Get-SupportReport {
+    [OutputType([pscustomobject])]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [datetime] $StartedAt,
@@ -1164,15 +1169,15 @@ function Invoke-DailySupportCheck {
         Invoke-SupportCheck -Name $definition.Name -Action $definition.Action -Context $context
     }
 
-    $report = New-SupportReport -StartedAt $startedAt -Results @($results)
+    $report = Get-SupportReport -StartedAt $startedAt -Results @($results)
     $paths = Write-SupportReports -Report $report -OutputPath $OutputPath -RetentionDays ([int] $configuration.ReportRetentionDays)
     $transport = Send-SupportReport -Report $report -ReportPaths $paths -Configuration $configuration
     $report | Add-Member -NotePropertyName ReportPaths -NotePropertyValue $paths
     $report | Add-Member -NotePropertyName Transport -NotePropertyValue $transport
 
-    Write-Host "Daily Support Check: $($report.OverallStatus) ($($report.Checks.Count) checks)"
-    Write-Host "JSON report: $($paths.JsonPath)"
-    Write-Host "HTML report: $($paths.HtmlPath)"
+    Write-Information "Daily Support Check: $($report.OverallStatus) ($($report.Checks.Count) checks)" -InformationAction Continue
+    Write-Information "JSON report: $($paths.JsonPath)" -InformationAction Continue
+    Write-Information "HTML report: $($paths.HtmlPath)" -InformationAction Continue
 
     if ($PassThru) { return $report }
 }
