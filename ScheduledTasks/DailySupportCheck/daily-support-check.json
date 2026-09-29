@@ -26,5 +26,21 @@
   "ScheduledTasks": {
     "Enabled": false,
     "Tasks": []
+  },
+  "KurrentDbWriteActivity": {
+    "Enabled": false,
+    "BaseUrl": "http://localhost:2113",
+    "Streams": [
+      {
+        "Name": "$idx-ce-CallbackMessageAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      },
+      {
+        "Name": "$idx-ce-TransactionAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      }
+    ]
   }
 }

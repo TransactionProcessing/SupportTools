@@ -64,6 +64,22 @@ The default configuration file is `daily-support-check.json` beside the script:
         "MaxLastRunAgeHours": 24
       }
     ]
+  },
+  "KurrentDbWriteActivity": {
+    "Enabled": false,
+    "BaseUrl": "http://localhost:2113",
+    "Streams": [
+      {
+        "Name": "$idx-ce-CallbackMessageAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      },
+      {
+        "Name": "$idx-ce-TransactionAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      }
+    ]
   }
 }
 ```
@@ -78,6 +94,8 @@ The `KurrentDB Projections` check calls the configured `/projections/any` endpoi
 
 The `Scheduled Tasks` check uses `Get-ScheduledTask` and `Get-ScheduledTaskInfo` to inspect only the configured tasks. It fails for missing, disabled, failed, overdue, or stale tasks, and reports the task state, last result, last run, next run, and failure reason. It is disabled by default until the task list has been configured.
 
+The `KurrentDB Write Activity` check reads the latest events backwards from each configured secondary-index stream. It reports the event IDs, event types, and timestamps for each stream. Each stream passes when recent events are found, warns when fewer than its `EventCount` are available, and fails when the stream is empty, unavailable, or its latest event is older than its `MaxLatestEventAgeMinutes`. The overall check fails if any stream fails and warns if one or more streams warn. The check is disabled by default until the correct secondary-index streams have been configured. For compatibility, the older single-stream properties (`StreamName`, `EventCount`, and `MaxLatestEventAgeMinutes`) are also accepted.
+
 The default template checks are:
 
 1. `PowerShell Runtime`
@@ -87,7 +105,8 @@ The default template checks are:
 5. `Subscription Service`
 6. `KurrentDB Projections`
 7. `Scheduled Tasks`
-8. `Template Configuration`
+8. `KurrentDB Write Activity`
+9. `Template Configuration`
 
 Replace or extend these with checks that are meaningful for the target environment. Set `DiskSpace.Enabled` to `false` when disk-space monitoring is not required for a particular host.
 

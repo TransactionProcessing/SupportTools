@@ -202,6 +202,44 @@ function Get-SupportConfiguration {
         }
     }
 
+    if ($configuration.PSObject.Properties['KurrentDbWriteActivity']) {
+        if (-not [bool] $configuration.KurrentDbWriteActivity.Enabled) {
+            return $configuration
+        }
+
+        $writeActivityUri = $null
+        if (-not [uri]::TryCreate([string] $configuration.KurrentDbWriteActivity.BaseUrl, [UriKind]::Absolute, [ref] $writeActivityUri)) {
+            throw 'KurrentDbWriteActivity.BaseUrl must be an absolute URI.'
+        }
+        $streamConfigurations = if ($configuration.KurrentDbWriteActivity.PSObject.Properties['Streams']) {
+            @($configuration.KurrentDbWriteActivity.Streams)
+        }
+        elseif ($configuration.KurrentDbWriteActivity.PSObject.Properties['StreamName']) {
+            @([pscustomobject]@{
+                    Name = $configuration.KurrentDbWriteActivity.StreamName
+                    EventCount = $configuration.KurrentDbWriteActivity.EventCount
+                    MaxLatestEventAgeMinutes = $configuration.KurrentDbWriteActivity.MaxLatestEventAgeMinutes
+                })
+        }
+        else {
+            @()
+        }
+        if ($streamConfigurations.Count -eq 0) {
+            throw 'KurrentDbWriteActivity.Streams must contain at least one stream.'
+        }
+        foreach ($stream in $streamConfigurations) {
+            if ([string]::IsNullOrWhiteSpace([string] $stream.Name)) {
+                throw 'KurrentDbWriteActivity stream entries must specify a Name.'
+            }
+            if ([int] $stream.EventCount -le 0) {
+                throw "KurrentDbWriteActivity EventCount for '$($stream.Name)' must be greater than zero."
+            }
+            if ($stream.PSObject.Properties['MaxLatestEventAgeMinutes'] -and [double] $stream.MaxLatestEventAgeMinutes -le 0) {
+                throw "KurrentDbWriteActivity MaxLatestEventAgeMinutes for '$($stream.Name)' must be greater than zero."
+            }
+        }
+    }
+
     return $configuration
 }
 
@@ -575,6 +613,102 @@ function Test-ScheduledTasks {
     }
 }
 
+function Test-KurrentDbWriteActivity {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    if (-not $Context.Configuration.PSObject.Properties['KurrentDbWriteActivity'] -or -not [bool] $Context.Configuration.KurrentDbWriteActivity.Enabled) {
+        return New-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary 'KurrentDB write-activity check is disabled by configuration.' -Details @()
+    }
+
+    try {
+        $settings = $Context.Configuration.KurrentDbWriteActivity
+        $streamConfigurations = if ($settings.PSObject.Properties['Streams']) {
+            @($settings.Streams)
+        }
+        elseif ($settings.PSObject.Properties['StreamName']) {
+            @([pscustomobject]@{ Name = $settings.StreamName; EventCount = $settings.EventCount; MaxLatestEventAgeMinutes = $settings.MaxLatestEventAgeMinutes })
+        }
+        else {
+            @()
+        }
+        if ($streamConfigurations.Count -eq 0) {
+            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary 'No KurrentDB streams are configured for write-activity checking.' -Details @()
+        }
+
+        $timeoutSeconds = if ($settings.PSObject.Properties['TimeoutSeconds']) { [int] $settings.TimeoutSeconds } else { 10 }
+        $provider = {
+            param($requestUri, $requestCount)
+            Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $timeoutSeconds -Headers @{ Accept = 'application/vnd.eventstore.atom+json' }
+        }
+        if ($Context.PSObject.Properties['KurrentDbWriteActivityProvider']) {
+            $provider = $Context.KurrentDbWriteActivityProvider
+        }
+
+        $details = foreach ($stream in $streamConfigurations) {
+            $streamName = [string] $stream.Name
+            $eventCount = [int] $stream.EventCount
+            $uri = "$($settings.BaseUrl.TrimEnd('/'))/streams/$([uri]::EscapeDataString($streamName))/head/backward/$eventCount"
+            try {
+                $response = & $provider $uri $eventCount
+                $entries = if ($response.PSObject.Properties['entries']) { @($response.entries) } else { @($response) }
+                $events = foreach ($entry in $entries) {
+                    $updated = $null
+                    if ($entry.PSObject.Properties['updated'] -and -not [string]::IsNullOrWhiteSpace([string] $entry.updated)) {
+                        $updated = [datetime]::Parse([string] $entry.updated).ToUniversalTime()
+                    }
+                    [pscustomobject]@{
+                        EventId   = if ($entry.PSObject.Properties['id']) { [string] $entry.id } else { [string] $entry.title }
+                        EventType = if ($entry.PSObject.Properties['summary']) { [string] $entry.summary } else { $null }
+                        Timestamp = $updated
+                        Title     = if ($entry.PSObject.Properties['title']) { [string] $entry.title } else { $null }
+                    }
+                }
+                $latest = @($events | Where-Object { $null -ne $_.Timestamp } | Sort-Object Timestamp -Descending | Select-Object -First 1)
+                $status = 'Passed'
+                $failureReason = $null
+                if ($events.Count -eq 0) {
+                    $status = 'Failed'; $failureReason = 'No events were found.'
+                }
+                elseif ($latest.Count -eq 0) {
+                    $status = 'Failed'; $failureReason = 'Events did not contain timestamps.'
+                }
+                elseif ($stream.PSObject.Properties['MaxLatestEventAgeMinutes'] -and $latest[0].Timestamp -lt [datetime]::UtcNow.AddMinutes(-[double] $stream.MaxLatestEventAgeMinutes)) {
+                    $status = 'Failed'; $failureReason = 'Latest event is older than the configured age limit.'
+                }
+                elseif ($events.Count -lt $eventCount) {
+                    $status = 'Warning'; $failureReason = "$($events.Count) event(s) returned; $eventCount requested."
+                }
+
+                [pscustomobject]@{ StreamName = $streamName; Status = $status; EventCount = $events.Count; LatestEvent = $latest | Select-Object -First 1; FailureReason = $failureReason; Events = @($events) }
+            }
+            catch {
+                [pscustomobject]@{ StreamName = $streamName; Status = 'Failed'; EventCount = 0; LatestEvent = $null; FailureReason = $_.Exception.Message; Events = @() }
+            }
+        }
+
+        $failed = @($details | Where-Object Status -eq 'Failed')
+        $warnings = @($details | Where-Object Status -eq 'Warning')
+        if ($failed.Count -gt 0) {
+            $summary = ($failed | ForEach-Object { "$($_.StreamName) [$($_.FailureReason)]" }) -join ', '
+            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary "KurrentDB stream(s) require attention: $summary" -Details @($details) -Error $summary
+        }
+        if ($warnings.Count -gt 0) {
+            $summary = ($warnings | ForEach-Object { "$($_.StreamName) [$($_.FailureReason)]" }) -join ', '
+            return New-CheckResult -Name 'KurrentDB Write Activity' -Status Warning -Summary "KurrentDB stream(s) returned fewer events than requested: $summary" -Details @($details)
+        }
+
+        New-CheckResult -Name 'KurrentDB Write Activity' -Status Passed -Summary "All $($details.Count) configured KurrentDB stream(s) contain recent events." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'KurrentDB Write Activity' -Status Failed -Summary 'KurrentDB write-activity query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
+}
+
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
@@ -584,6 +718,7 @@ function Get-SupportCheckDefinitions {
         [pscustomobject]@{ Name = 'Subscription Service'; Action = ${function:Test-SubscriptionService} }
         [pscustomobject]@{ Name = 'KurrentDB Projections'; Action = ${function:Test-KurrentDbProjections} }
         [pscustomobject]@{ Name = 'Scheduled Tasks'; Action = ${function:Test-ScheduledTasks} }
+        [pscustomobject]@{ Name = 'KurrentDB Write Activity'; Action = ${function:Test-KurrentDbWriteActivity} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }

@@ -28,6 +28,7 @@ Describe 'Daily support check' {
             'Subscription Service'
             'KurrentDB Projections'
             'Scheduled Tasks'
+            'KurrentDB Write Activity'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -134,6 +135,22 @@ Describe 'Daily support check' {
         "MaxLastRunAgeHours": 24
       }
     ]
+  },
+  "KurrentDbWriteActivity": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:2113",
+    "Streams": [
+      {
+        "Name": "$idx-ce-CallbackMessageAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      },
+      {
+        "Name": "$idx-ce-TransactionAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      }
+    ]
   }
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -151,6 +168,8 @@ Describe 'Daily support check' {
         $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('TransactionProcessor', 'MerchantAggregator')
         $configuration.ScheduledTasks.Enabled | Should -BeTrue
         $configuration.ScheduledTasks.Tasks[0].Name | Should -Be 'Daily Support Check'
+        $configuration.KurrentDbWriteActivity.Enabled | Should -BeTrue
+        $configuration.KurrentDbWriteActivity.Streams.Count | Should -Be 2
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -493,5 +512,111 @@ Describe 'Daily support check' {
         }
 
         (Test-ScheduledTasks -Context $context).Status | Should -Be 'Warning'
+    }
+
+    It 'passes when recent events are found on the configured KurrentDB stream' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbWriteActivity = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    StreamName = '$idx-ce-CallbackMessageAggregate'
+                    EventCount = 2
+                    MaxLatestEventAgeMinutes = 15
+                }
+            }
+            KurrentDbWriteActivityProvider = {
+                param($requestUri, $requestCount)
+                [pscustomobject]@{
+                    entries = @(
+                        [pscustomobject]@{ title = '9@stream'; updated = ([datetime]::UtcNow.AddMinutes(-1)).ToString('o'); summary = 'EventType'; id = 'event-9' }
+                        [pscustomobject]@{ title = '8@stream'; updated = ([datetime]::UtcNow.AddMinutes(-2)).ToString('o'); summary = 'EventType'; id = 'event-8' }
+                    )
+                }
+            }
+        }
+
+        $result = Test-KurrentDbWriteActivity -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 1
+        $result.Details[0].Events.Count | Should -Be 2
+        $result.Summary | Should -Match '1 configured KurrentDB stream'
+    }
+
+    It 'checks multiple configured KurrentDB streams independently' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbWriteActivity = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    Streams = @(
+                        [pscustomobject]@{ Name = 'stream-one'; EventCount = 1; MaxLatestEventAgeMinutes = 15 }
+                        [pscustomobject]@{ Name = 'stream-two'; EventCount = 1; MaxLatestEventAgeMinutes = 15 }
+                    )
+                }
+            }
+            KurrentDbWriteActivityProvider = {
+                param($requestUri, $requestCount)
+                [pscustomobject]@{
+                    entries = @([pscustomobject]@{ title = "0@$requestUri"; updated = ([datetime]::UtcNow.AddMinutes(-1)).ToString('o'); summary = 'EventType'; id = $requestUri })
+                }
+            }
+        }
+
+        $result = Test-KurrentDbWriteActivity -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 2
+        $result.Details.StreamName | Should -Contain 'stream-one'
+        $result.Details.StreamName | Should -Contain 'stream-two'
+    }
+
+    It 'warns when fewer events are returned and fails when the latest event is stale or absent' {
+        $configuration = [pscustomobject]@{
+            KurrentDbWriteActivity = [pscustomobject]@{
+                Enabled = $true
+                BaseUrl = 'http://kurrentdb'
+                StreamName = '$idx-ce-CallbackMessageAggregate'
+                EventCount = 10
+                MaxLatestEventAgeMinutes = 15
+            }
+        }
+        $fewContext = [pscustomobject]@{
+            Configuration = $configuration
+            KurrentDbWriteActivityProvider = { [pscustomobject]@{ entries = @([pscustomobject]@{ title = '0@stream'; updated = ([datetime]::UtcNow.AddMinutes(-1)).ToString('o'); summary = 'EventType'; id = 'event-0' }) } }
+        }
+        $staleContext = [pscustomobject]@{
+            Configuration = $configuration
+            KurrentDbWriteActivityProvider = { [pscustomobject]@{ entries = @([pscustomobject]@{ title = '0@stream'; updated = ([datetime]::UtcNow.AddMinutes(-30)).ToString('o'); summary = 'EventType'; id = 'event-0' }) } }
+        }
+        $emptyContext = [pscustomobject]@{
+            Configuration = $configuration
+            KurrentDbWriteActivityProvider = { [pscustomobject]@{ entries = @() } }
+        }
+
+        (Test-KurrentDbWriteActivity -Context $fewContext).Status | Should -Be 'Warning'
+        (Test-KurrentDbWriteActivity -Context $staleContext).Status | Should -Be 'Failed'
+        (Test-KurrentDbWriteActivity -Context $emptyContext).Status | Should -Be 'Failed'
+    }
+
+    It 'fails the KurrentDB write-activity check when the stream cannot be queried' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbWriteActivity = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    StreamName = '$idx-ce-CallbackMessageAggregate'
+                    EventCount = 10
+                    MaxLatestEventAgeMinutes = 15
+                }
+            }
+            KurrentDbWriteActivityProvider = { throw 'stream endpoint unavailable' }
+        }
+
+        $result = Test-KurrentDbWriteActivity -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Error | Should -Match 'stream endpoint unavailable'
     }
 }
