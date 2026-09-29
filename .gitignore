@@ -360,3 +360,4 @@ MigrationBackup/
 # Codex implementation worktrees
 .worktrees/
 /MerchantPosData
+/ScheduledTasks/DailySupportCheck/daily-support-check.local.json

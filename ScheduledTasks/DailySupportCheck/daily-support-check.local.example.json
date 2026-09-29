@@ -1,0 +1,15 @@
+{
+  "Email": {
+    "Enabled": true,
+    "Provider": "Brevo",
+    "ApiUrl": "https://api.brevo.com/v3/smtp/email",
+    "ApiKey": "api-replace-locally",
+    "From": "support-check@example.com",
+    "To": [
+      "you@example.com"
+    ],
+    "SubjectPrefix": "Daily Support Check",
+    "AttachHtmlReport": true,
+    "AttachJsonReport": true
+  }
+}

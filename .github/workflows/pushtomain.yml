@@ -172,6 +172,10 @@ jobs:
             Where-Object { $_.FullName -notmatch '\\Tests\\' } |
             Copy-Item -Destination $taskScriptDir -Force
 
+          Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter daily-support-check.json |
+            Where-Object { $_.FullName -notmatch '\\Reports\\|\\Tests\\' } |
+            Copy-Item -Destination $taskScriptDir -Force
+
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.xml |
             Where-Object { $_.FullName -notmatch '\\Tests\\' } |
             ForEach-Object {

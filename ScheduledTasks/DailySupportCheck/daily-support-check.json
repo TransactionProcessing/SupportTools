@@ -1,0 +1,62 @@
+{
+  "ReportRetentionDays": 7,
+  "DiskSpace": {
+    "Enabled": true,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {}
+  },
+  "HealthMonitoring": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "ServicesPath": "/api/services",
+    "TimeoutSeconds": 10
+  },
+  "SubscriptionService": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:8080",
+    "StatusPath": "/subscriptions/status",
+    "TimeoutSeconds": 10
+  },
+  "KurrentDbProjections": {
+    "Enabled": true,
+    "Debug": false,
+    "BaseUrl": "http://localhost:2113",
+    "ProjectionsPath": "/projections/any",
+    "ProjectionNames": [
+      "MerchantBalanceProjection"
+    ],
+    "TimeoutSeconds": 10
+  },
+  "ScheduledTasks": {
+    "Enabled": true,
+    "Tasks": [
+      {
+        "Name": "Daily Settlement",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Replay Parked Queue",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Scavenge",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 10080
+      }
+    ]
+  },
+  "KurrentDbWriteActivity": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:2113",
+    "ClientAssemblyPath": "..\\..\\StreamManagementTool\\bin\\Debug\\net10.0\\KurrentDB.Client.dll",
+    "Streams": [
+      {
+        "Name": "$idx-ce-TransactionAggregate",
+        "EventCount": 10,
+        "MaxLatestEventAgeMinutes": 15
+      }
+    ]
+  }
+}
