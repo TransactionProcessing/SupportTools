@@ -16,8 +16,23 @@ Describe 'Daily support check' {
 
     It 'runs all registered checks in order and writes both report formats' {
         $outputPath = Join-Path $testOutputRoot 'reports'
+        $configPath = Join-Path $testOutputRoot 'daily-support-check.json'
+        @'
+{
+  "DiskSpace": {
+    "Enabled": true,
+    "DefaultMinimumFreePercent": 0,
+    "DriveOverrides": {}
+  },
+  "HealthMonitoring": { "Enabled": false, "BaseUrl": "http://localhost:9620", "ServicesPath": "/api/services", "TimeoutSeconds": 10 },
+  "SubscriptionService": { "Enabled": false, "BaseUrl": "http://localhost:8080", "StatusPath": "/subscriptions/status", "TimeoutSeconds": 10 },
+  "KurrentDbProjections": { "Enabled": false, "BaseUrl": "http://localhost:2113", "ProjectionsPath": "/projections/any", "ProjectionNames": [], "TimeoutSeconds": 10 },
+  "ScheduledTasks": { "Enabled": false, "Tasks": [] },
+  "KurrentDbWriteActivity": { "Enabled": false, "BaseUrl": "http://localhost:2113", "Streams": [] }
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
 
-        $report = Invoke-DailySupportCheck -OutputPath $outputPath -PassThru
+        $report = Invoke-DailySupportCheck -OutputPath $outputPath -ConfigPath $configPath -PassThru
 
         $report.OverallStatus | Should -Be 'Passed'
         $report.Checks.Name | Should -Be @(
@@ -116,13 +131,12 @@ Describe 'Daily support check' {
     "StatusPath": "/subscriptions/status",
     "TimeoutSeconds": 10
   },
-  "KurrentDbProjections": {
+    "KurrentDbProjections": {
     "Enabled": true,
     "BaseUrl": "http://localhost:2113",
     "ProjectionsPath": "/projections/any",
     "ProjectionNames": [
-      "TransactionProcessor",
-      "MerchantAggregator"
+        "MerchantBalanceProjection"
     ],
     "TimeoutSeconds": 10
   },
@@ -130,9 +144,19 @@ Describe 'Daily support check' {
     "Enabled": true,
     "Tasks": [
       {
-        "Name": "Daily Support Check",
+          "Name": "Daily Settlement",
+          "Path": "\\",
+          "ExpectedRunIntervalMinutes": 1440
+        },
+        {
+          "Name": "Replay Parked Queue",
+          "Path": "\\",
+          "ExpectedRunIntervalMinutes": 1440
+        },
+        {
+          "Name": "Scavenge",
         "Path": "\\",
-        "MaxLastRunAgeHours": 24
+          "ExpectedRunIntervalMinutes": 10080
       }
     ]
   },
@@ -140,11 +164,6 @@ Describe 'Daily support check' {
     "Enabled": true,
     "BaseUrl": "http://localhost:2113",
     "Streams": [
-      {
-        "Name": "$idx-ce-CallbackMessageAggregate",
-        "EventCount": 10,
-        "MaxLatestEventAgeMinutes": 15
-      },
       {
         "Name": "$idx-ce-TransactionAggregate",
         "EventCount": 10,
@@ -165,11 +184,14 @@ Describe 'Daily support check' {
         $configuration.SubscriptionService.Enabled | Should -BeTrue
         $configuration.SubscriptionService.BaseUrl | Should -Be 'http://localhost:8080'
         $configuration.KurrentDbProjections.Enabled | Should -BeTrue
-        $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('TransactionProcessor', 'MerchantAggregator')
+        $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('MerchantBalanceProjection')
         $configuration.ScheduledTasks.Enabled | Should -BeTrue
-        $configuration.ScheduledTasks.Tasks[0].Name | Should -Be 'Daily Support Check'
+        $configuration.ScheduledTasks.Tasks.Name | Should -Be @('Daily Settlement', 'Replay Parked Queue', 'Scavenge')
+        $configuration.ScheduledTasks.Tasks[0].ExpectedRunIntervalMinutes | Should -Be 1440
+        $configuration.ScheduledTasks.Tasks[2].ExpectedRunIntervalMinutes | Should -Be 10080
         $configuration.KurrentDbWriteActivity.Enabled | Should -BeTrue
-        $configuration.KurrentDbWriteActivity.Streams.Count | Should -Be 2
+        $configuration.KurrentDbWriteActivity.Streams.Count | Should -Be 1
+        $configuration.KurrentDbWriteActivity.Streams[0].Name | Should -Be '$idx-ce-TransactionAggregate'
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -379,6 +401,54 @@ Describe 'Daily support check' {
         $result.Details[0].Name | Should -Be 'selected'
     }
 
+    It 'includes the raw KurrentDB projection payload when debug is enabled' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbProjections = [pscustomobject]@{
+                    Enabled = $true
+                    Debug = $true
+                    BaseUrl = 'http://kurrentdb'
+                    ProjectionsPath = '/projections/any'
+                    ProjectionNames = @('selected')
+                    TimeoutSeconds = 10
+                }
+            }
+            KurrentDbProjectionProvider = {
+                @([pscustomobject]@{ effectiveName = 'selected'; status = 'Running'; progress = 100; stateReason = $null })
+            }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.RawResponse[0].effectiveName | Should -Be 'selected'
+        $result.Details.Projections[0].Name | Should -Be 'selected'
+    }
+
+    It 'unwraps the projections property returned by KurrentDB' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbProjections = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    ProjectionsPath = '/projections/any'
+                    ProjectionNames = @('selected')
+                    TimeoutSeconds = 10
+                }
+            }
+            KurrentDbProjectionProvider = {
+                [pscustomobject]@{
+                    projections = @([pscustomobject]@{ effectiveName = 'selected'; status = 'Running'; progress = 100; stateReason = $null })
+                }
+            }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details[0].Name | Should -Be 'selected'
+    }
+
     It 'fails when a configured KurrentDB projection is stopped or missing' {
         $configuration = [pscustomobject]@{
             KurrentDbProjections = [pscustomobject]@{
@@ -504,6 +574,37 @@ Describe 'Daily support check' {
         $result.Summary | Should -Match 'Overdue'
     }
 
+    It 'uses the expected run interval when checking scheduled-task freshness' {
+        $now = [datetime]::Now
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                ScheduledTasks = [pscustomobject]@{
+                    Enabled = $true
+                    Tasks = @([pscustomobject]@{
+                        Name = 'Daily Settlement'
+                        Path = '\'
+                        ExpectedRunIntervalMinutes = 1440
+                    })
+                }
+            }
+            ScheduledTaskProvider = {
+                [pscustomobject]@{
+                    Name = 'Daily Settlement'
+                    Path = '\'
+                    State = 'Ready'
+                    LastTaskResult = 0
+                    LastRunTime = $now.AddMinutes(-1441)
+                    NextRunTime = $now.AddHours(23)
+                }
+            }
+        }
+
+        $result = Test-ScheduledTasks -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Summary | Should -Match 'Last run is too old'
+    }
+
     It 'warns when no scheduled tasks are configured' {
         $context = [pscustomobject]@{
             Configuration = [pscustomobject]@{
@@ -570,6 +671,34 @@ Describe 'Daily support check' {
         $result.Details.Count | Should -Be 2
         $result.Details.StreamName | Should -Contain 'stream-one'
         $result.Details.StreamName | Should -Contain 'stream-two'
+    }
+
+    It 'accepts events returned by the KurrentDB filtered all-stream client' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbWriteActivity = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    Streams = @([pscustomobject]@{ Name = '$idx-ce-TransactionAggregate'; EventCount = 1; MaxLatestEventAgeMinutes = 15 })
+                }
+            }
+            KurrentDbWriteActivityProvider = {
+                param($indexName, $requestCount)
+                [pscustomobject]@{
+                    events = @([pscustomobject]@{
+                        EventId = 'event-1'
+                        EventType = 'TransactionHasStartedEvent'
+                        Timestamp = ([datetime]::UtcNow.AddMinutes(-1)).ToString('o')
+                        Title = 'TransactionAggregate-1'
+                    })
+                }
+            }
+        }
+
+        $result = Test-KurrentDbWriteActivity -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details[0].Events[0].EventType | Should -Be 'TransactionHasStartedEvent'
     }
 
     It 'warns when fewer events are returned and fails when the latest event is stale or absent' {

@@ -46,34 +46,40 @@ The default configuration file is `daily-support-check.json` beside the script:
     "TimeoutSeconds": 10
   },
   "KurrentDbProjections": {
-    "Enabled": false,
+    "Enabled": true,
+    "Debug": false,
     "BaseUrl": "http://localhost:2113",
     "ProjectionsPath": "/projections/any",
     "ProjectionNames": [
-      "TransactionProcessor",
-      "MerchantAggregator"
+      "MerchantBalanceProjection"
     ],
     "TimeoutSeconds": 10
   },
   "ScheduledTasks": {
-    "Enabled": false,
+    "Enabled": true,
     "Tasks": [
       {
-        "Name": "Daily Support Check",
+        "Name": "Daily Settlement",
         "Path": "\\",
-        "MaxLastRunAgeHours": 24
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Replay Parked Queue",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Scavenge",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 10080
       }
     ]
   },
   "KurrentDbWriteActivity": {
-    "Enabled": false,
+    "Enabled": true,
     "BaseUrl": "http://localhost:2113",
+    "ClientAssemblyPath": "..\\..\\StreamManagementTool\\bin\\Debug\\net10.0\\KurrentDB.Client.dll",
     "Streams": [
-      {
-        "Name": "$idx-ce-CallbackMessageAggregate",
-        "EventCount": 10,
-        "MaxLatestEventAgeMinutes": 15
-      },
       {
         "Name": "$idx-ce-TransactionAggregate",
         "EventCount": 10,
@@ -90,11 +96,11 @@ The `HealthMonitoring` check calls the configured services endpoint. All service
 
 The `Subscription Service` check calls the configured subscription status endpoint. It fails when any subscription is not running, warns when parked messages exist, and passes when all subscriptions are running with no parked messages. The report includes subscription ID, tag, running state, health, parked-event count, operational reason, and runtime failure reason.
 
-The `KurrentDB Projections` check calls the configured `/projections/any` endpoint and checks only the names in `ProjectionNames`. It passes when every selected projection is `Running` and fails when a selected projection is missing or has another status. Authentication is optional for insecure development instances. For secured instances, add `Username` and `PasswordEnvironmentVariable`; the password is read from that environment variable and is not stored in JSON. The check is disabled by default until the projection names have been configured.
+The `KurrentDB Projections` check calls the configured `/projections/any` endpoint and checks only the names in `ProjectionNames`. It passes when every selected projection is `Running` and fails when a selected projection is missing or has another status. Set `Debug` to `true` to include the raw API payload in the report details; it is `false` by default. Authentication is optional for insecure development instances. For secured instances, add `Username` and `PasswordEnvironmentVariable`; the password is read from that environment variable and is not stored in JSON. The check is disabled by default until the projection names have been configured.
 
-The `Scheduled Tasks` check uses `Get-ScheduledTask` and `Get-ScheduledTaskInfo` to inspect only the configured tasks. It fails for missing, disabled, failed, overdue, or stale tasks, and reports the task state, last result, last run, next run, and failure reason. It is disabled by default until the task list has been configured.
+The `Scheduled Tasks` check uses `Get-ScheduledTask` and `Get-ScheduledTaskInfo` to inspect only the configured tasks. It fails for missing, disabled, failed, overdue, or stale tasks, and reports the task state, last result, last run, next run, and failure reason. `ExpectedRunIntervalMinutes` determines how old the last run may be; the older `MaxLastRunAgeHours` property remains supported for compatibility. The current example checks `Daily Settlement` and `Replay Parked Queue` every 24 hours, and `Scavenge` every 7 days.
 
-The `KurrentDB Write Activity` check reads the latest events backwards from each configured secondary-index stream. It reports the event IDs, event types, and timestamps for each stream. Each stream passes when recent events are found, warns when fewer than its `EventCount` are available, and fails when the stream is empty, unavailable, or its latest event is older than its `MaxLatestEventAgeMinutes`. The overall check fails if any stream fails and warns if one or more streams warn. The check is disabled by default until the correct secondary-index streams have been configured. For compatibility, the older single-stream properties (`StreamName`, `EventCount`, and `MaxLatestEventAgeMinutes`) are also accepted.
+The `KurrentDB Write Activity` check reads the latest events backwards from `$all` using a secondary-index prefix filter for each configured index. It reports the event IDs, event types, and timestamps for each index. Each index passes when recent events are found, warns when fewer than its `EventCount` are available, and fails when no events are returned, the query is unavailable, or its latest event is older than its `MaxLatestEventAgeMinutes`. The overall check fails if any index fails and warns if one or more indexes warn. `ClientAssemblyPath` points to `KurrentDB.Client.dll`; it is resolved relative to the configuration file when relative. The check is disabled by default until the correct secondary indexes have been configured. For compatibility, the older single-stream properties (`StreamName`, `EventCount`, and `MaxLatestEventAgeMinutes`) are also accepted.
 
 The default template checks are:
 

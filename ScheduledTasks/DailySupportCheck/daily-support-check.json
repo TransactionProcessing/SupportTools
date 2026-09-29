@@ -17,25 +17,40 @@
     "TimeoutSeconds": 10
   },
   "KurrentDbProjections": {
-    "Enabled": false,
+    "Enabled": true,
+    "Debug": false,
     "BaseUrl": "http://localhost:2113",
     "ProjectionsPath": "/projections/any",
-    "ProjectionNames": [],
+    "ProjectionNames": [
+      "MerchantBalanceProjection"
+    ],
     "TimeoutSeconds": 10
   },
   "ScheduledTasks": {
-    "Enabled": false,
-    "Tasks": []
+    "Enabled": true,
+    "Tasks": [
+      {
+        "Name": "Daily Settlement",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Replay Parked Queue",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 1440
+      },
+      {
+        "Name": "Scavenge",
+        "Path": "\\",
+        "ExpectedRunIntervalMinutes": 10080
+      }
+    ]
   },
   "KurrentDbWriteActivity": {
-    "Enabled": false,
+    "Enabled": true,
     "BaseUrl": "http://localhost:2113",
+    "ClientAssemblyPath": "..\\..\\StreamManagementTool\\bin\\Debug\\net10.0\\KurrentDB.Client.dll",
     "Streams": [
-      {
-        "Name": "$idx-ce-CallbackMessageAggregate",
-        "EventCount": 10,
-        "MaxLatestEventAgeMinutes": 15
-      },
       {
         "Name": "$idx-ce-TransactionAggregate",
         "EventCount": 10,

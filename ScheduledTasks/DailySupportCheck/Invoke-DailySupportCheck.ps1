@@ -195,6 +195,9 @@ function Get-SupportConfiguration {
                 if ([string]::IsNullOrWhiteSpace([string] $task.Name)) {
                     throw 'ScheduledTasks entries must specify a Name.'
                 }
+                if ($task.PSObject.Properties['ExpectedRunIntervalMinutes'] -and [double] $task.ExpectedRunIntervalMinutes -le 0) {
+                    throw "Scheduled task '$($task.Name)' ExpectedRunIntervalMinutes must be greater than zero."
+                }
                 if ($task.PSObject.Properties['MaxLastRunAgeHours'] -and [double] $task.MaxLastRunAgeHours -le 0) {
                     throw "Scheduled task '$($task.Name)' MaxLastRunAgeHours must be greater than zero."
                 }
@@ -478,7 +481,13 @@ function Test-KurrentDbProjections {
             $provider = $Context.KurrentDbProjectionProvider
         }
 
-        $projections = @(& $provider $uri $timeoutSeconds)
+        $rawResponse = @(& $provider $uri $timeoutSeconds)
+        $projections = if ($rawResponse.Count -eq 1 -and $rawResponse[0].PSObject.Properties['projections']) {
+            @($rawResponse[0].projections)
+        }
+        else {
+            $rawResponse
+        }
         $projectionByName = @{}
         foreach ($projection in $projections) {
             $name = if ($projection.PSObject.Properties['effectiveName']) { [string] $projection.effectiveName } elseif ($projection.PSObject.Properties['name']) { [string] $projection.name } else { '' }
@@ -502,13 +511,23 @@ function Test-KurrentDbProjections {
             }
         }
 
+        $resultDetails = if ($settings.PSObject.Properties['Debug'] -and [bool] $settings.Debug) {
+            [pscustomobject]@{
+                Projections = @($details)
+                RawResponse = @($rawResponse)
+            }
+        }
+        else {
+            @($details)
+        }
+
         $notRunning = @($details | Where-Object { $_.Status -ne 'Running' })
         if ($notRunning.Count -gt 0) {
             $summary = ($notRunning | ForEach-Object { "$($_.Name) [$($_.Status)]" }) -join ', '
-            return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary "Projection(s) not running: $summary" -Details @($details)
+            return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary "Projection(s) not running: $summary" -Details $resultDetails
         }
 
-        New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary "All $($details.Count) configured KurrentDB projection(s) are running." -Details @($details)
+        New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary "All $($details.Count) configured KurrentDB projection(s) are running." -Details $resultDetails
     }
     catch {
         New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection status query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
@@ -558,6 +577,15 @@ function Test-ScheduledTasks {
                 $lastTaskResult = [int64] $task.LastTaskResult
                 $lastRunTime = if ($task.PSObject.Properties['LastRunTime']) { $task.LastRunTime } else { $null }
                 $nextRunTime = if ($task.PSObject.Properties['NextRunTime']) { $task.NextRunTime } else { $null }
+                $maxLastRunAgeMinutes = if ($taskConfiguration.PSObject.Properties['ExpectedRunIntervalMinutes']) {
+                    [double] $taskConfiguration.ExpectedRunIntervalMinutes
+                }
+                elseif ($taskConfiguration.PSObject.Properties['MaxLastRunAgeHours']) {
+                    [double] $taskConfiguration.MaxLastRunAgeHours * 60
+                }
+                else {
+                    $null
+                }
                 $failureReasons = [System.Collections.Generic.List[string]]::new()
 
                 if ($state -eq 'Disabled') { $failureReasons.Add('Disabled') }
@@ -565,7 +593,7 @@ function Test-ScheduledTasks {
                 if ($null -eq $lastRunTime) {
                     $failureReasons.Add('No successful run recorded')
                 }
-                elseif ($taskConfiguration.PSObject.Properties['MaxLastRunAgeHours'] -and $lastRunTime -lt $now.AddHours(-[double] $taskConfiguration.MaxLastRunAgeHours)) {
+                elseif ($null -ne $maxLastRunAgeMinutes -and $lastRunTime -lt $now.AddMinutes(-$maxLastRunAgeMinutes)) {
                     $failureReasons.Add('Last run is too old')
                 }
                 if ($null -ne $nextRunTime -and $nextRunTime -lt $now -and $state -ne 'Running') {
@@ -582,6 +610,7 @@ function Test-ScheduledTasks {
                     LastTaskResult  = $lastTaskResult
                     LastRunTime     = $lastRunTime
                     NextRunTime     = $nextRunTime
+                    MaxLastRunAgeMinutes = $maxLastRunAgeMinutes
                     Status          = if ($failureReasons.Count -gt 0) { 'Failed' } else { 'Passed' }
                     FailureReason   = if ($failureReasons.Count -gt 0) { $failureReasons -join '; ' } else { $null }
                 }
@@ -613,6 +642,42 @@ function Test-ScheduledTasks {
     }
 }
 
+function Import-KurrentDbClientAssembly {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $AssemblyPath)
+
+    if ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'KurrentDB.Client' }) {
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $AssemblyPath -PathType Leaf)) {
+        throw "KurrentDB client assembly was not found: $AssemblyPath"
+    }
+
+    $frameworkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'dotnet\shared\Microsoft.AspNetCore.App'
+    $frameworkDirectory = if (Test-Path -LiteralPath $frameworkRoot) {
+        @(
+            Get-ChildItem -LiteralPath $frameworkRoot -Directory | Where-Object Name -like '9.*' | Sort-Object Name -Descending
+            Get-ChildItem -LiteralPath $frameworkRoot -Directory | Sort-Object Name -Descending
+        ) | Select-Object -First 1
+    }
+
+    foreach ($dependencyName in @(
+            'Microsoft.Extensions.DependencyInjection.Abstractions.dll',
+            'Microsoft.Extensions.Logging.Abstractions.dll',
+            'Microsoft.Extensions.Options.dll'
+        )) {
+        if ($frameworkDirectory) {
+            $dependencyPath = Join-Path $frameworkDirectory.FullName $dependencyName
+            if (Test-Path -LiteralPath $dependencyPath -PathType Leaf) {
+                Add-Type -Path $dependencyPath
+            }
+        }
+    }
+
+    Add-Type -Path $AssemblyPath
+}
+
 function Test-KurrentDbWriteActivity {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [object] $Context)
@@ -641,9 +706,77 @@ function Test-KurrentDbWriteActivity {
         }
 
         $timeoutSeconds = if ($settings.PSObject.Properties['TimeoutSeconds']) { [int] $settings.TimeoutSeconds } else { 10 }
+        $assemblyPath = if ($settings.PSObject.Properties['ClientAssemblyPath'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ClientAssemblyPath)) {
+            [string] $settings.ClientAssemblyPath
+        }
+        else {
+            Join-Path $PSScriptRoot '..\..\StreamManagementTool\bin\Debug\net10.0\KurrentDB.Client.dll'
+        }
+        if (-not [IO.Path]::IsPathRooted($assemblyPath)) {
+            $assemblyPath = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $Context.ConfigPath) $assemblyPath))
+        }
+
         $provider = {
-            param($requestUri, $requestCount)
-            Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $timeoutSeconds -Headers @{ Accept = 'application/vnd.eventstore.atom+json' }
+            param($indexName, $requestCount)
+            Import-KurrentDbClientAssembly -AssemblyPath $assemblyPath
+
+            $baseUri = [uri] $settings.BaseUrl
+            $port = if ($baseUri.IsDefaultPort) { 2113 } else { $baseUri.Port }
+            $connectionString = if ($settings.PSObject.Properties['ConnectionString'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ConnectionString)) {
+                [string] $settings.ConnectionString
+            }
+            else {
+                "esdb://$($baseUri.Host):${port}?tls=false&tlsVerifyCert=false"
+            }
+
+            $client = [KurrentDB.Client.KurrentDBClient]::new([KurrentDB.Client.KurrentDBClientSettings]::Create($connectionString))
+            $cancellationSource = [Threading.CancellationTokenSource]::new()
+            $cancellationSource.CancelAfter([timespan]::FromSeconds($timeoutSeconds))
+            $userCredentials = $null
+            if ($settings.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.Username)) {
+                $passwordEnvironmentVariable = [string] $settings.PasswordEnvironmentVariable
+                $password = [Environment]::GetEnvironmentVariable($passwordEnvironmentVariable)
+                if ([string]::IsNullOrWhiteSpace($password)) {
+                    throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
+                }
+                $userCredentials = [KurrentDB.Client.UserCredentials]::new([string] $settings.Username, $password)
+            }
+
+            try {
+                $filter = [KurrentDB.Client.StreamFilter]::Prefix($indexName)
+                $read = $client.ReadAllAsync(
+                    [KurrentDB.Client.Direction]::Backwards,
+                    [KurrentDB.Client.Position]::End,
+                    $filter,
+                    $requestCount,
+                    $false,
+                    [timespan]::FromSeconds($timeoutSeconds),
+                    $userCredentials,
+                    $cancellationSource.Token
+                )
+                $enumerator = $read.GetAsyncEnumerator()
+                $events = [System.Collections.Generic.List[object]]::new()
+                try {
+                    while ($enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult()) {
+                        $event = $enumerator.Current.Event
+                        $events.Add([pscustomobject]@{
+                                EventId = [string] $event.EventId
+                                EventType = [string] $event.EventType
+                                Timestamp = $event.Created.ToUniversalTime().ToString('o')
+                                Title = [string] $event.EventStreamId
+                            })
+                    }
+                }
+                finally {
+                    $enumerator.DisposeAsync().AsTask().GetAwaiter().GetResult() | Out-Null
+                }
+
+                [pscustomobject]@{ events = @($events) }
+            }
+            finally {
+                $cancellationSource.Dispose()
+                $client.Dispose()
+            }
         }
         if ($Context.PSObject.Properties['KurrentDbWriteActivityProvider']) {
             $provider = $Context.KurrentDbWriteActivityProvider
@@ -652,20 +785,20 @@ function Test-KurrentDbWriteActivity {
         $details = foreach ($stream in $streamConfigurations) {
             $streamName = [string] $stream.Name
             $eventCount = [int] $stream.EventCount
-            $uri = "$($settings.BaseUrl.TrimEnd('/'))/streams/$([uri]::EscapeDataString($streamName))/head/backward/$eventCount"
             try {
-                $response = & $provider $uri $eventCount
-                $entries = if ($response.PSObject.Properties['entries']) { @($response.entries) } else { @($response) }
+                $response = & $provider $streamName $eventCount
+                $entries = if ($response.PSObject.Properties['events']) { @($response.events) } elseif ($response.PSObject.Properties['entries']) { @($response.entries) } else { @($response) }
                 $events = foreach ($entry in $entries) {
                     $updated = $null
-                    if ($entry.PSObject.Properties['updated'] -and -not [string]::IsNullOrWhiteSpace([string] $entry.updated)) {
-                        $updated = [datetime]::Parse([string] $entry.updated).ToUniversalTime()
+                    $timestampValue = if ($entry.PSObject.Properties['Timestamp']) { $entry.Timestamp } elseif ($entry.PSObject.Properties['Created']) { $entry.Created } elseif ($entry.PSObject.Properties['updated']) { $entry.updated } else { $null }
+                    if ($null -ne $timestampValue -and -not [string]::IsNullOrWhiteSpace([string] $timestampValue)) {
+                        $updated = [datetime]::Parse([string] $timestampValue).ToUniversalTime()
                     }
                     [pscustomobject]@{
-                        EventId   = if ($entry.PSObject.Properties['id']) { [string] $entry.id } else { [string] $entry.title }
-                        EventType = if ($entry.PSObject.Properties['summary']) { [string] $entry.summary } else { $null }
+                        EventId   = if ($entry.PSObject.Properties['EventId']) { [string] $entry.EventId } elseif ($entry.PSObject.Properties['id']) { [string] $entry.id } else { [string] $entry.title }
+                        EventType = if ($entry.PSObject.Properties['EventType']) { [string] $entry.EventType } elseif ($entry.PSObject.Properties['summary']) { [string] $entry.summary } else { $null }
                         Timestamp = $updated
-                        Title     = if ($entry.PSObject.Properties['title']) { [string] $entry.title } else { $null }
+                        Title     = if ($entry.PSObject.Properties['Title']) { [string] $entry.Title } elseif ($entry.PSObject.Properties['title']) { [string] $entry.title } else { $null }
                     }
                 }
                 $latest = @($events | Where-Object { $null -ne $_.Timestamp } | Sort-Object Timestamp -Descending | Select-Object -First 1)
