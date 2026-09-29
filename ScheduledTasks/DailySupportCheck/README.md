@@ -1,6 +1,6 @@
 # Daily Support Check
 
-`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, writes a structured JSON report and a readable HTML report, and leaves report delivery behind a replaceable transport function.
+`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, reads operational settings from JSON, writes a structured JSON report and a readable HTML report, and leaves report delivery behind a replaceable transport function.
 
 ## Run it interactively
 
@@ -10,23 +10,42 @@ From the repository root:
 pwsh -NoProfile -File .\ScheduledTasks\DailySupportCheck\Invoke-DailySupportCheck.ps1
 ```
 
-Choose an output directory or a subset of checks:
+Choose an output directory, configuration file, or subset of checks:
 
 ```powershell
 pwsh -NoProfile -File .\ScheduledTasks\DailySupportCheck\Invoke-DailySupportCheck.ps1 `
     -OutputPath 'C:\SupportReports\Daily' `
+    -ConfigPath 'C:\SupportConfig\daily-support-check.json' `
     -CheckName 'PowerShell Runtime', 'Report Output Directory'
 ```
 
 Use `-PassThru` when calling the script from another PowerShell script and you need the report object. Use `-Strict` when warnings should produce a non-zero process exit code. Failed checks always produce a non-zero exit code.
 
+The default configuration file is `daily-support-check.json` beside the script:
+
+```json
+{
+  "DiskSpace": {
+    "Enabled": true,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {
+      "C:": 10,
+      "D:": 20
+    }
+  }
+}
+```
+
+`DefaultMinimumFreePercent` is the minimum free-space percentage applied to every filesystem drive. An entry in `DriveOverrides` replaces that threshold for the matching drive. Low free space produces a `Warning`; a configuration or inspection error produces a `Failed` result.
+
 The default template checks are:
 
 1. `PowerShell Runtime`
 2. `Report Output Directory`
-3. `Template Configuration`
+3. `Disk Space`
+4. `Template Configuration`
 
-Replace or extend these with checks that are meaningful for the target environment.
+Replace or extend these with checks that are meaningful for the target environment. Set `DiskSpace.Enabled` to `false` when disk-space monitoring is not required for a particular host.
 
 ## Output
 
@@ -76,7 +95,7 @@ For Windows Task Scheduler, use an action similar to:
 
 ```text
 Program:  pwsh.exe
-Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\ScheduledTasks\DailySupportCheck\Invoke-DailySupportCheck.ps1" -OutputPath "C:\SupportReports\Daily"
+Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\ScheduledTasks\DailySupportCheck\Invoke-DailySupportCheck.ps1" -OutputPath "C:\SupportReports\Daily" -ConfigPath "C:\SupportConfig\daily-support-check.json"
 ```
 
 Run under an account that can access the systems checked and write to the configured report directory.

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $OutputPath = (Join-Path $PSScriptRoot 'Reports'),
+    [string] $ConfigPath = (Join-Path $PSScriptRoot 'daily-support-check.json'),
     [string[]] $CheckName,
     [switch] $PassThru,
     [switch] $Strict
@@ -101,13 +102,120 @@ function Test-ReportOutputDirectory {
 function Test-TemplateConfiguration {
     param([object] $Context)
 
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'Template Configuration' -Status Failed -Summary 'Configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
     New-CheckResult -Name 'Template Configuration' -Status Passed -Summary 'Template configuration is ready for additional checks.' -Details 'Replace or extend the registered checks for environment-specific support actions.'
+}
+
+function Get-SupportConfiguration {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Configuration file was not found: $Path"
+    }
+
+    $configuration = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    if ($null -eq $configuration.DiskSpace) {
+        throw 'Configuration must contain a DiskSpace section.'
+    }
+
+    $threshold = [double] $configuration.DiskSpace.DefaultMinimumFreePercent
+    if ($threshold -lt 0 -or $threshold -gt 100) {
+        throw 'DiskSpace.DefaultMinimumFreePercent must be between 0 and 100.'
+    }
+
+    foreach ($override in @($configuration.DiskSpace.DriveOverrides.PSObject.Properties)) {
+        $overrideValue = [double] $override.Value
+        if ($overrideValue -lt 0 -or $overrideValue -gt 100) {
+            throw "Disk-space override for '$($override.Name)' must be between 0 and 100."
+        }
+    }
+
+    return $configuration
+}
+
+function Get-DiskSpaceSnapshot {
+    [CmdletBinding()]
+    param()
+
+    @(Get-PSDrive -PSProvider FileSystem | Where-Object { $null -ne $_.Free } | ForEach-Object {
+            $freeBytes = [int64] $_.Free
+            $sizeBytes = $freeBytes + [int64] $_.Used
+            [pscustomobject]@{
+                Drive     = "$($_.Name):"
+                SizeBytes = $sizeBytes
+                FreeBytes = $freeBytes
+            }
+        })
+}
+
+function Test-DiskSpace {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    $settings = $Context.Configuration.DiskSpace
+    if (-not [bool] $settings.Enabled) {
+        return New-CheckResult -Name 'Disk Space' -Status Passed -Summary 'Disk-space check is disabled by configuration.' -Details @()
+    }
+
+    try {
+        $provider = ${function:Get-DiskSpaceSnapshot}
+        if ($Context.PSObject.Properties['DiskSpaceProvider']) {
+            $provider = $Context.DiskSpaceProvider
+        }
+        $snapshots = @(& $provider)
+        if ($snapshots.Count -eq 0) {
+            return New-CheckResult -Name 'Disk Space' -Status Warning -Summary 'No filesystem drives were found.' -Details @()
+        }
+
+        $details = foreach ($snapshot in $snapshots) {
+            if ([int64] $snapshot.SizeBytes -le 0) {
+                throw "Drive '$($snapshot.Drive)' reported an invalid size."
+            }
+
+            $drive = [string] $snapshot.Drive
+            $threshold = [double] $settings.DefaultMinimumFreePercent
+            $override = $settings.DriveOverrides.PSObject.Properties[$drive]
+            if ($null -ne $override) {
+                $threshold = [double] $override.Value
+            }
+
+            $freePercent = ([double] $snapshot.FreeBytes / [double] $snapshot.SizeBytes) * 100
+            [pscustomobject]@{
+                Drive           = $drive
+                SizeBytes       = [int64] $snapshot.SizeBytes
+                FreeBytes       = [int64] $snapshot.FreeBytes
+                FreePercent     = [math]::Round($freePercent, 2)
+                ThresholdPercent = $threshold
+                Status          = if ($freePercent -lt $threshold) { 'Warning' } else { 'Passed' }
+            }
+        }
+
+        $belowThreshold = @($details | Where-Object Status -eq 'Warning')
+        if ($belowThreshold.Count -gt 0) {
+            $drives = $belowThreshold.Drive -join ', '
+            return New-CheckResult -Name 'Disk Space' -Status Warning -Summary "Drive(s) below free-space threshold: $drives" -Details @($details)
+        }
+
+        New-CheckResult -Name 'Disk Space' -Status Passed -Summary "All $($details.Count) filesystem drive(s) meet the configured free-space threshold." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'Disk Space' -Status Failed -Summary 'Disk-space inspection failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
 }
 
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
         [pscustomobject]@{ Name = 'Report Output Directory'; Action = ${function:Test-ReportOutputDirectory} }
+        [pscustomobject]@{ Name = 'Disk Space'; Action = ${function:Test-DiskSpace} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }
@@ -206,13 +314,30 @@ function Invoke-DailySupportCheck {
     [CmdletBinding()]
     param(
         [string] $OutputPath = (Join-Path $PSScriptRoot 'Reports'),
+        [string] $ConfigPath = (Join-Path $PSScriptRoot 'daily-support-check.json'),
         [string[]] $CheckName,
         [switch] $PassThru,
         [switch] $Strict
     )
 
     $startedAt = [datetime]::UtcNow
-    $context = [pscustomobject]@{ OutputPath = $OutputPath; StartedAt = $startedAt }
+    $configuration = $null
+    $configurationError = $null
+    try {
+        $configuration = Get-SupportConfiguration -Path $ConfigPath
+    }
+    catch {
+        $configurationError = $_.Exception.Message
+        $configuration = [pscustomobject]@{
+            DiskSpace = [pscustomobject]@{
+                Enabled = $false
+                DefaultMinimumFreePercent = 15
+                DriveOverrides = [pscustomobject]@{}
+            }
+        }
+    }
+
+    $context = [pscustomobject]@{ OutputPath = $OutputPath; ConfigPath = $ConfigPath; Configuration = $configuration; ConfigurationError = $configurationError; StartedAt = $startedAt }
     $definitions = @(Get-SupportCheckDefinitions)
     if ($CheckName) {
         $definitions = @($definitions | Where-Object Name -in $CheckName)
@@ -242,7 +367,7 @@ function Invoke-DailySupportCheck {
 $isDotSourced = $MyInvocation.InvocationName -eq '.'
 if (-not $isDotSourced) {
     try {
-        $report = Invoke-DailySupportCheck -OutputPath $OutputPath -CheckName $CheckName -PassThru -Strict:$Strict
+        $report = Invoke-DailySupportCheck -OutputPath $OutputPath -ConfigPath $ConfigPath -CheckName $CheckName -PassThru -Strict:$Strict
         if ($report.OverallStatus -eq 'Failed' -or ($Strict -and $report.OverallStatus -eq 'Warning')) {
             exit 1
         }

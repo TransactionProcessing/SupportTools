@@ -23,6 +23,7 @@ Describe 'Daily support check' {
         $report.Checks.Name | Should -Be @(
             'PowerShell Runtime'
             'Report Output Directory'
+            'Disk Space'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -84,5 +85,71 @@ Describe 'Daily support check' {
         $transport.Status | Should -Be 'Ready'
         $transport.Paths.JsonPath | Should -Be 'report.json'
         $transport.Paths.HtmlPath | Should -Be 'report.html'
+    }
+
+    It 'loads disk-space settings from a JSON configuration file' {
+        $configPath = Join-Path $testOutputRoot 'daily-support-check.json'
+        @'
+{
+  "DiskSpace": {
+    "Enabled": true,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {
+      "C:": 10,
+      "D:": 20
+    }
+  }
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
+
+        $configuration = Get-SupportConfiguration -Path $configPath
+
+        $configuration.DiskSpace.Enabled | Should -BeTrue
+        $configuration.DiskSpace.DefaultMinimumFreePercent | Should -Be 15
+        $configuration.DiskSpace.DriveOverrides.'C:' | Should -Be 10
+    }
+
+    It 'uses a drive override instead of the global disk-space threshold' {
+        $configuration = [pscustomobject]@{
+            DiskSpace = [pscustomobject]@{
+                Enabled = $true
+                DefaultMinimumFreePercent = 15
+                DriveOverrides = [pscustomobject]@{ 'C:' = 25 }
+            }
+        }
+        $context = [pscustomobject]@{
+            Configuration = $configuration
+            DiskSpaceProvider = {
+                @(
+                    [pscustomobject]@{ Drive = 'C:'; SizeBytes = 1000; FreeBytes = 200 }
+                    [pscustomobject]@{ Drive = 'D:'; SizeBytes = 1000; FreeBytes = 200 }
+                )
+            }
+        }
+
+        $result = Test-DiskSpace -Context $context
+
+        $result.Status | Should -Be 'Warning'
+        ($result.Details | Where-Object Drive -eq 'C:').ThresholdPercent | Should -Be 25
+        ($result.Details | Where-Object Drive -eq 'D:').ThresholdPercent | Should -Be 15
+    }
+
+    It 'fails the disk-space check when drive inspection fails' {
+        $configuration = [pscustomobject]@{
+            DiskSpace = [pscustomobject]@{
+                Enabled = $true
+                DefaultMinimumFreePercent = 15
+                DriveOverrides = [pscustomobject]@{}
+            }
+        }
+        $context = [pscustomobject]@{
+            Configuration = $configuration
+            DiskSpaceProvider = { throw 'disk query failed' }
+        }
+
+        $result = Test-DiskSpace -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Error | Should -Match 'disk query failed'
     }
 }

@@ -1,0 +1,7 @@
+{
+  "DiskSpace": {
+    "Enabled": true,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {}
+  }
+}
