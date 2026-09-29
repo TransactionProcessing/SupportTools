@@ -164,6 +164,27 @@ function Get-SupportConfiguration {
         }
     }
 
+    if ($configuration.PSObject.Properties['KurrentDbProjections']) {
+        if (-not [bool] $configuration.KurrentDbProjections.Enabled) {
+            return $configuration
+        }
+
+        $kurrentDbUri = $null
+        if (-not [uri]::TryCreate([string] $configuration.KurrentDbProjections.BaseUrl, [UriKind]::Absolute, [ref] $kurrentDbUri)) {
+            throw 'KurrentDbProjections.BaseUrl must be an absolute URI.'
+        }
+
+        if ([int] $configuration.KurrentDbProjections.TimeoutSeconds -le 0) {
+            throw 'KurrentDbProjections.TimeoutSeconds must be greater than zero.'
+        }
+
+        $hasUsername = $configuration.KurrentDbProjections.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $configuration.KurrentDbProjections.Username)
+        $hasPasswordEnvironmentVariable = $configuration.KurrentDbProjections.PSObject.Properties['PasswordEnvironmentVariable'] -and -not [string]::IsNullOrWhiteSpace([string] $configuration.KurrentDbProjections.PasswordEnvironmentVariable)
+        if ($hasUsername -xor $hasPasswordEnvironmentVariable) {
+            throw 'KurrentDbProjections.Username and KurrentDbProjections.PasswordEnvironmentVariable must be configured together.'
+        }
+    }
+
     return $configuration
 }
 
@@ -361,6 +382,84 @@ function Test-SubscriptionService {
     }
 }
 
+function Test-KurrentDbProjections {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Context)
+
+    if ($Context.PSObject.Properties['ConfigurationError'] -and $Context.ConfigurationError) {
+        return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection configuration could not be loaded.' -Details $Context.ConfigurationError -Error $Context.ConfigurationError
+    }
+
+    if (-not $Context.Configuration.PSObject.Properties['KurrentDbProjections'] -or -not [bool] $Context.Configuration.KurrentDbProjections.Enabled) {
+        return New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary 'KurrentDB projection check is disabled by configuration.' -Details @()
+    }
+
+    try {
+        $settings = $Context.Configuration.KurrentDbProjections
+        $configuredNames = @($settings.ProjectionNames | ForEach-Object { [string] $_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($configuredNames.Count -eq 0) {
+            return New-CheckResult -Name 'KurrentDB Projections' -Status Warning -Summary 'No KurrentDB projections are configured for checking.' -Details @()
+        }
+
+        $uri = ([uri]::new("$($settings.BaseUrl.TrimEnd('/'))/$($settings.ProjectionsPath.TrimStart('/'))")).AbsoluteUri
+        $timeoutSeconds = [int] $settings.TimeoutSeconds
+        $provider = {
+            param($requestUri, $requestTimeoutSeconds)
+            $request = @{ Uri = $requestUri; Method = 'Get'; TimeoutSec = $requestTimeoutSeconds }
+            $hasUsername = $settings.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.Username)
+            if ($hasUsername) {
+                $passwordEnvironmentVariable = [string] $settings.PasswordEnvironmentVariable
+                $password = [Environment]::GetEnvironmentVariable($passwordEnvironmentVariable)
+                if ([string]::IsNullOrWhiteSpace($password)) {
+                    throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
+                }
+                $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+                $request.Authentication = 'Basic'
+                $request.Credential = [pscredential]::new([string] $settings.Username, $securePassword)
+            }
+            Invoke-RestMethod @request
+        }
+        if ($Context.PSObject.Properties['KurrentDbProjectionProvider']) {
+            $provider = $Context.KurrentDbProjectionProvider
+        }
+
+        $projections = @(& $provider $uri $timeoutSeconds)
+        $projectionByName = @{}
+        foreach ($projection in $projections) {
+            $name = if ($projection.PSObject.Properties['effectiveName']) { [string] $projection.effectiveName } elseif ($projection.PSObject.Properties['name']) { [string] $projection.name } else { '' }
+            if (-not [string]::IsNullOrWhiteSpace($name)) {
+                $projectionByName[$name] = $projection
+            }
+        }
+
+        $details = foreach ($configuredName in $configuredNames) {
+            $projection = $projectionByName[$configuredName]
+            if ($null -eq $projection) {
+                [pscustomobject]@{ Name = $configuredName; Status = 'Missing'; Progress = $null; StateReason = 'Projection was not returned by KurrentDB.' }
+                continue
+            }
+
+            [pscustomobject]@{
+                Name        = $configuredName
+                Status      = [string] $projection.status
+                Progress    = if ($projection.PSObject.Properties['progress']) { $projection.progress } else { $null }
+                StateReason = if ($projection.PSObject.Properties['stateReason']) { $projection.stateReason } else { $null }
+            }
+        }
+
+        $notRunning = @($details | Where-Object { $_.Status -ne 'Running' })
+        if ($notRunning.Count -gt 0) {
+            $summary = ($notRunning | ForEach-Object { "$($_.Name) [$($_.Status)]" }) -join ', '
+            return New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary "Projection(s) not running: $summary" -Details @($details)
+        }
+
+        New-CheckResult -Name 'KurrentDB Projections' -Status Passed -Summary "All $($details.Count) configured KurrentDB projection(s) are running." -Details @($details)
+    }
+    catch {
+        New-CheckResult -Name 'KurrentDB Projections' -Status Failed -Summary 'KurrentDB projection status query failed.' -Details $_.Exception.Message -Error $_.Exception.ToString()
+    }
+}
+
 function Get-SupportCheckDefinitions {
     @(
         [pscustomobject]@{ Name = 'PowerShell Runtime'; Action = ${function:Test-PowerShellRuntime} }
@@ -368,6 +467,7 @@ function Get-SupportCheckDefinitions {
         [pscustomobject]@{ Name = 'Disk Space'; Action = ${function:Test-DiskSpace} }
         [pscustomobject]@{ Name = 'HealthMonitoring'; Action = ${function:Test-HealthMonitoring} }
         [pscustomobject]@{ Name = 'Subscription Service'; Action = ${function:Test-SubscriptionService} }
+        [pscustomobject]@{ Name = 'KurrentDB Projections'; Action = ${function:Test-KurrentDbProjections} }
         [pscustomobject]@{ Name = 'Template Configuration'; Action = ${function:Test-TemplateConfiguration} }
     )
 }

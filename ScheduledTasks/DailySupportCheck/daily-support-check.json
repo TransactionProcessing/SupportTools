@@ -15,5 +15,12 @@
     "BaseUrl": "http://localhost:8080",
     "StatusPath": "/subscriptions/status",
     "TimeoutSeconds": 10
+  },
+  "KurrentDbProjections": {
+    "Enabled": false,
+    "BaseUrl": "http://localhost:2113",
+    "ProjectionsPath": "/projections/any",
+    "ProjectionNames": [],
+    "TimeoutSeconds": 10
   }
 }

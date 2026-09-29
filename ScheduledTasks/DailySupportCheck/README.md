@@ -44,6 +44,16 @@ The default configuration file is `daily-support-check.json` beside the script:
     "BaseUrl": "http://localhost:8080",
     "StatusPath": "/subscriptions/status",
     "TimeoutSeconds": 10
+  },
+  "KurrentDbProjections": {
+    "Enabled": false,
+    "BaseUrl": "http://localhost:2113",
+    "ProjectionsPath": "/projections/any",
+    "ProjectionNames": [
+      "TransactionProcessor",
+      "MerchantAggregator"
+    ],
+    "TimeoutSeconds": 10
   }
 }
 ```
@@ -54,6 +64,8 @@ The `HealthMonitoring` check calls the configured services endpoint. All service
 
 The `Subscription Service` check calls the configured subscription status endpoint. It fails when any subscription is not running, warns when parked messages exist, and passes when all subscriptions are running with no parked messages. The report includes subscription ID, tag, running state, health, parked-event count, operational reason, and runtime failure reason.
 
+The `KurrentDB Projections` check calls the configured `/projections/any` endpoint and checks only the names in `ProjectionNames`. It passes when every selected projection is `Running` and fails when a selected projection is missing or has another status. Authentication is optional for insecure development instances. For secured instances, add `Username` and `PasswordEnvironmentVariable`; the password is read from that environment variable and is not stored in JSON. The check is disabled by default until the projection names have been configured.
+
 The default template checks are:
 
 1. `PowerShell Runtime`
@@ -61,7 +73,8 @@ The default template checks are:
 3. `Disk Space`
 4. `HealthMonitoring`
 5. `Subscription Service`
-6. `Template Configuration`
+6. `KurrentDB Projections`
+7. `Template Configuration`
 
 Replace or extend these with checks that are meaningful for the target environment. Set `DiskSpace.Enabled` to `false` when disk-space monitoring is not required for a particular host.
 

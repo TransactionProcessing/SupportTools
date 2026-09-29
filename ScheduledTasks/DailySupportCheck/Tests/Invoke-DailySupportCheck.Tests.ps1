@@ -26,6 +26,7 @@ Describe 'Daily support check' {
             'Disk Space'
             'HealthMonitoring'
             'Subscription Service'
+            'KurrentDB Projections'
             'Template Configuration'
         )
         @((Get-ChildItem -Path $outputPath -Filter '*.json')).Count | Should -Be 1
@@ -112,6 +113,16 @@ Describe 'Daily support check' {
     "BaseUrl": "http://localhost:8080",
     "StatusPath": "/subscriptions/status",
     "TimeoutSeconds": 10
+  },
+  "KurrentDbProjections": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:2113",
+    "ProjectionsPath": "/projections/any",
+    "ProjectionNames": [
+      "TransactionProcessor",
+      "MerchantAggregator"
+    ],
+    "TimeoutSeconds": 10
   }
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -125,6 +136,8 @@ Describe 'Daily support check' {
         $configuration.HealthMonitoring.BaseUrl | Should -Be 'http://localhost:9620'
         $configuration.SubscriptionService.Enabled | Should -BeTrue
         $configuration.SubscriptionService.BaseUrl | Should -Be 'http://localhost:8080'
+        $configuration.KurrentDbProjections.Enabled | Should -BeTrue
+        $configuration.KurrentDbProjections.ProjectionNames | Should -Be @('TransactionProcessor', 'MerchantAggregator')
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
@@ -306,5 +319,93 @@ Describe 'Daily support check' {
 
         $result.Status | Should -Be 'Failed'
         $result.Error | Should -Match 'subscription endpoint unavailable'
+    }
+
+    It 'passes only the configured KurrentDB projections when they are running' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbProjections = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    ProjectionsPath = '/projections/any'
+                    ProjectionNames = @('selected')
+                    TimeoutSeconds = 10
+                }
+            }
+            KurrentDbProjectionProvider = {
+                @(
+                    [pscustomobject]@{ effectiveName = 'selected'; status = 'Running'; progress = 100; stateReason = $null }
+                    [pscustomobject]@{ effectiveName = 'not-selected'; status = 'Stopped'; progress = 0; stateReason = 'disabled' }
+                )
+            }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 1
+        $result.Details[0].Name | Should -Be 'selected'
+    }
+
+    It 'fails when a configured KurrentDB projection is stopped or missing' {
+        $configuration = [pscustomobject]@{
+            KurrentDbProjections = [pscustomobject]@{
+                Enabled = $true
+                BaseUrl = 'http://kurrentdb'
+                ProjectionsPath = '/projections/any'
+                ProjectionNames = @('stopped', 'missing')
+                TimeoutSeconds = 10
+            }
+        }
+        $context = [pscustomobject]@{
+            Configuration = $configuration
+            KurrentDbProjectionProvider = {
+                @([pscustomobject]@{ effectiveName = 'stopped'; status = 'Stopped'; progress = 0; stateReason = 'disabled' })
+            }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Summary | Should -Match 'stopped'
+        $result.Summary | Should -Match 'missing'
+    }
+
+    It 'warns when no KurrentDB projections are configured' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbProjections = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    ProjectionsPath = '/projections/any'
+                    ProjectionNames = @()
+                    TimeoutSeconds = 10
+                }
+            }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Warning'
+    }
+
+    It 'fails the KurrentDB projection check when the endpoint cannot be queried' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                KurrentDbProjections = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://kurrentdb'
+                    ProjectionsPath = '/projections/any'
+                    ProjectionNames = @('selected')
+                    TimeoutSeconds = 10
+                }
+            }
+            KurrentDbProjectionProvider = { throw 'projection endpoint unavailable' }
+        }
+
+        $result = Test-KurrentDbProjections -Context $context
+
+        $result.Status | Should -Be 'Failed'
+        $result.Error | Should -Match 'projection endpoint unavailable'
     }
 }
