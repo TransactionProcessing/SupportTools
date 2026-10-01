@@ -553,6 +553,37 @@ Describe 'Daily support check' {
         $result.Details[1].SubscriptionId | Should -Be 'subscription-2'
     }
 
+    It 'expands the flattened subscription response emitted by the status endpoint' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                SubscriptionService = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://subscription-service'
+                    StatusPath = '/subscriptions/status'
+                    TimeoutSeconds = 10
+                }
+            }
+            SubscriptionServiceProvider = {
+                [pscustomobject]@{
+                    subscriptionId = '$idx-ce-TransactionAggregate_Transaction Processor_Main $idx-ce-SettlementAggregate_Transaction Processor_Ordered'
+                    tag = 'Main Ordered'
+                    isRunning = $true
+                    health = 'Healthy Healthy'
+                    parkedEventCount = 0
+                }
+            }
+        }
+
+        $result = Test-SubscriptionService -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 2
+        $result.Details[0].SubscriptionId | Should -Be '$idx-ce-TransactionAggregate_Transaction Processor_Main'
+        $result.Details[0].Tag | Should -Be 'Main'
+        $result.Details[1].SubscriptionId | Should -Be '$idx-ce-SettlementAggregate_Transaction Processor_Ordered'
+        $result.Details[1].Tag | Should -Be 'Ordered'
+    }
+
     It 'fails when a subscription is stopped and warns when parked messages exist' {
         $configuration = [pscustomobject]@{
             SubscriptionService = [pscustomobject]@{
