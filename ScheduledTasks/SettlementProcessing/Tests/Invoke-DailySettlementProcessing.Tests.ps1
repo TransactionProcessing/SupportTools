@@ -16,6 +16,7 @@ Describe 'Invoke-DailySettlementProcessing.ps1' {
         } -ParameterFilter {
             $Method -eq 'Post' -and
             $Uri -eq 'https://security.example/connect/token' -and
+            $SkipCertificateCheck -eq $true -and
             $ContentType -eq 'application/x-www-form-urlencoded' -and
             $Body.grant_type -eq 'client_credentials' -and
             $Body.client_id -eq 'client-id' -and
@@ -75,6 +76,7 @@ Describe 'Invoke-DailySettlementProcessing.ps1' {
         } -ParameterFilter {
             $Method -eq 'Post' -and
             $Uri -eq 'https://security.example/connect/token' -and
+            $SkipCertificateCheck -eq $true -and
             $ContentType -eq 'application/x-www-form-urlencoded' -and
             $Body.grant_type -eq 'client_credentials' -and
             $Body.client_id -eq 'client-id' -and
