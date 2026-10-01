@@ -78,7 +78,7 @@ The default configuration file is `daily-support-check.json` beside the script:
   "KurrentDbWriteActivity": {
     "Enabled": true,
     "BaseUrl": "http://localhost:2113",
-    "ClientAssemblyPath": "..\\..\\StreamManagementTool\\bin\\Debug\\net10.0\\KurrentDB.Client.dll",
+    "KurrentDbClientAssemblyPath": ".\\KurrentDbClient\\SupportTools.KurrentDbClient.dll",
     "Streams": [
       {
         "Name": "$idx-ce-TransactionAggregate",
@@ -102,7 +102,7 @@ The `KurrentDB Projections` check calls the configured `/projections/any` endpoi
 
 The `Scheduled Tasks` check uses `Get-ScheduledTask` and `Get-ScheduledTaskInfo` to inspect only the configured tasks. It fails for missing, disabled, failed, overdue, or stale tasks, and reports the task state, last result, last run, next run, and failure reason. `ExpectedRunIntervalMinutes` determines how old the last run may be; the older `MaxLastRunAgeHours` property remains supported for compatibility. The current example checks `Daily Settlement` and `Replay Parked Queue` every 24 hours, and `Scavenge` every 7 days.
 
-The `KurrentDB Write Activity` check reads the latest events backwards from `$all` using a secondary-index prefix filter for each configured index. It reports the event IDs, event types, and timestamps for each index. Each index passes when recent events are found, warns when fewer than its `EventCount` are available, and fails when no events are returned, the query is unavailable, or its latest event is older than its `MaxLatestEventAgeMinutes`. The overall check fails if any index fails and warns if one or more indexes warn. `ClientAssemblyPath` points to `KurrentDB.Client.dll`; it is resolved relative to the configuration file when relative. The check is disabled by default until the correct secondary indexes have been configured. For compatibility, the older single-stream properties (`StreamName`, `EventCount`, and `MaxLatestEventAgeMinutes`) are also accepted.
+The `KurrentDB Write Activity` check reads the latest events backwards from `$all` using a secondary-index prefix filter for each configured index. It reports the event IDs, event types, and timestamps for each index. Each index passes when recent events are found, warns when fewer than its `EventCount` are available, and fails when no events are returned, the query is unavailable, or its latest event is older than its `MaxLatestEventAgeMinutes`. The overall check fails if any index fails and warns if one or more indexes warn. `KurrentDbClientAssemblyPath` points to the packaged `SupportTools.KurrentDbClient.dll` helper and is resolved relative to the configuration file when relative. The helper owns the KurrentDB client dependency so the check does not depend on `StreamManagementTool`. The check is disabled by default until the correct secondary indexes have been configured. For compatibility, the older single-stream properties (`StreamName`, `EventCount`, and `MaxLatestEventAgeMinutes`) are also accepted.
 
 The default template checks are:
 
