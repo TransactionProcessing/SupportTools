@@ -393,7 +393,22 @@ function Test-HealthMonitoring {
             $provider = $Context.HealthMonitoringProvider
         }
 
-        $services = @(& $provider $uri $timeoutSeconds)
+        $services = @((& $provider $uri $timeoutSeconds))
+        $serviceIdValue = if ($services.Count -eq 1 -and $services[0].PSObject.Properties['ServiceId']) { $services[0].ServiceId }
+        $isServiceCollection = $serviceIdValue -is [System.Collections.IEnumerable] -and $serviceIdValue -isnot [string]
+        if ($services.Count -eq 1 -and $isServiceCollection) {
+            $wrappedServices = $services[0]
+            $serviceCount = @($serviceIdValue).Count
+            $services = for ($index = 0; $index -lt $serviceCount; $index++) {
+                $service = [ordered]@{}
+                foreach ($property in $wrappedServices.PSObject.Properties) {
+                    $value = $property.Value
+                    $isCollection = $value -is [System.Collections.IEnumerable] -and $value -isnot [string]
+                    $service[$property.Name] = if ($isCollection -and @($value).Count -eq $serviceCount) { @($value)[$index] } else { $value }
+                }
+                [pscustomobject] $service
+            }
+        }
         if ($services.Count -eq 0) {
             return Get-CheckResult -Name 'HealthMonitoring' -Status Warning -Summary 'HealthMonitoring returned no monitored services.' -Details @()
         }
@@ -402,6 +417,13 @@ function Test-HealthMonitoring {
             $status = [string] $service.Status
             if ([string]::IsNullOrWhiteSpace($status)) {
                 $status = 'Unknown'
+            }
+            $status = switch ($status) {
+                '0' { 'Unknown' }
+                '1' { 'Healthy' }
+                '2' { 'Degraded' }
+                '3' { 'Unhealthy' }
+                default { $status }
             }
             $status = (Get-Culture).TextInfo.ToTitleCase($status.ToLowerInvariant())
             [pscustomobject]@{
@@ -980,17 +1002,44 @@ function Write-SupportReports {
         [void] $subscriptionDetails.AppendLine('</tbody></table></div>')
     }
 
+    $healthMonitoringDetails = [System.Text.StringBuilder]::new()
+    $healthMonitoringCheck = @($Report.Checks | Where-Object Name -eq 'HealthMonitoring') | Select-Object -First 1
+    $healthMonitoringItems = if ($null -ne $healthMonitoringCheck) {
+        @($healthMonitoringCheck.Details | Where-Object { $_.PSObject.Properties['ServiceId'] })
+    }
+    $healthMonitoringItems = @($healthMonitoringItems)
+    if ($healthMonitoringItems.Count -gt 0) {
+        [void] $healthMonitoringDetails.AppendLine('<h2>HealthMonitoring details</h2>')
+        [void] $healthMonitoringDetails.AppendLine('<div class="table-scroll"><table class="health-monitoring-table"><thead><tr><th>Service ID</th><th>Name</th><th>Status</th><th>Last observed</th><th>Last error</th></tr></thead><tbody>')
+        foreach ($service in $healthMonitoringItems) {
+            $detailStatus = ConvertTo-HtmlEncodedText $service.Status
+            $detailStatusClass = [System.Net.WebUtility]::HtmlEncode("status-$([string] $service.Status)")
+            $detailStatusIcon = switch ([string] $service.Status) {
+                'Passed' { '🟢' }
+                'Healthy' { '🟢' }
+                'Warning' { '🟠' }
+                'Degraded' { '🟠' }
+                'Failed' { '🔴' }
+                'Unhealthy' { '🔴' }
+                default { '⚪' }
+            }
+            [void] $healthMonitoringDetails.AppendLine("<tr class=`"$detailStatusClass`"><td>$(ConvertTo-HtmlEncodedText $service.ServiceId)</td><td>$(ConvertTo-HtmlEncodedText $service.Name)</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$detailStatus`">$detailStatusIcon</span> $detailStatus</td><td>$(ConvertTo-HtmlEncodedText $service.LastObservedAtUtc)</td><td>$(ConvertTo-HtmlEncodedText $service.LastError)</td></tr>")
+        }
+        [void] $healthMonitoringDetails.AppendLine('</tbody></table></div>')
+    }
+
     $overallStatus = [System.Net.WebUtility]::HtmlEncode([string] $Report.OverallStatus)
     $html = @"
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Daily Support Check</title>
-<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}h2{font-size:1.1em;margin:22px 0 8px}.table-scroll{overflow-x:auto}.subscription-table{font-size:.9em;min-width:760px}.status-Failed{background:#fde2e2}.status-Warning{background:#fff4cc}.status-Passed{background:#e4f4e4}.status-icon{font-size:1.15em;white-space:nowrap}</style>
+<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}h2{font-size:1.1em;margin:22px 0 8px}.table-scroll{overflow-x:auto}.subscription-table,.health-monitoring-table{font-size:.9em;min-width:760px}.status-Failed,.status-Unhealthy{background:#fde2e2}.status-Warning,.status-Degraded{background:#fff4cc}.status-Passed,.status-Healthy{background:#e4f4e4}.status-icon{font-size:1.15em;white-space:nowrap}</style>
 </head>
 <body><h1>Daily Support Check</h1><p><strong>Overall status:</strong> $overallStatus</p>
 <p><strong>Started:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.StartedAt))<br><strong>Completed:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.CompletedAt))</p>
 <table><thead><tr><th>Check</th><th>Status</th><th>Summary</th></tr></thead><tbody>$rows</tbody></table>
 $subscriptionDetails
+$healthMonitoringDetails
 </body></html>
 "@
     $html | Set-Content -LiteralPath $htmlPath -Encoding UTF8
