@@ -36,7 +36,7 @@
         "ExpectedRunIntervalMinutes": 1440
       },
       {
-        "Name": "Replay Parked Queue",
+        "Name": "Replay Parked Queues",
         "Path": "\\",
         "ExpectedRunIntervalMinutes": 1440
       },
