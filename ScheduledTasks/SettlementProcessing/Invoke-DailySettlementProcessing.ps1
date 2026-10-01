@@ -38,15 +38,31 @@ function Get-AccessToken {
     $tokenEndpoint = '{0}/connect/token' -f $SecurityServiceUrl.TrimEnd('/')
     Write-Verbose "Requesting access token from [$tokenEndpoint]"
 
-    $tokenResponse = Invoke-RestMethod -Method Post `
-                                       -Uri $tokenEndpoint `
-                                       -SkipCertificateCheck `
-                                       -ContentType 'application/x-www-form-urlencoded' `
-                                       -Body @{
-                                           grant_type    = 'client_credentials'
-                                           client_id     = $ClientId
-                                           client_secret = $ClientSecret
-                                       }
+    $requestParameters = @{
+        Method      = 'Post'
+        Uri         = $tokenEndpoint
+        ContentType = 'application/x-www-form-urlencoded'
+        Body        = @{
+            grant_type    = 'client_credentials'
+            client_id     = $ClientId
+            client_secret = $ClientSecret
+        }
+    }
+
+    if ((Get-Command Invoke-RestMethod -ErrorAction Stop).Parameters.ContainsKey('SkipCertificateCheck')) {
+        $requestParameters.SkipCertificateCheck = $true
+        $tokenResponse = Invoke-RestMethod @requestParameters
+    }
+    else {
+        $previousCertificateValidationCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+        try {
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+            $tokenResponse = Invoke-RestMethod @requestParameters
+        }
+        finally {
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCertificateValidationCallback
+        }
+    }
 
     if ($tokenResponse -is [hashtable]) {
         foreach ($propertyName in 'access_token', 'AccessToken', 'token', 'Token') {
