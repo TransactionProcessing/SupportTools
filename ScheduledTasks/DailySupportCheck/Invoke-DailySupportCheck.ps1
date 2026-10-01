@@ -919,6 +919,16 @@ function ConvertTo-ReportText {
     return ($Value | ConvertTo-Json -Depth 8 -Compress)
 }
 
+function ConvertTo-HtmlEncodedText {
+    param([object] $Value)
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string] $Value)) {
+        return '—'
+    }
+
+    [System.Net.WebUtility]::HtmlEncode([string] $Value)
+}
+
 function Write-SupportReports {
     [CmdletBinding()]
     param(
@@ -957,16 +967,45 @@ function Write-SupportReports {
         [void] $rows.AppendLine("<tr class=`"status-$status`"><td>$name</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$status`">$statusIcon</span> $status</td><td>$summary</td></tr>")
     }
 
+    $subscriptionDetails = [System.Text.StringBuilder]::new()
+    $subscriptionCheck = @($Report.Checks | Where-Object Name -eq 'Subscription Service') | Select-Object -First 1
+    $subscriptionItems = if ($null -ne $subscriptionCheck) {
+        @($subscriptionCheck.Details | Where-Object { $_.PSObject.Properties['SubscriptionId'] })
+    }
+    $subscriptionItems = @($subscriptionItems)
+    if ($subscriptionItems.Count -gt 0) {
+        [void] $subscriptionDetails.AppendLine('<h2>Subscription Service details</h2>')
+        [void] $subscriptionDetails.AppendLine('<div class="table-scroll"><table class="subscription-table"><thead><tr><th>Subscription</th><th>Tag</th><th>Status</th><th>Running</th><th>Health</th><th>Parked</th><th>Reason</th></tr></thead><tbody>')
+        foreach ($subscription in $subscriptionItems) {
+            $detailStatus = ConvertTo-HtmlEncodedText $subscription.Status
+            $detailStatusClass = [System.Net.WebUtility]::HtmlEncode("status-$([string] $subscription.Status)")
+            $detailStatusIcon = switch ([string] $subscription.Status) {
+                'Passed' { '🟢' }
+                'Warning' { '🟠' }
+                'Failed' { '🔴' }
+                default { '⚪' }
+            }
+            $reasonParts = @(
+                if ($subscription.PSObject.Properties['operationalReason'] -and -not [string]::IsNullOrWhiteSpace([string] $subscription.OperationalReason)) { "Operational: $($subscription.OperationalReason)" }
+                if ($subscription.PSObject.Properties['runtimeFailureReason'] -and -not [string]::IsNullOrWhiteSpace([string] $subscription.RuntimeFailureReason)) { "Runtime: $($subscription.RuntimeFailureReason)" }
+            )
+            $reason = ConvertTo-HtmlEncodedText ($reasonParts -join '; ')
+            [void] $subscriptionDetails.AppendLine("<tr class=`"$detailStatusClass`"><td>$(ConvertTo-HtmlEncodedText $subscription.SubscriptionId)</td><td>$(ConvertTo-HtmlEncodedText $subscription.Tag)</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$detailStatus`">$detailStatusIcon</span> $detailStatus</td><td>$(ConvertTo-HtmlEncodedText $subscription.IsRunning)</td><td>$(ConvertTo-HtmlEncodedText $subscription.Health)</td><td>$(ConvertTo-HtmlEncodedText $subscription.ParkedEventCount)</td><td>$reason</td></tr>")
+        }
+        [void] $subscriptionDetails.AppendLine('</tbody></table></div>')
+    }
+
     $overallStatus = [System.Net.WebUtility]::HtmlEncode([string] $Report.OverallStatus)
     $html = @"
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Daily Support Check</title>
-<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}.status-Failed{background:#fde2e2}.status-Warning{background:#fff4cc}.status-Passed{background:#e4f4e4}.status-icon{font-size:1.15em;white-space:nowrap}</style>
+<style>body{font-family:Segoe UI,Arial,sans-serif;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left;vertical-align:top}th{background:#eee}h2{font-size:1.1em;margin:22px 0 8px}.table-scroll{overflow-x:auto}.subscription-table{font-size:.9em;min-width:760px}.status-Failed{background:#fde2e2}.status-Warning{background:#fff4cc}.status-Passed{background:#e4f4e4}.status-icon{font-size:1.15em;white-space:nowrap}</style>
 </head>
 <body><h1>Daily Support Check</h1><p><strong>Overall status:</strong> $overallStatus</p>
 <p><strong>Started:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.StartedAt))<br><strong>Completed:</strong> $([System.Net.WebUtility]::HtmlEncode([string] $Report.CompletedAt))</p>
 <table><thead><tr><th>Check</th><th>Status</th><th>Summary</th></tr></thead><tbody>$rows</tbody></table>
+$subscriptionDetails
 </body></html>
 "@
     $html | Set-Content -LiteralPath $htmlPath -Encoding UTF8
