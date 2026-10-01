@@ -40,6 +40,7 @@ function Get-AccessToken {
 
     $tokenResponse = Invoke-RestMethod -Method Post `
                                        -Uri $tokenEndpoint `
+                                       -SkipCertificateCheck `
                                        -ContentType 'application/x-www-form-urlencoded' `
                                        -Body @{
                                            grant_type    = 'client_credentials'
