@@ -163,6 +163,42 @@ Describe 'Daily support check' {
         $html | Should -Match 'Main &amp; Ordered'
     }
 
+    It 'renders health-monitoring service details beneath the check summary in the HTML report' {
+        $outputPath = Join-Path $testOutputRoot 'health-monitoring-details'
+        $details = @(
+            [pscustomobject]@{
+                ServiceId = 'orders'
+                Name = 'Orders & Payments'
+                Status = 'Healthy'
+                LastObservedAtUtc = '2026-10-01T15:00:00Z'
+                LastError = $null
+            }
+            [pscustomobject]@{
+                ServiceId = 'payments'
+                Name = 'Payments'
+                Status = 'Unhealthy'
+                LastObservedAtUtc = '2026-10-01T14:59:00Z'
+                LastError = 'Health endpoint unavailable'
+            }
+        )
+        $check = Get-CheckResult -Name 'HealthMonitoring' -Status Failed -Summary '1 monitored service(s) are unhealthy or unknown.' -Details $details
+        $report = Get-SupportReport -StartedAt ([datetime]::UtcNow) -Results @($check)
+
+        $paths = Write-SupportReports -Report $report -OutputPath $outputPath
+        $html = Get-Content -Raw -Path $paths.HtmlPath
+
+        $html | Should -Match 'HealthMonitoring details'
+        $html | Should -Match '<th>Service ID</th><th>Name</th><th>Status</th>'
+        $html | Should -Match 'orders'
+        $html | Should -Match 'Orders &amp; Payments'
+        $html | Should -Match 'Health endpoint unavailable'
+        $html | Should -Match 'status-Healthy'
+        $html | Should -Match 'status-Unhealthy'
+        $html | Should -Match '🔴</span> Unhealthy'
+        $html | Should -Match '\.status-Passed,.status-Healthy\{background:#e4f4e4\}'
+        $html | Should -Match '\.status-Failed,.status-Unhealthy\{background:#fde2e2\}'
+    }
+
     It 'removes matching reports older than the configured retention period' {
         $outputPath = Join-Path $testOutputRoot 'retention'
         New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
@@ -454,6 +490,65 @@ Describe 'Daily support check' {
         $result.Status | Should -Be 'Passed'
         $result.Details.Count | Should -Be 2
         $result.Summary | Should -Match '2 monitored service'
+    }
+
+    It 'expands wrapped enumerable health-monitoring services returned by the API' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                HealthMonitoring = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://health-monitoring'
+                    ServicesPath = '/api/services'
+                    TimeoutSeconds = 10
+                }
+            }
+            HealthMonitoringProvider = {
+                [pscustomobject]@{
+                    ServiceId = [System.Collections.ArrayList]::new(@('orders', 'payments'))
+                    Name = [System.Collections.ArrayList]::new(@('Orders', 'Payments'))
+                    Status = [System.Collections.ArrayList]::new(@(1, 1))
+                    LastObservedAtUtc = $null
+                    LastError = $null
+                }
+            }
+        }
+
+        $result = Test-HealthMonitoring -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 2
+        $result.Details[0].ServiceId | Should -Be 'orders'
+        $result.Details[0].Name | Should -Be 'Orders'
+        $result.Details[0].Status | Should -Be 'Healthy'
+        $result.Details[1].ServiceId | Should -Be 'payments'
+        $result.Details[1].Name | Should -Be 'Payments'
+        $result.Details[1].Status | Should -Be 'Healthy'
+    }
+
+    It 'unwraps an array returned as one health-monitoring provider result' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                HealthMonitoring = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://health-monitoring'
+                    ServicesPath = '/api/services'
+                    TimeoutSeconds = 10
+                }
+            }
+            HealthMonitoringProvider = {
+                $apiResponse = @(
+                    [pscustomobject]@{ ServiceId = 'orders'; Name = 'Orders'; Status = 1 }
+                    [pscustomobject]@{ ServiceId = 'payments'; Name = 'Payments'; Status = 1 }
+                )
+                ,$apiResponse
+            }
+        }
+
+        $result = Test-HealthMonitoring -Context $context
+
+        $result.Status | Should -Be 'Passed'
+        $result.Details.Count | Should -Be 2
+        $result.Details.ServiceId | Should -Be @('orders', 'payments')
     }
 
     It 'returns Warning for degraded services and Failed for unhealthy services' {
