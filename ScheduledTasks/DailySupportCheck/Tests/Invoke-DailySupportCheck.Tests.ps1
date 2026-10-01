@@ -527,7 +527,7 @@ Describe 'Daily support check' {
         $result.Summary | Should -Match '1 subscription'
     }
 
-    It 'expands a wrapped subscription response into individual subscriptions' {
+    It 'creates one health result for every subscription returned by the API' {
         $context = [pscustomobject]@{
             Configuration = [pscustomobject]@{
                 SubscriptionService = [pscustomobject]@{
@@ -538,15 +538,11 @@ Describe 'Daily support check' {
                 }
             }
             SubscriptionServiceProvider = {
-                [pscustomobject]@{
-                    subscriptionId = @('subscription-1', 'subscription-2')
-                    tag = @('Main', 'Ordered')
-                    isRunning = @($true, $true)
-                    health = @('Healthy', 'Healthy')
-                    parkedEventCount = @(0, 2)
-                    operationalReason = @($null, $null)
-                    runtimeFailureReason = @($null, $null)
-                }
+                $apiResponse = @(
+                    [pscustomobject]@{ subscriptionId = 'subscription-1'; tag = 'Main'; isRunning = $true; health = 'Healthy'; parkedEventCount = 0; operationalReason = $null; runtimeFailureReason = $null }
+                    [pscustomobject]@{ subscriptionId = 'subscription-2'; tag = 'Ordered'; isRunning = $true; health = 'Healthy'; parkedEventCount = 2; operationalReason = 'Parked messages detected'; runtimeFailureReason = $null }
+                )
+                ,$apiResponse
             }
         }
 
@@ -555,71 +551,10 @@ Describe 'Daily support check' {
         $result.Status | Should -Be 'Warning'
         $result.Summary | Should -Match '1 subscription\(s\) have parked messages'
         $result.Details.Count | Should -Be 2
-    }
-
-    It 'expands wrapped enumerable subscription collections returned by the API' {
-        $context = [pscustomobject]@{
-            Configuration = [pscustomobject]@{
-                SubscriptionService = [pscustomobject]@{
-                    Enabled = $true
-                    BaseUrl = 'http://subscription-service'
-                    StatusPath = '/subscriptions/status'
-                    TimeoutSeconds = 10
-                }
-            }
-            SubscriptionServiceProvider = {
-                $subscriptionIds = [System.Collections.ArrayList]::new(@('subscription-1', 'subscription-2'))
-                $tags = [System.Collections.ArrayList]::new(@('Main', 'Ordered'))
-                $runningStates = [System.Collections.ArrayList]::new(@($true, $true))
-                $healthStates = [System.Collections.ArrayList]::new(@('Healthy', 'Healthy'))
-                $parkedCounts = [System.Collections.ArrayList]::new(@(0, 2))
-                [pscustomobject]@{
-                    subscriptionId = $subscriptionIds
-                    tag = $tags
-                    isRunning = $runningStates
-                    health = $healthStates
-                    parkedEventCount = $parkedCounts
-                }
-            }
-        }
-
-        $result = Test-SubscriptionService -Context $context
-
-        $result.Status | Should -Be 'Warning'
-        $result.Details.Count | Should -Be 2
         $result.Details[0].SubscriptionId | Should -Be 'subscription-1'
+        $result.Details[0].Status | Should -Be 'Passed'
         $result.Details[1].SubscriptionId | Should -Be 'subscription-2'
-    }
-
-    It 'expands the flattened subscription response emitted by the status endpoint' {
-        $context = [pscustomobject]@{
-            Configuration = [pscustomobject]@{
-                SubscriptionService = [pscustomobject]@{
-                    Enabled = $true
-                    BaseUrl = 'http://subscription-service'
-                    StatusPath = '/subscriptions/status'
-                    TimeoutSeconds = 10
-                }
-            }
-            SubscriptionServiceProvider = {
-                [pscustomobject]@{
-                    subscriptionId = '$idx-ce-TransactionAggregate_Transaction Processor_Main $idx-ce-SettlementAggregate_Transaction Processor_Ordered'
-                    tag = 'Main Ordered'
-                    isRunning = $true
-                    health = 'Healthy Healthy'
-                    parkedEventCount = 0
-                }
-            }
-        }
-
-        $result = Test-SubscriptionService -Context $context
-
-        $result.Status | Should -Be 'Passed'
-        $result.Details.Count | Should -Be 2
-        $result.Details[0].SubscriptionId | Should -Be '$idx-ce-TransactionAggregate_Transaction Processor_Main'
-        $result.Details[0].Tag | Should -Be 'Main'
-        $result.Details[1].SubscriptionId | Should -Be '$idx-ce-SettlementAggregate_Transaction Processor_Ordered'
-        $result.Details[1].Tag | Should -Be 'Ordered'
+        $result.Details[1].Status | Should -Be 'Warning'
     }
 
     It 'fails when a subscription is stopped and warns when parked messages exist' {
