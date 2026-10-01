@@ -1,4 +1,20 @@
 Describe 'Daily support check' {
+    It 'allows anonymous KurrentDB configuration without a Username property' {
+        $settings = [pscustomobject]@{ BaseUrl = 'http://kurrentdb' }
+
+        $credentials = Get-KurrentDbWriteActivityCredentials -Settings $settings
+
+        $credentials.Username | Should -BeNullOrEmpty
+        $credentials.Password | Should -BeNullOrEmpty
+    }
+
+    It 'uses the packaged KurrentDB client rather than a source-tree build output' {
+        $configurationPath = Join-Path $PSScriptRoot '..\daily-support-check.json'
+        $configuration = Get-Content -LiteralPath $configurationPath -Raw | ConvertFrom-Json
+
+        $configuration.KurrentDbWriteActivity.KurrentDbClientAssemblyPath | Should -Be '.\KurrentDbClient\SupportTools.KurrentDbClient.dll'
+    }
+
     BeforeAll {
         . (Join-Path $PSScriptRoot '..\Invoke-DailySupportCheck.ps1')
     }
