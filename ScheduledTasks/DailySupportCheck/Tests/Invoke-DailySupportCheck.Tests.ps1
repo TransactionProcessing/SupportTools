@@ -125,6 +125,44 @@ Describe 'Daily support check' {
         $html | Should -Not -Match 'error &lt;text&gt;'
     }
 
+    It 'renders subscription details beneath the check summary in the HTML report' {
+        $outputPath = Join-Path $testOutputRoot 'subscription-details'
+        $details = @(
+            [pscustomobject]@{
+                SubscriptionId = 'subscription-1'
+                Tag = 'Main & Ordered'
+                Status = 'Passed'
+                IsRunning = $true
+                Health = 'Healthy'
+                ParkedEventCount = 0
+                OperationalReason = $null
+                RuntimeFailureReason = $null
+            }
+            [pscustomobject]@{
+                SubscriptionId = 'subscription-2'
+                Tag = 'Main'
+                Status = 'Warning'
+                IsRunning = $true
+                Health = 'Healthy'
+                ParkedEventCount = 3
+                OperationalReason = 'Parked messages detected'
+                RuntimeFailureReason = $null
+            }
+        )
+        $check = Get-CheckResult -Name 'Subscription Service' -Status Warning -Summary '1 subscription(s) have parked messages.' -Details $details
+        $report = Get-SupportReport -StartedAt ([datetime]::UtcNow) -Results @($check)
+
+        $paths = Write-SupportReports -Report $report -OutputPath $outputPath
+        $html = Get-Content -Raw -Path $paths.HtmlPath
+
+        $html | Should -Match 'Subscription Service details'
+        $html | Should -Match '<th>Subscription</th><th>Tag</th><th>Status</th>'
+        $html | Should -Match 'subscription-1'
+        $html | Should -Match 'subscription-2'
+        $html | Should -Match 'Parked messages detected'
+        $html | Should -Match 'Main &amp; Ordered'
+    }
+
     It 'removes matching reports older than the configured retention period' {
         $outputPath = Join-Path $testOutputRoot 'retention'
         New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
