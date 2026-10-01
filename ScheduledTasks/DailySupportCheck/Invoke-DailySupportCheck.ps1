@@ -453,43 +453,7 @@ function Test-SubscriptionService {
             $provider = $Context.SubscriptionServiceProvider
         }
 
-        $subscriptions = @(& $provider $uri $timeoutSeconds)
-        $subscriptionIdValue = if ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId']) { $subscriptions[0].subscriptionId }
-        $isSubscriptionCollection = $subscriptionIdValue -is [System.Collections.IEnumerable] -and $subscriptionIdValue -isnot [string]
-        $flattenedSubscriptionIds = if ($subscriptionIdValue -is [string]) {
-            @([regex]::Split($subscriptionIdValue.Trim(), '(?=\$idx-)') | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) })
-        }
-        $flattenedSubscriptionIds = @($flattenedSubscriptionIds)
-        if ($subscriptions.Count -eq 1 -and $flattenedSubscriptionIds.Count -gt 1) {
-            $flattenedResponse = $subscriptions[0]
-            $flattenedTags = if ($flattenedResponse.PSObject.Properties['tag']) { @(([string] $flattenedResponse.tag).Trim() -split '\s+') } else { @() }
-            $flattenedHealth = if ($flattenedResponse.PSObject.Properties['health']) { @(([string] $flattenedResponse.health).Trim() -split '\s+') } else { @() }
-            $subscriptions = for ($index = 0; $index -lt $flattenedSubscriptionIds.Count; $index++) {
-                $subscriptionId = ([string] $flattenedSubscriptionIds[$index]).Trim()
-                [pscustomobject]@{
-                    subscriptionId = $subscriptionId
-                    tag = if ($flattenedTags.Count -eq $flattenedSubscriptionIds.Count) { $flattenedTags[$index] } else { ($subscriptionId -split '_')[-1] }
-                    isRunning = $flattenedResponse.isRunning
-                    health = if ($flattenedHealth.Count -eq $flattenedSubscriptionIds.Count) { $flattenedHealth[$index] } else { $flattenedResponse.health }
-                    parkedEventCount = $flattenedResponse.parkedEventCount
-                    operationalReason = if ($flattenedResponse.PSObject.Properties['operationalReason']) { $flattenedResponse.operationalReason } else { $null }
-                    runtimeFailureReason = if ($flattenedResponse.PSObject.Properties['runtimeFailureReason']) { $flattenedResponse.runtimeFailureReason } else { $null }
-                }
-            }
-        }
-        elseif ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId'] -and $isSubscriptionCollection) {
-            $wrappedSubscriptions = $subscriptions[0]
-            $subscriptionCount = @($wrappedSubscriptions.subscriptionId).Count
-            $subscriptions = for ($index = 0; $index -lt $subscriptionCount; $index++) {
-                $subscription = [ordered]@{}
-                foreach ($property in $wrappedSubscriptions.PSObject.Properties) {
-                    $value = $property.Value
-                    $isCollection = $value -is [System.Collections.IEnumerable] -and $value -isnot [string]
-                    $subscription[$property.Name] = if ($isCollection -and @($value).Count -eq $subscriptionCount) { @($value)[$index] } else { $value }
-                }
-                [pscustomobject] $subscription
-            }
-        }
+        $subscriptions = @((& $provider $uri $timeoutSeconds))
         if ($subscriptions.Count -eq 0) {
             return Get-CheckResult -Name 'Subscription Service' -Status Warning -Summary 'Subscription service returned no subscriptions.' -Details @()
         }
