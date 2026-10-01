@@ -56,6 +56,7 @@ jobs:
         dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
         dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
         dotnet publish "HealthMonitoring/HealthMonitoring/HealthMonitoring.csproj" --configuration Release --output HealthMonitoring/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
+        dotnet publish "ScheduledTasks/DailySupportCheck/KurrentDbClient/KurrentDbClient.csproj" --configuration Release --output ScheduledTasks/DailySupportCheck/KurrentDbClient/publishOutput --no-self-contained
           
     - name: Build Release Package (Merchant Pos)
       run: |
@@ -175,6 +176,16 @@ jobs:
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter daily-support-check.json |
             Where-Object { $_.FullName -notmatch '\\Reports\\|\\Tests\\' } |
             Copy-Item -Destination $taskScriptDir -Force
+
+          $kurrentDbClientOutput = Get-ChildItem -Path $scheduledTasksRoot -Recurse -Directory -Filter publishOutput |
+            Where-Object { $_.FullName -match '\\DailySupportCheck\\KurrentDbClient\\publishOutput$' } |
+            Select-Object -First 1
+          if (-not $kurrentDbClientOutput) {
+            throw 'Packaged KurrentDB client output was not found in the scheduled-tasks artifact.'
+          }
+          $kurrentDbClientDestination = Join-Path $taskScriptDir 'KurrentDbClient'
+          New-Item -ItemType Directory -Path $kurrentDbClientDestination -Force | Out-Null
+          Copy-Item -Path (Join-Path $kurrentDbClientOutput.FullName '*') -Destination $kurrentDbClientDestination -Recurse -Force
 
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.xml |
             Where-Object { $_.FullName -notmatch '\\Tests\\' } |

@@ -707,33 +707,12 @@ function Import-KurrentDbClientAssembly {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string] $AssemblyPath)
 
-    if ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'KurrentDB.Client' }) {
+    if ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'SupportTools.KurrentDbClient' }) {
         return
     }
 
     if (-not (Test-Path -LiteralPath $AssemblyPath -PathType Leaf)) {
         throw "KurrentDB client assembly was not found: $AssemblyPath"
-    }
-
-    $frameworkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'dotnet\shared\Microsoft.AspNetCore.App'
-    $frameworkDirectory = if (Test-Path -LiteralPath $frameworkRoot) {
-        @(
-            Get-ChildItem -LiteralPath $frameworkRoot -Directory | Where-Object Name -like '9.*' | Sort-Object Name -Descending
-            Get-ChildItem -LiteralPath $frameworkRoot -Directory | Sort-Object Name -Descending
-        ) | Select-Object -First 1
-    }
-
-    foreach ($dependencyName in @(
-            'Microsoft.Extensions.DependencyInjection.Abstractions.dll',
-            'Microsoft.Extensions.Logging.Abstractions.dll',
-            'Microsoft.Extensions.Options.dll'
-        )) {
-        if ($frameworkDirectory) {
-            $dependencyPath = Join-Path $frameworkDirectory.FullName $dependencyName
-            if (Test-Path -LiteralPath $dependencyPath -PathType Leaf) {
-                Add-Type -Path $dependencyPath
-            }
-        }
     }
 
     Add-Type -Path $AssemblyPath
@@ -767,11 +746,11 @@ function Test-KurrentDbWriteActivity {
         }
 
         $timeoutSeconds = if ($settings.PSObject.Properties['TimeoutSeconds']) { [int] $settings.TimeoutSeconds } else { 10 }
-        $assemblyPath = if ($settings.PSObject.Properties['ClientAssemblyPath'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ClientAssemblyPath)) {
-            [string] $settings.ClientAssemblyPath
+        $assemblyPath = if ($settings.PSObject.Properties['KurrentDbClientAssemblyPath'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.KurrentDbClientAssemblyPath)) {
+            [string] $settings.KurrentDbClientAssemblyPath
         }
         else {
-            Join-Path $PSScriptRoot '..\..\StreamManagementTool\bin\Debug\net10.0\KurrentDB.Client.dll'
+            Join-Path $PSScriptRoot 'KurrentDbClient\SupportTools.KurrentDbClient.dll'
         }
         if (-not [IO.Path]::IsPathRooted($assemblyPath)) {
             $assemblyPath = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $Context.ConfigPath) $assemblyPath))
@@ -790,54 +769,26 @@ function Test-KurrentDbWriteActivity {
                 "esdb://$($baseUri.Host):${port}?tls=false&tlsVerifyCert=false"
             }
 
-            $client = [KurrentDB.Client.KurrentDBClient]::new([KurrentDB.Client.KurrentDBClientSettings]::Create($connectionString))
-            $cancellationSource = [Threading.CancellationTokenSource]::new()
-            $cancellationSource.CancelAfter([timespan]::FromSeconds($timeoutSeconds))
-            $userCredentials = $null
+            $password = $null
             if ($settings.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.Username)) {
                 $passwordEnvironmentVariable = [string] $settings.PasswordEnvironmentVariable
                 $password = [Environment]::GetEnvironmentVariable($passwordEnvironmentVariable)
                 if ([string]::IsNullOrWhiteSpace($password)) {
                     throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
                 }
-                $userCredentials = [KurrentDB.Client.UserCredentials]::new([string] $settings.Username, $password)
             }
 
-            try {
-                $filter = [KurrentDB.Client.StreamFilter]::Prefix($indexName)
-                $read = $client.ReadAllAsync(
-                    [KurrentDB.Client.Direction]::Backwards,
-                    [KurrentDB.Client.Position]::End,
-                    $filter,
-                    $requestCount,
-                    $false,
-                    [timespan]::FromSeconds($timeoutSeconds),
-                    $userCredentials,
-                    $cancellationSource.Token
-                )
-                $enumerator = $read.GetAsyncEnumerator()
-                $events = [System.Collections.Generic.List[object]]::new()
-                try {
-                    while ($enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult()) {
-                        $currentEvent = $enumerator.Current.Event
-                        $events.Add([pscustomobject]@{
-                                EventId = [string] $currentEvent.EventId
-                                EventType = [string] $currentEvent.EventType
-                                Timestamp = $currentEvent.Created.ToUniversalTime().ToString('o')
-                                Title = [string] $currentEvent.EventStreamId
-                            })
-                    }
-                }
-                finally {
-                    $enumerator.DisposeAsync().AsTask().GetAwaiter().GetResult() | Out-Null
-                }
+            $reader = [SupportTools.KurrentDbClient.KurrentDbEventReader]::new()
+            $events = $reader.ReadRecentEventsAsync(
+                $connectionString,
+                $indexName,
+                $requestCount,
+                [timespan]::FromSeconds($timeoutSeconds),
+                [string] $settings.Username,
+                $password,
+                [Threading.CancellationToken]::None).GetAwaiter().GetResult()
 
-                [pscustomobject]@{ events = @($events) }
-            }
-            finally {
-                $cancellationSource.Dispose()
-                $client.Dispose()
-            }
+            [pscustomobject]@{ events = @($events) }
         }
         if ($Context.PSObject.Properties['KurrentDbWriteActivityProvider']) {
             $provider = $Context.KurrentDbWriteActivityProvider
