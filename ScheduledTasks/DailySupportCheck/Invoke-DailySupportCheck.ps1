@@ -454,14 +454,17 @@ function Test-SubscriptionService {
         }
 
         $subscriptions = @(& $provider $uri $timeoutSeconds)
-        if ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId'] -and $subscriptions[0].subscriptionId -is [array]) {
+        $subscriptionIdValue = if ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId']) { $subscriptions[0].subscriptionId }
+        $isSubscriptionCollection = $subscriptionIdValue -is [System.Collections.IEnumerable] -and $subscriptionIdValue -isnot [string]
+        if ($subscriptions.Count -eq 1 -and $subscriptions[0].PSObject.Properties['subscriptionId'] -and $isSubscriptionCollection) {
             $wrappedSubscriptions = $subscriptions[0]
             $subscriptionCount = @($wrappedSubscriptions.subscriptionId).Count
             $subscriptions = for ($index = 0; $index -lt $subscriptionCount; $index++) {
                 $subscription = [ordered]@{}
                 foreach ($property in $wrappedSubscriptions.PSObject.Properties) {
                     $value = $property.Value
-                    $subscription[$property.Name] = if ($value -is [array] -and $value.Count -eq $subscriptionCount) { $value[$index] } else { $value }
+                    $isCollection = $value -is [System.Collections.IEnumerable] -and $value -isnot [string]
+                    $subscription[$property.Name] = if ($isCollection -and @($value).Count -eq $subscriptionCount) { @($value)[$index] } else { $value }
                 }
                 [pscustomobject] $subscription
             }

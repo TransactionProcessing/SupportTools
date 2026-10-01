@@ -557,6 +557,40 @@ Describe 'Daily support check' {
         $result.Details.Count | Should -Be 2
     }
 
+    It 'expands wrapped enumerable subscription collections returned by the API' {
+        $context = [pscustomobject]@{
+            Configuration = [pscustomobject]@{
+                SubscriptionService = [pscustomobject]@{
+                    Enabled = $true
+                    BaseUrl = 'http://subscription-service'
+                    StatusPath = '/subscriptions/status'
+                    TimeoutSeconds = 10
+                }
+            }
+            SubscriptionServiceProvider = {
+                $subscriptionIds = [System.Collections.ArrayList]::new(@('subscription-1', 'subscription-2'))
+                $tags = [System.Collections.ArrayList]::new(@('Main', 'Ordered'))
+                $runningStates = [System.Collections.ArrayList]::new(@($true, $true))
+                $healthStates = [System.Collections.ArrayList]::new(@('Healthy', 'Healthy'))
+                $parkedCounts = [System.Collections.ArrayList]::new(@(0, 2))
+                [pscustomobject]@{
+                    subscriptionId = $subscriptionIds
+                    tag = $tags
+                    isRunning = $runningStates
+                    health = $healthStates
+                    parkedEventCount = $parkedCounts
+                }
+            }
+        }
+
+        $result = Test-SubscriptionService -Context $context
+
+        $result.Status | Should -Be 'Warning'
+        $result.Details.Count | Should -Be 2
+        $result.Details[0].SubscriptionId | Should -Be 'subscription-1'
+        $result.Details[1].SubscriptionId | Should -Be 'subscription-2'
+    }
+
     It 'fails when a subscription is stopped and warns when parked messages exist' {
         $configuration = [pscustomobject]@{
             SubscriptionService = [pscustomobject]@{
