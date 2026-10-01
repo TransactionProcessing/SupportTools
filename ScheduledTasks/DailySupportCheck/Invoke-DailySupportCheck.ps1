@@ -718,6 +718,27 @@ function Import-KurrentDbClientAssembly {
     Add-Type -Path $AssemblyPath
 }
 
+function Get-KurrentDbWriteActivityCredentials {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [object] $Settings)
+
+    $username = $null
+    $password = $null
+    if ($Settings.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $Settings.Username)) {
+        $username = [string] $Settings.Username
+        $passwordEnvironmentVariable = [string] $Settings.PasswordEnvironmentVariable
+        $password = [Environment]::GetEnvironmentVariable($passwordEnvironmentVariable)
+        if ([string]::IsNullOrWhiteSpace($password)) {
+            throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
+        }
+    }
+
+    [pscustomobject]@{
+        Username = $username
+        Password = $password
+    }
+}
+
 function Test-KurrentDbWriteActivity {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [object] $Context)
@@ -769,14 +790,7 @@ function Test-KurrentDbWriteActivity {
                 "esdb://$($baseUri.Host):${port}?tls=false&tlsVerifyCert=false"
             }
 
-            $password = $null
-            if ($settings.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.Username)) {
-                $passwordEnvironmentVariable = [string] $settings.PasswordEnvironmentVariable
-                $password = [Environment]::GetEnvironmentVariable($passwordEnvironmentVariable)
-                if ([string]::IsNullOrWhiteSpace($password)) {
-                    throw "KurrentDB password environment variable '$passwordEnvironmentVariable' is not set."
-                }
-            }
+            $credentials = Get-KurrentDbWriteActivityCredentials -Settings $settings
 
             $reader = [SupportTools.KurrentDbClient.KurrentDbEventReader]::new()
             $events = $reader.ReadRecentEventsAsync(
@@ -784,8 +798,8 @@ function Test-KurrentDbWriteActivity {
                 $indexName,
                 $requestCount,
                 [timespan]::FromSeconds($timeoutSeconds),
-                [string] $settings.Username,
-                $password,
+                $credentials.Username,
+                $credentials.Password,
                 [Threading.CancellationToken]::None).GetAwaiter().GetResult()
 
             [pscustomobject]@{ events = @($events) }
