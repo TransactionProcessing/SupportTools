@@ -472,6 +472,28 @@ Describe 'Daily support check' {
         (Get-Content -Raw -LiteralPath $configPath) | Should -Match 'tracked@example.com'
     }
 
+    It 'warns when legacy email delivery is enabled' {
+        $configPath = Join-Path $testOutputRoot 'daily-support-check.json'
+        @'
+{
+  "DiskSpace": {
+    "Enabled": false,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {}
+  },
+  "Email": {
+    "Enabled": true
+  }
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
+
+        $warnings = @()
+        Get-SupportConfiguration -Path $configPath -WarningVariable warnings | Out-Null
+
+        $warnings | Should -Match 'Email delivery is no longer used'
+        $warnings | Should -Match 'ServerStatusApi'
+    }
+
     It 'uses a drive override instead of the global disk-space threshold' {
         $configuration = [pscustomobject]@{
             DiskSpace = [pscustomobject]@{

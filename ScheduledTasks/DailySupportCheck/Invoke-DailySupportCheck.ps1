@@ -166,6 +166,9 @@ function Get-SupportConfiguration {
     if ([int] $configuration.ReportRetentionDays -lt 1) {
         throw 'ReportRetentionDays must be greater than zero.'
     }
+    if ($configuration.PSObject.Properties['Email'] -and [bool] $configuration.Email.Enabled) {
+        Write-Warning 'Email delivery is no longer used by the daily support check. The Email configuration is ignored; use ServerStatusApi for delivery.'
+    }
     if ($null -eq $configuration.DiskSpace) {
         throw 'Configuration must contain a DiskSpace section.'
     }

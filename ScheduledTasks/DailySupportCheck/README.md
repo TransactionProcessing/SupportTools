@@ -1,6 +1,6 @@
 # Daily Support Check
 
-`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, reads operational settings from JSON, writes a structured JSON report and a readable HTML report, and leaves report delivery behind a replaceable transport function.
+`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, reads operational settings from JSON, writes a structured JSON report and a readable HTML report, and posts the check results to the Health Monitoring API when enabled.
 
 ## Run it interactively
 
@@ -35,7 +35,7 @@ The default configuration file is `daily-support-check.json` beside the script:
   },
   "ServerStatusApi": {
     "Enabled": true,
-    "BaseUrl": "http://localhost:9820",
+    "BaseUrl": "http://localhost:9620",
     "SupportChecksPath": "/api/services/{serverId}/support-checks",
     "ServerId": "transaction-processor",
     "ServerName": "",
@@ -181,7 +181,7 @@ Run under an account that can access the systems checked and write to the config
 
 ## Configure Health Monitoring delivery
 
-Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API.
+Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API. Email delivery is no longer used. If an existing local configuration still contains `Email.Enabled: true`, the script emits a warning and ignores that setting; migrate delivery to `ServerStatusApi`.
 
 ```powershell
 Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json

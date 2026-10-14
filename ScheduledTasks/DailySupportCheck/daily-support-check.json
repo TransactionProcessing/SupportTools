@@ -2,7 +2,7 @@
   "ReportRetentionDays": 7,
   "ServerStatusApi": {
     "Enabled": true,
-    "BaseUrl": "http://localhost:9820",
+    "BaseUrl": "http://localhost:9620",
     "SupportChecksPath": "/api/services/{serverId}/support-checks",
     "ServerId": "transaction-processor",
     "ServerName": "",
