@@ -39,11 +39,6 @@
         "Name": "Replay Parked Queues",
         "Path": "\\",
         "ExpectedRunIntervalMinutes": 1440
-      },
-      {
-        "Name": "Scavenge",
-        "Path": "\\",
-        "ExpectedRunIntervalMinutes": 10080
       }
     ]
   },
