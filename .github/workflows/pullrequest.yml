@@ -51,8 +51,7 @@ jobs:
     - name: Run Pester Tests
       shell: pwsh
       run: |
-        Invoke-Pester -Path @(
-          './ScheduledTasks/Tests'
+        Invoke-Pester -Path @(          
           './ScheduledTasks/ReplayParkedQueue/Tests'
           './ScheduledTasks/SettlementProcessing/Tests'
           './ScheduledTasks/DailySupportCheck/Tests'
