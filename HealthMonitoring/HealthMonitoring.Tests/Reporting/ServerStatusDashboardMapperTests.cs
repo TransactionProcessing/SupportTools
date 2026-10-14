@@ -31,7 +31,7 @@ public sealed class ServerStatusDashboardMapperTests
     [Fact]
     public void Maps_disk_sub_checks_to_progress_bar_values_without_byte_fields()
     {
-        using var document = JsonDocument.Parse("[{\"drive\":\"C:\\",\"sizeBytes\":999,\"freeBytes\":500,\"freePercent\":50.5,\"status\":\"Passed\"}]");
+        using var document = JsonDocument.Parse("""[{"drive":"C:","sizeBytes":999,"freeBytes":500,"freePercent":50.5,"status":"Passed"}]""");
 
         var result = ServerCheckDetailsMapper.MapDisk(document.RootElement);
 
