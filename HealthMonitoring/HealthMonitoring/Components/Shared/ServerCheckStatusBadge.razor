@@ -1,0 +1,12 @@
+<span class="server-check-status @StatusClass">● @Status</span>
+
+@code {
+    [Parameter] public string Status { get; set; } = string.Empty;
+    private string StatusClass => Status.ToLowerInvariant() switch
+    {
+        "passed" => "passed",
+        "warning" => "warning",
+        "failed" => "failed",
+        _ => "unknown"
+    };
+}

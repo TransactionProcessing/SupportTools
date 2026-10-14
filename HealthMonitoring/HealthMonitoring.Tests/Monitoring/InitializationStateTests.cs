@@ -135,6 +135,8 @@ public sealed class InitializationStateTests
         public Task<MonitoredService?> GetServiceAsync(string serviceId, CancellationToken cancellationToken) => Task.FromResult(SavedService);
         public Task<MonitoredService> UpsertServiceAsync(MonitoredService service, CancellationToken cancellationToken) { SavedService = service; return Task.FromResult(service); }
         public Task<IReadOnlyList<MonitoredService>> ListServicesAsync(bool includeArchived, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ServerStatus?> GetServerStatusAsync(string serverId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ServerStatus> UpsertServerStatusAsync(ServerStatus status, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ArchiveServiceAsync(string serviceId, DateTimeOffset archivedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task AddObservationAsync(HealthObservation observation, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<HealthObservation>> GetObservationsAsync(Guid serviceId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) => throw new NotSupportedException();

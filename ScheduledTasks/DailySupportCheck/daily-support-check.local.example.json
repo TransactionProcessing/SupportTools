@@ -1,12 +1,20 @@
 {
-  "Email": {
+  "ServerStatusApi": {
     "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "SupportChecksPath": "/api/services/{serverId}/support-checks",
+    "ServerId": "transaction-processor",
+    "ServerName": "",
+    "TimeoutSeconds": 30
+  },
+  "Email": {
+    "Enabled": false,
     "Provider": "Brevo",
     "ApiUrl": "https://api.brevo.com/v3/smtp/email",
-    "ApiKey": "api-replace-locally",
-    "From": "support-check@example.com",
+    "ApiKey": "replace-with-local-secret",
+    "From": "support@example.com",
     "To": [
-      "you@example.com"
+      "recipient@example.com"
     ],
     "SubjectPrefix": "Daily Support Check",
     "AttachHtmlReport": true,

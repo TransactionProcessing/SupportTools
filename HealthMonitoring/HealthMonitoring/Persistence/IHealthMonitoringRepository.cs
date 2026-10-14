@@ -6,6 +6,8 @@ public interface IHealthMonitoringRepository
 {
     Task<MonitoredService?> GetServiceAsync(string serviceId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MonitoredService>> ListServicesAsync(bool includeArchived, CancellationToken cancellationToken);
+    Task<ServerStatus?> GetServerStatusAsync(string serverId, CancellationToken cancellationToken);
+    Task<ServerStatus> UpsertServerStatusAsync(ServerStatus status, CancellationToken cancellationToken);
     Task<MonitoredService> UpsertServiceAsync(MonitoredService service, CancellationToken cancellationToken);
     Task ArchiveServiceAsync(string serviceId, DateTimeOffset archivedAtUtc, CancellationToken cancellationToken);
     Task AddObservationAsync(HealthObservation observation, CancellationToken cancellationToken);

@@ -1,6 +1,6 @@
 # Daily Support Check
 
-`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, reads operational settings from JSON, writes a structured JSON report and a readable HTML report, and leaves report delivery behind a replaceable transport function.
+`Invoke-DailySupportCheck.ps1` is a PowerShell template for a daily operational support run. It executes independent checks, reads operational settings from JSON, writes a structured JSON report and a readable HTML report, and posts the check results to the Health Monitoring API when enabled.
 
 ## Run it interactively
 
@@ -32,6 +32,14 @@ The default configuration file is `daily-support-check.json` beside the script:
       "C:": 10,
       "D:": 20
     }
+  },
+  "ServerStatusApi": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9620",
+    "SupportChecksPath": "/api/services/{serverId}/support-checks",
+    "ServerId": "transaction-processor",
+    "ServerName": "",
+    "TimeoutSeconds": 30
   },
   "HealthMonitoring": {
     "Enabled": true,
@@ -171,19 +179,15 @@ Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\Scheduled
 
 Run under an account that can access the systems checked and write to the configured report directory.
 
-## Configure Brevo report delivery
+## Configure Health Monitoring delivery
 
-Reports are always written locally. Email delivery is optional and is enabled through the ignored local configuration file so the API key is not committed.
-
-Copy the example file and replace its placeholder values:
+Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API. Normal runs do not send email. If the API post fails and `Email.Enabled` is `true` in the local configuration, the script sends a failure notification email containing the API endpoint, error message, check summary, and optionally the generated JSON and HTML reports.
 
 ```powershell
 Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json
 ```
 
-Set `Email.Enabled` to `true`, provide the Brevo API key, a verified sender address, and one or more recipients. `AttachHtmlReport` and `AttachJsonReport` control whether the generated reports are attached. The script sends the HTML report as the email body and records a Brevo failure in the run result if delivery fails; the local files remain available.
-
-The Brevo API key is sent in the `api-key` header. Create and manage the key in Brevo, and do not add `daily-support-check.local.json` to source control.
+Configure `ServerStatusApi.BaseUrl`, `ServerStatusApi.ServerId`, and optionally `ServerStatusApi.ServerName`. If `ServerName` is empty, the machine's `COMPUTERNAME` is used. The server ID is URL-encoded and substituted into `{serverId}` in `SupportChecksPath`. The request body contains only `serverName`, `overallStatus`, and the API-compatible `checks` array.
 
 ## Tests
 

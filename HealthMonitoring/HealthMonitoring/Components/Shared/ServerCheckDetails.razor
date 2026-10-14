@@ -1,0 +1,209 @@
+@using System.Text.Json
+@using HealthMonitoring.Reporting
+
+@if (Heading == "Drive-level results")
+{
+    var diskRows = ServerCheckDetailsMapper.MapDisk(Details);
+    <div class="server-subchecks server-disk-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@diskRows.Count drive@(diskRows.Count == 1 ? string.Empty : "s")</span></div>
+        <div class="server-disk-results">
+            @foreach (var row in diskRows)
+            {
+                var percent = Math.Clamp(row.FreePercent, 0, 100);
+                <div class="server-disk-row">
+                    <strong>@row.Drive</strong>
+                    <div class="server-disk-meter" role="progressbar" aria-label="@row.Drive free space" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent">
+                        <span style="width:@percent.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%"></span>
+                    </div>
+                    <span class="server-disk-percent">@row.FreePercent.ToString("0.##")%</span>
+                    <ServerCheckStatusBadge Status="@row.Status" />
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (Heading == "Subscription-level results" && Details is { } subscriptionDetails && subscriptionDetails.ValueKind == JsonValueKind.Array)
+{
+    var subscriptionRows = subscriptionDetails.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToArray();
+    <div class="server-subchecks server-subscription-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@subscriptionRows.Length subscription@(subscriptionRows.Length == 1 ? string.Empty : "s")</span></div>
+        <div class="server-subscription-table">
+            <div class="server-subscription-header"><span>Subscription</span><span>Tag</span><span>Status</span><span>Running</span><span>Health</span><span>Parked</span></div>
+            @foreach (var row in subscriptionRows)
+            {
+                <div class="server-subscription-row">
+                    <strong>@FormatValue(row, "subscriptionId")</strong>
+                    <span>@FormatValue(row, "tag")</span>
+                    <ServerCheckStatusBadge Status="@GetStringValue(row, "status")" />
+                    <span>@FormatValue(row, "isRunning")</span>
+                    <span>@FormatValue(row, "health")</span>
+                    <span>@FormatValue(row, "parkedEventCount")</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (Heading == "Projection-level results" && Details is { } projectionDetails && (projectionDetails.ValueKind == JsonValueKind.Array || projectionDetails.ValueKind == JsonValueKind.Object))
+{
+    var projectionRows = projectionDetails.ValueKind == JsonValueKind.Array
+        ? projectionDetails.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToArray()
+        : new[] { projectionDetails };
+    <div class="server-subchecks server-projection-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@projectionRows.Length projection@(projectionRows.Length == 1 ? string.Empty : "s")</span></div>
+        <div class="server-projection-table">
+            <div class="server-projection-header"><span>Projection</span><span>Status</span><span>Progress</span><span>State reason</span></div>
+            @foreach (var row in projectionRows)
+            {
+                var progress = Math.Clamp(GetDoubleValue(row, "progress"), 0, 100);
+                <div class="server-projection-row">
+                    <strong>@FormatValue(row, "name")</strong>
+                    <ServerCheckStatusBadge Status="@GetStringValue(row, "status")" />
+                    <div class="server-projection-progress">
+                        <div class="server-disk-meter" role="progressbar" aria-label="@FormatValue(row, "name") progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@progress">
+                            <span style="width:@progress.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%"></span>
+                        </div>
+                        <span>@progress.ToString("0.##")%</span>
+                    </div>
+                    <span class="server-projection-reason">@FormatValue(row, "stateReason")</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (Heading == "Task-level results" && Details is { } taskDetails && (taskDetails.ValueKind == JsonValueKind.Array || taskDetails.ValueKind == JsonValueKind.Object))
+{
+    var taskRows = taskDetails.ValueKind == JsonValueKind.Array
+        ? taskDetails.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToArray()
+        : new[] { taskDetails };
+    <div class="server-subchecks server-task-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@taskRows.Length task@(taskRows.Length == 1 ? string.Empty : "s")</span></div>
+        <div class="server-task-table">
+            <div class="server-task-header"><span>Task</span><span>Status</span><span>State</span><span>Last run</span><span>Next run</span><span>Result</span></div>
+            @foreach (var row in taskRows)
+            {
+                var status = GetStringValue(row, "status");
+                var failureReason = FormatValue(row, "failureReason");
+                <div class="server-task-row">
+                    <strong title="@FormatValue(row, "path")">@FormatValue(row, "name")</strong>
+                    <ServerCheckStatusBadge Status="@status" />
+                    <span>@FormatValue(row, "state")</span>
+                    <span>@FormatValue(row, "lastRunTime")</span>
+                    <span>@FormatValue(row, "nextRunTime")</span>
+                    <span>@FormatValue(row, "lastTaskResult")</span>
+                    @if (status != "Passed" && failureReason != "—")
+                    {
+                        <span class="server-task-failure"><strong>Reason:</strong> @failureReason</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (Heading == "Stream-level results" && Details is { } streamDetails && (streamDetails.ValueKind == JsonValueKind.Array || streamDetails.ValueKind == JsonValueKind.Object))
+{
+    var streamRows = streamDetails.ValueKind == JsonValueKind.Array
+        ? streamDetails.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object).ToArray()
+        : new[] { streamDetails };
+    <div class="server-subchecks server-stream-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@streamRows.Length stream@(streamRows.Length == 1 ? string.Empty : "s")</span></div>
+        <div class="server-stream-table">
+            <div class="server-stream-header"><span>Stream</span><span>Last write</span><span>Status</span></div>
+            @foreach (var row in streamRows)
+            {
+                var lastWrite = GetNestedValue(row, "latestEvent", "timestamp");
+                var failureReason = FormatValue(row, "failureReason");
+                <div class="server-stream-row">
+                    <strong>@FormatValue(row, "streamName")</strong>
+                    <span>@FormatTimestamp(lastWrite)</span>
+                    <ServerCheckStatusBadge Status="@GetStringValue(row, "status")" />
+                    @if (failureReason != "—")
+                    {
+                        <span class="server-stream-failure"><strong>Reason:</strong> @failureReason</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+else if (Details is { } details && details.ValueKind == JsonValueKind.Array && details.GetArrayLength() > 0 && details.EnumerateArray().All(item => item.ValueKind == JsonValueKind.Object))
+{
+    var rows = details.EnumerateArray().ToArray();
+    var columns = rows.SelectMany(row => row.EnumerateObject().Select(property => property.Name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    <div class="server-subchecks">
+        <div class="server-subchecks-heading"><strong>@Heading</strong><span>@rows.Length sub-check@(rows.Length == 1 ? string.Empty : "s")</span></div>
+        <div class="server-subcheck-table">
+            <div class="server-subcheck-header">@foreach (var column in columns) { <span>@ToLabel(column)</span> }</div>
+            @foreach (var row in rows)
+            {
+                <div class="server-subcheck-row">@foreach (var column in columns) { <span>@FormatValue(row, column)</span> }</div>
+            }
+        </div>
+    </div>
+}
+
+<details class="server-check-raw"><summary>View raw details</summary><pre>@FormatJson(Details)</pre></details>
+
+@code {
+    [Parameter] public JsonElement? Details { get; set; }
+    [Parameter] public string Heading { get; set; } = "Sub-check results";
+
+    private static string ToLabel(string value)
+    {
+        var label = string.Concat(value.Select((character, index) => index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()));
+        return char.ToUpperInvariant(label[0]) + label[1..];
+    }
+
+    private static string GetStringValue(JsonElement row, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(row, propertyName, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return "Unknown";
+        return value.ValueKind == JsonValueKind.String ? value.GetString() ?? "Unknown" : value.ToString();
+    }
+
+    private static double GetDoubleValue(JsonElement row, string propertyName)
+    {
+        return TryGetPropertyIgnoreCase(row, propertyName, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number)
+            ? number
+            : 0;
+    }
+
+    private static JsonElement? GetNestedValue(JsonElement row, string parentPropertyName, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(row, parentPropertyName, out var parent) || parent.ValueKind != JsonValueKind.Object) return null;
+        return TryGetPropertyIgnoreCase(parent, propertyName, out var value) ? value : null;
+    }
+
+    private static string FormatTimestamp(JsonElement? value)
+    {
+        if (value is not { ValueKind: JsonValueKind.String } timestamp || !DateTimeOffset.TryParse(timestamp.GetString(), out var parsed)) return "—";
+        return parsed.ToLocalTime().ToString("dd MMM yyyy, HH:mm:ss");
+    }
+
+    private static string FormatValue(JsonElement row, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(row, propertyName, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return "—";
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => "Yes",
+            JsonValueKind.False => "No",
+            JsonValueKind.Object or JsonValueKind.Array => value.GetRawText(),
+            _ => value.ToString()
+        };
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement row, string propertyName, out JsonElement value)
+    {
+        foreach (var property in row.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string FormatJson(JsonElement? value) => value is { } details ? JsonSerializer.Serialize(details, new JsonSerializerOptions { WriteIndented = true }) : "No structured details reported.";
+}

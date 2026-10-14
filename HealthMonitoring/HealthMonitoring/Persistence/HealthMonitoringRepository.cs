@@ -26,6 +26,30 @@ public sealed class HealthMonitoringRepository(HealthMonitoringDbContext dbConte
         return services.Select(HydratePolicy).ToArray()!;
     }
 
+    public Task<ServerStatus?> GetServerStatusAsync(string serverId, CancellationToken cancellationToken) =>
+        dbContext.ServerStatuses.AsNoTracking().SingleOrDefaultAsync(status => status.ServerId == serverId, cancellationToken);
+
+    public async Task<ServerStatus> UpsertServerStatusAsync(ServerStatus status, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ServerStatuses.SingleOrDefaultAsync(item => item.ServerId == status.ServerId, cancellationToken);
+        if (existing is null)
+        {
+            dbContext.ServerStatuses.Add(status);
+        }
+        else
+        {
+            existing.ServerName = status.ServerName;
+            existing.OverallStatus = status.OverallStatus;
+            existing.ChecksJson = status.ChecksJson;
+            existing.ReceivedAtUtc = status.ReceivedAtUtc;
+            existing.UpdatedAtUtc = status.UpdatedAtUtc;
+            status = existing;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return status;
+    }
+
     public async Task<MonitoredService> UpsertServiceAsync(MonitoredService service, CancellationToken cancellationToken)
     {
         service.StatusPolicyJson = JsonSerializer.Serialize(service.StatusPolicy, JsonOptions);
