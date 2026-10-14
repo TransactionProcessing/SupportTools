@@ -1,0 +1,83 @@
+@page "/server-checks"
+@inject IDashboardQueryService Dashboard
+@inject ILogger<ServerChecks> Logger
+
+<PageTitle>Server Checks · Operational Support</PageTitle>
+<div class="page-heading"><div><p class="eyebrow">OPERATIONAL SUPPORT · SERVER CHECKS</p><h1>Server checks</h1><p class="muted">The latest daily support-check payload from the monitored server.</p></div><a class="button secondary" href="/">Back to overview</a></div>
+
+@if (_isLoading)
+{
+    <p class="panel">Loading server checks…</p>
+}
+else if (_model is null)
+{
+    <p class="panel empty">No server check payload has been received yet.</p>
+}
+else
+{
+    <section class="server-check-summary">
+        <div><p class="eyebrow">SERVER</p><h2>@_model.ServerName</h2><p class="muted">@_model.ServerId</p></div>
+        <div class="server-check-summary-status"><ServerCheckStatusBadge Status="@_model.OverallStatus" /><span>Updated @_model.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm:ss")</span></div>
+    </section>
+    <section class="panel server-check-panel">
+        <div class="server-check-panel-heading"><h2>Check results</h2><span class="muted">@VisibleChecks.Count check(s)</span></div>
+        <div class="server-check-table server-check-table-header"><span>Check</span><span>Status</span><span>Summary</span><span>Duration</span><span aria-hidden="true"></span></div>
+        @foreach (var check in VisibleChecks)
+        {
+            <details class="server-check-collapsible">
+                <summary class="server-check-table server-check-row">
+                    <strong>@check.Name</strong>
+                    <ServerCheckStatusBadge Status="@check.Status" />
+                    <span class="server-check-summary">@check.Summary</span>
+                    <span class="server-check-duration">@check.DurationMs.ToString("0") ms</span>
+                    <span class="server-check-chevron" aria-hidden="true">⌄</span>
+                </summary>
+                <div class="server-check-expanded">
+                    @if (check.Details is { } details && details.ValueKind != System.Text.Json.JsonValueKind.Null && details.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        <div class="server-check-details"><ServerCheckDetails Details="@check.Details" Heading="@GetDetailsHeading(check.Name)" /></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(check.Error) && check.Name != "KurrentDB Write Activity")
+                    {
+                        <div class="server-check-error @(check.Name == "KurrentDB Write Activity" ? "server-check-error-neutral" : string.Empty)">@check.Error</div>
+                    }
+                </div>
+            </details>
+        }
+    </section>
+}
+
+@code {
+    private ServerStatusDashboardModel? _model;
+    private bool _isLoading = true;
+    private IReadOnlyList<ServerCheckDashboardModel> VisibleChecks =>
+        _model?.Checks.Where(check => !string.Equals(check.Name, "HealthMonitoring", StringComparison.OrdinalIgnoreCase)).ToArray()
+        ?? [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _model = await Dashboard.GetLatestServerStatusAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to load latest server checks.");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetDetailsHeading(string checkName) => checkName switch
+    {
+        "Disk Space" => "Drive-level results",
+        "HealthMonitoring" => "Service-level results",
+        "Subscription Service" => "Subscription-level results",
+        "KurrentDB Projections" => "Projection-level results",
+        "Scheduled Tasks" => "Task-level results",
+        "KurrentDB Write Activity" => "Stream-level results",
+        _ => "Sub-check results"
+    };
+}

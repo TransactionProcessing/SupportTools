@@ -57,6 +57,7 @@ using (var scope = app.Services.CreateScope())
 app.MapServiceRegistrationEndpoints(app.Environment.EnvironmentName);
 app.MapDependencyMappingEndpoints();
 app.MapInitializationEndpoints(app.Environment.EnvironmentName);
+app.MapServerStatusEndpoints();
 app.MapHealthChecks("/health");
 app.UseStaticFiles();
 app.UseAntiforgery();

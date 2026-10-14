@@ -45,6 +45,26 @@ public sealed class RepositoryTests
         Assert.Single(observations[0].Checks);
     }
 
+    [Fact]
+    public async Task Server_status_upsert_keeps_one_latest_row_per_server()
+    {
+        await using var database = await SqlServerTestDatabase.TryCreateAsync();
+        if (database is null) return;
+
+        var first = NewServerStatus("server-1", "SERVER-01", "Passed", "[]");
+        var second = NewServerStatus("server-1", "SERVER-01", "Warning", "[{\"name\":\"Disk Space\"}]");
+
+        await database.Repository.UpsertServerStatusAsync(first, CancellationToken.None);
+        await database.Repository.UpsertServerStatusAsync(second, CancellationToken.None);
+
+        var current = await database.Repository.GetServerStatusAsync("server-1", CancellationToken.None);
+
+        Assert.NotNull(current);
+        Assert.Equal(first.Id, current.Id);
+        Assert.Equal("Warning", current.OverallStatus);
+        Assert.Equal(second.ChecksJson, current.ChecksJson);
+    }
+
     private static MonitoredService NewService(string serviceId) => new()
     {
         Id = Guid.NewGuid(),
@@ -63,6 +83,17 @@ public sealed class RepositoryTests
         AggregateStatus = "Healthy",
         HttpStatusCode = 200,
         RawResponseJson = raw
+    };
+
+    private static ServerStatus NewServerStatus(string serverId, string serverName, string overallStatus, string checksJson) => new()
+    {
+        Id = Guid.NewGuid(),
+        ServerId = serverId,
+        ServerName = serverName,
+        OverallStatus = overallStatus,
+        ChecksJson = checksJson,
+        ReceivedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow
     };
 }
 

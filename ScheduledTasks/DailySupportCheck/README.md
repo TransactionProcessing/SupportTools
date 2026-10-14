@@ -33,6 +33,14 @@ The default configuration file is `daily-support-check.json` beside the script:
       "D:": 20
     }
   },
+  "ServerStatusApi": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9820",
+    "SupportChecksPath": "/api/services/{serverId}/support-checks",
+    "ServerId": "transaction-processor",
+    "ServerName": "",
+    "TimeoutSeconds": 30
+  },
   "HealthMonitoring": {
     "Enabled": true,
     "BaseUrl": "http://localhost:9620",
@@ -171,19 +179,15 @@ Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\Scheduled
 
 Run under an account that can access the systems checked and write to the configured report directory.
 
-## Configure Brevo report delivery
+## Configure Health Monitoring delivery
 
-Reports are always written locally. Email delivery is optional and is enabled through the ignored local configuration file so the API key is not committed.
-
-Copy the example file and replace its placeholder values:
+Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API.
 
 ```powershell
 Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json
 ```
 
-Set `Email.Enabled` to `true`, provide the Brevo API key, a verified sender address, and one or more recipients. `AttachHtmlReport` and `AttachJsonReport` control whether the generated reports are attached. The script sends the HTML report as the email body and records a Brevo failure in the run result if delivery fails; the local files remain available.
-
-The Brevo API key is sent in the `api-key` header. Create and manage the key in Brevo, and do not add `daily-support-check.local.json` to source control.
+Configure `ServerStatusApi.BaseUrl`, `ServerStatusApi.ServerId`, and optionally `ServerStatusApi.ServerName`. If `ServerName` is empty, the machine's `COMPUTERNAME` is used. The server ID is URL-encoded and substituted into `{serverId}` in `SupportChecksPath`. The request body contains only `serverName`, `overallStatus`, and the API-compatible `checks` array.
 
 ## Tests
 

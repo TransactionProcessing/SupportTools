@@ -8,6 +8,7 @@ public interface IDashboardQueryService
 {
     Task<DashboardOverview> GetOverviewAsync(TimeSpan range, CancellationToken cancellationToken);
     Task<ServiceDetailModel?> GetServiceDetailAsync(string serviceId, TimeSpan range, CancellationToken cancellationToken);
+    Task<ServerStatusDashboardModel?> GetLatestServerStatusAsync(CancellationToken cancellationToken);
 }
 
 public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) : IDashboardQueryService
@@ -50,6 +51,14 @@ public sealed class DashboardQueryService(HealthMonitoringDbContext dbContext) :
             .ToListAsync(cancellationToken);
         var summary = ToRow(service, snapshot, observations) with { UptimePercent = observationMetrics.UptimePercent };
         return new ServiceDetailModel(service, summary, observationMetrics.TotalCount, observations, incidents, checks, dependencyLinks);
+    }
+
+    public async Task<ServerStatusDashboardModel?> GetLatestServerStatusAsync(CancellationToken cancellationToken)
+    {
+        var status = await dbContext.ServerStatuses.AsNoTracking()
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        return status is null ? null : ServerStatusDashboardMapper.Map(status);
     }
 
     private static ServiceDashboardRow ToRow(MonitoredService service, ServiceStatusSnapshot? snapshot, IReadOnlyList<HealthObservation> observations)

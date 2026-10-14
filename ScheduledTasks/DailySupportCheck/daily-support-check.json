@@ -1,5 +1,13 @@
 {
   "ReportRetentionDays": 7,
+  "ServerStatusApi": {
+    "Enabled": true,
+    "BaseUrl": "http://localhost:9820",
+    "SupportChecksPath": "/api/services/{serverId}/support-checks",
+    "ServerId": "transaction-processor",
+    "ServerName": "",
+    "TimeoutSeconds": 30
+  },
   "DiskSpace": {
     "Enabled": true,
     "DefaultMinimumFreePercent": 15,

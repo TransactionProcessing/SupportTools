@@ -23,6 +23,7 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
     public DbSet<ServiceIncident> ServiceIncidents => Set<ServiceIncident>();
     public DbSet<ServiceStatusSnapshot> ServiceStatusSnapshots => Set<ServiceStatusSnapshot>();
     public DbSet<ServiceDependencyLink> ServiceDependencyLinks => Set<ServiceDependencyLink>();
+    public DbSet<ServerStatus> ServerStatuses => Set<ServerStatus>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -98,6 +99,17 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
                 .WithMany()
                 .HasForeignKey(link => link.TargetMonitoredServiceId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ServerStatus>(entity =>
+        {
+            entity.ToTable("ServerStatus");
+            entity.HasKey(status => status.Id);
+            entity.HasIndex(status => status.ServerId).IsUnique();
+            entity.Property(status => status.ServerId).HasMaxLength(200).IsRequired();
+            entity.Property(status => status.ServerName).HasMaxLength(300).IsRequired();
+            entity.Property(status => status.OverallStatus).HasMaxLength(20).IsRequired();
+            entity.Property(status => status.ChecksJson).HasColumnType(NvarcharMaxColumnType).IsRequired();
         });
     }
 }

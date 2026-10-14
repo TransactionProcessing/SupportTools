@@ -236,6 +236,55 @@ Describe 'Daily support check' {
         $transport.Paths.HtmlPath | Should -Be 'report.html'
     }
 
+    It 'posts the API-compatible server status payload with the server id in the URL' {
+        $script:captured = $null
+        $configuration = [pscustomobject]@{
+            ServerStatusApi = [pscustomobject]@{
+                Enabled = $true
+                BaseUrl = 'http://health-monitoring.test:9820'
+                SupportChecksPath = '/api/services/{serverId}/support-checks'
+                ServerId = 'transaction processor'
+                ServerName = 'TRANSACTION-SERVER-01'
+                TimeoutSeconds = 15
+            }
+        }
+        $provider = {
+            param($requestUri, $headers, $requestPayload, $timeoutSeconds)
+            $script:captured = [pscustomobject]@{
+                Uri = $requestUri
+                Headers = $headers
+                Payload = $requestPayload
+                TimeoutSeconds = $timeoutSeconds
+            }
+            [pscustomobject]@{ serverId = 'transaction processor'; overallStatus = 'Warning' }
+        }
+        $report = [pscustomobject]@{
+            OverallStatus = 'Warning'
+            Checks = @(
+                [pscustomobject]@{
+                    Name = 'Disk Space'
+                    Status = 'Passed'
+                    Summary = 'Drive space is healthy.'
+                    Details = @([pscustomobject]@{ Drive = 'C:'; FreePercent = 36 })
+                    StartedAt = '2026-10-14T08:00:00.0000000Z'
+                    CompletedAt = '2026-10-14T08:00:01.0000000Z'
+                    DurationMs = 1000
+                    Error = $null
+                }
+            )
+        }
+
+        $transport = Send-ServerStatus -Report $report -Configuration $configuration -ApiProvider $provider
+
+        $transport.Status | Should -Be 'Sent'
+        $script:captured.Uri | Should -Be 'http://health-monitoring.test:9820/api/services/transaction%20processor/support-checks'
+        $script:captured.TimeoutSeconds | Should -Be 15
+        $script:captured.Payload.serverName | Should -Be 'TRANSACTION-SERVER-01'
+        $script:captured.Payload.overallStatus | Should -Be 'Warning'
+        $script:captured.Payload.checks[0].name | Should -Be 'Disk Space'
+        $script:captured.Payload.checks[0].details[0].Drive | Should -Be 'C:'
+    }
+
     It 'sends a Brevo email with the report summary and attachments' {
         $jsonPath = Join-Path $testOutputRoot 'report.json'
         $htmlPath = Join-Path $testOutputRoot 'report.html'
@@ -890,6 +939,9 @@ Describe 'Daily support check' {
         $result.Summary | Should -Match 'Disabled'
         $result.Summary | Should -Match 'Failed'
         $result.Summary | Should -Match 'Overdue'
+        $missing = @($result.Details | Where-Object Name -eq 'Missing') | Select-Object -First 1
+        $missing.FailureReason | Should -Be "Scheduled task 'Missing' at '\' was not found on this server."
+        $missing.Error | Should -Match 'task not found'
     }
 
     It 'uses the expected run interval when checking scheduled-task freshness' {

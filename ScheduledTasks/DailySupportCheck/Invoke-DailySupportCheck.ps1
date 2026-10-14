@@ -687,6 +687,13 @@ function Test-ScheduledTasks {
                 }
             }
             catch {
+                $technicalError = $_.Exception.ToString()
+                $failureReason = if ($_.Exception.Message -match '(?i)not found|no matching|cannot find') {
+                    "Scheduled task '$($taskConfiguration.Name)' at '$($taskConfiguration.Path)' was not found on this server."
+                }
+                else {
+                    "Unable to read scheduled task '$($taskConfiguration.Name)' at '$($taskConfiguration.Path)'."
+                }
                 [pscustomobject]@{
                     Name = [string] $taskConfiguration.Name
                     Path = [string] $taskConfiguration.Path
@@ -695,7 +702,8 @@ function Test-ScheduledTasks {
                     LastRunTime = $null
                     NextRunTime = $null
                     Status = 'Failed'
-                    FailureReason = $_.Exception.Message
+                    FailureReason = $failureReason
+                    Error = $technicalError
                 }
             }
         }
@@ -1168,6 +1176,107 @@ function Send-SupportReport {
     }
 }
 
+function Send-ServerStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [object] $Report,
+        [object] $Configuration,
+        [scriptblock] $ApiProvider
+    )
+
+    $settings = if ($Configuration -and $Configuration.PSObject.Properties['ServerStatusApi']) {
+        $Configuration.ServerStatusApi
+    }
+    else {
+        $null
+    }
+
+    if ($null -eq $settings -or -not [bool] $settings.Enabled) {
+        return [pscustomobject]@{
+            Transport = 'LocalFiles'
+            Status    = 'Ready'
+            Message   = 'Server status API delivery is disabled.'
+        }
+    }
+
+    try {
+        $serverId = [string] $settings.ServerId
+        $baseUrl = [string] $settings.BaseUrl
+        $path = [string] $settings.SupportChecksPath
+        if ([string]::IsNullOrWhiteSpace($serverId)) { throw 'ServerStatusApi.ServerId must be configured.' }
+        if ([string]::IsNullOrWhiteSpace($baseUrl)) { throw 'ServerStatusApi.BaseUrl must be configured.' }
+        if ([string]::IsNullOrWhiteSpace($path)) { throw 'ServerStatusApi.SupportChecksPath must be configured.' }
+
+        $serverName = if ($settings.PSObject.Properties['ServerName'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ServerName)) {
+            [string] $settings.ServerName
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) {
+            [string] $env:COMPUTERNAME
+        }
+        else {
+            'Unknown Server'
+        }
+
+        $encodedServerId = [Uri]::EscapeDataString($serverId)
+        $requestPath = $path.Replace('{serverId}', $encodedServerId)
+        $requestUri = "$($baseUrl.TrimEnd('/'))/$($requestPath.TrimStart('/'))"
+        $checks = @($Report.Checks | ForEach-Object {
+            [ordered]@{
+                name        = [string] $_.Name
+                status      = [string] $_.Status
+                summary     = [string] $_.Summary
+                details     = $_.Details
+                startedAt   = [string] $_.StartedAt
+                completedAt = [string] $_.CompletedAt
+                durationMs  = [double] $_.DurationMs
+                error       = if ($null -eq $_.Error) { $null } else { [string] $_.Error }
+            }
+        })
+        $payload = [ordered]@{
+            serverName    = $serverName
+            overallStatus = [string] $Report.OverallStatus
+            checks        = $checks
+        }
+
+        if (-not $ApiProvider) {
+            $ApiProvider = {
+                param($requestUri, $headers, $requestPayload, $timeoutSeconds)
+                $request = @{
+                    Uri         = $requestUri
+                    Method      = 'Post'
+                    Headers     = $headers
+                    ContentType = 'application/json'
+                    Body        = ($requestPayload | ConvertTo-Json -Depth 20 -Compress)
+                }
+                if ($timeoutSeconds -gt 0) { $request.TimeoutSec = $timeoutSeconds }
+                Invoke-RestMethod @request
+            }
+        }
+
+        $headers = @{ Accept = 'application/json' }
+        if ($settings.PSObject.Properties['ApiKey'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ApiKey)) {
+            $headers['X-Api-Key'] = [string] $settings.ApiKey
+        }
+        $timeoutSeconds = if ($settings.PSObject.Properties['TimeoutSeconds']) { [int] $settings.TimeoutSeconds } else { 30 }
+        $response = & $ApiProvider $requestUri $headers $payload $timeoutSeconds
+
+        [pscustomobject]@{
+            Transport = 'ServerStatusApi'
+            Status    = 'Sent'
+            Uri       = $requestUri
+            Response  = $response
+            Message   = 'Server status payload sent to the Health Monitoring API.'
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            Transport = 'ServerStatusApi'
+            Status    = 'Failed'
+            Message   = $_.Exception.Message
+        }
+    }
+}
+
 function Invoke-DailySupportCheck {
     [CmdletBinding()]
     param(
@@ -1211,10 +1320,10 @@ function Invoke-DailySupportCheck {
     }
 
     $report = Get-SupportReport -StartedAt $startedAt -Results @($results)
-    $paths = Write-SupportReports -Report $report -OutputPath $OutputPath -RetentionDays ([int] $configuration.ReportRetentionDays)
-    $transport = Send-SupportReport -Report $report -ReportPaths $paths -Configuration $configuration
-    $report | Add-Member -NotePropertyName ReportPaths -NotePropertyValue $paths
+    $transport = Send-ServerStatus -Report $report -Configuration $configuration
     $report | Add-Member -NotePropertyName Transport -NotePropertyValue $transport
+    $paths = Write-SupportReports -Report $report -OutputPath $OutputPath -RetentionDays ([int] $configuration.ReportRetentionDays)
+    $report | Add-Member -NotePropertyName ReportPaths -NotePropertyValue $paths
 
     Write-Information "Daily Support Check: $($report.OverallStatus) ($($report.Checks.Count) checks)" -InformationAction Continue
     Write-Information "JSON report: $($paths.JsonPath)" -InformationAction Continue
@@ -1227,7 +1336,7 @@ $isDotSourced = $MyInvocation.InvocationName -eq '.'
 if (-not $isDotSourced) {
     try {
         $report = Invoke-DailySupportCheck -OutputPath $OutputPath -ConfigPath $ConfigPath -CheckName $CheckName -PassThru -Strict:$Strict
-        if ($report.OverallStatus -eq 'Failed' -or ($Strict -and $report.OverallStatus -eq 'Warning')) {
+        if ($report.OverallStatus -eq 'Failed' -or $report.Transport.Status -eq 'Failed' -or ($Strict -and $report.OverallStatus -eq 'Warning')) {
             exit 1
         }
         exit 0
