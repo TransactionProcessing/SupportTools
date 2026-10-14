@@ -39,38 +39,49 @@ public static class ServerStatusValidator
 
     public static ServerStatusValidationResult Create(string serverId, ServerStatusRequest request, DateTimeOffset now)
     {
+        var errors = ValidateRequest(serverId, request);
+
+        if (errors.Count > 0) return new ServerStatusValidationResult(errors, null);
+
+        var checks = request.Checks!;
+        return new ServerStatusValidationResult(errors, new ServerStatus
+        {
+            Id = Guid.NewGuid(),
+            ServerId = serverId,
+            ServerName = request.ServerName!.Trim(),
+            OverallStatus = CalculateOverallStatus(checks),
+            ChecksJson = JsonSerializer.Serialize(checks, JsonOptions),
+            ReceivedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+    }
+
+    private static List<string> ValidateRequest(string serverId, ServerStatusRequest request)
+    {
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(serverId)) errors.Add("ServerId is required.");
         if (string.IsNullOrWhiteSpace(request.ServerName)) errors.Add("ServerName is required.");
         if (request.Checks is null || request.Checks.Count == 0) errors.Add("Checks must contain at least one check.");
 
         foreach (var check in request.Checks ?? [])
-        {
-            if (string.IsNullOrWhiteSpace(check.Name)) errors.Add("Checks.Name is required.");
-            if (string.IsNullOrWhiteSpace(check.Status) || !AllowedStatuses.Contains(check.Status))
-                errors.Add($"Checks.Status must be one of: {string.Join(", ", AllowedStatuses)}.");
-            if (string.IsNullOrWhiteSpace(check.Summary)) errors.Add("Checks.Summary is required.");
-            if (check.DurationMs < 0) errors.Add("Checks.DurationMs cannot be negative.");
-        }
+            AddCheckValidationErrors(errors, check);
 
-        if (errors.Count > 0) return new ServerStatusValidationResult(errors, null);
+        return errors;
+    }
 
-        var checks = request.Checks!;
-        var overallStatus = checks.Any(check => check.Status == "Failed")
+    private static void AddCheckValidationErrors(List<string> errors, SupportCheckResultRequest check)
+    {
+        if (string.IsNullOrWhiteSpace(check.Name)) errors.Add("Checks.Name is required.");
+        if (string.IsNullOrWhiteSpace(check.Status) || !AllowedStatuses.Contains(check.Status))
+            errors.Add($"Checks.Status must be one of: {string.Join(", ", AllowedStatuses)}.");
+        if (string.IsNullOrWhiteSpace(check.Summary)) errors.Add("Checks.Summary is required.");
+        if (check.DurationMs < 0) errors.Add("Checks.DurationMs cannot be negative.");
+    }
+
+    private static string CalculateOverallStatus(IReadOnlyList<SupportCheckResultRequest> checks) =>
+        checks.Any(check => check.Status == "Failed")
             ? "Failed"
             : checks.Any(check => check.Status == "Warning")
                 ? "Warning"
                 : "Passed";
-
-        return new ServerStatusValidationResult(errors, new ServerStatus
-        {
-            Id = Guid.NewGuid(),
-            ServerId = serverId,
-            ServerName = request.ServerName!.Trim(),
-            OverallStatus = overallStatus,
-            ChecksJson = JsonSerializer.Serialize(checks, JsonOptions),
-            ReceivedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-    }
 }
