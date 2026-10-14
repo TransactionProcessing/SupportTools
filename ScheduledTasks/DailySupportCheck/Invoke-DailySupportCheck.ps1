@@ -166,9 +166,6 @@ function Get-SupportConfiguration {
     if ([int] $configuration.ReportRetentionDays -lt 1) {
         throw 'ReportRetentionDays must be greater than zero.'
     }
-    if ($configuration.PSObject.Properties['Email'] -and [bool] $configuration.Email.Enabled) {
-        Write-Warning 'Email delivery is no longer used by the daily support check. The Email configuration is ignored; use ServerStatusApi for delivery.'
-    }
     if ($null -eq $configuration.DiskSpace) {
         throw 'Configuration must contain a DiskSpace section.'
     }
@@ -1063,11 +1060,12 @@ $healthMonitoringDetails
     [pscustomobject]@{ JsonPath = $jsonPath; HtmlPath = $htmlPath }
 }
 
-function Send-SupportReport {
+function Send-FailureNotificationEmail {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [object] $Report,
         [Parameter(Mandatory)] [object] $ReportPaths,
+        [Parameter(Mandatory)] [object] $ApiTransport,
         [object] $Configuration,
         [scriptblock] $EmailProvider
     )
@@ -1075,10 +1073,10 @@ function Send-SupportReport {
     $email = if ($Configuration -and $Configuration.PSObject.Properties['Email']) { $Configuration.Email } else { $null }
     if ($null -eq $email -or -not [bool] $email.Enabled) {
         return [pscustomobject]@{
-            Transport = 'LocalFiles'
-            Status    = 'Ready'
+            Transport = 'FailureNotificationEmail'
+            Status    = 'Disabled'
             Paths     = $ReportPaths
-            Message   = 'Reports are available as local files. Email delivery is disabled.'
+            Message   = 'Failure notification email is disabled.'
         }
     }
 
@@ -1102,6 +1100,9 @@ function Send-SupportReport {
         $counts = if ($Report.Counts) { $Report.Counts } else { [pscustomobject]@{ Passed = 0; Warning = 0; Failed = 0 } }
         $textLines = @(
             'Daily Support Check'
+            'Health Monitoring API delivery failed.'
+            "API endpoint: $([string] $ApiTransport.Uri)"
+            "API error: $([string] $ApiTransport.Message)"
             "Overall status: $($Report.OverallStatus)"
             "Passed: $($counts.Passed); Warning: $($counts.Warning); Failed: $($counts.Failed)"
         )
@@ -1136,13 +1137,13 @@ function Send-SupportReport {
         }
 
         $configuredSubjectPrefix = if ($email.PSObject.Properties['SubjectPrefix']) { [string] $email.SubjectPrefix } else { '' }
-        $subjectPrefix = if ([string]::IsNullOrWhiteSpace($configuredSubjectPrefix)) { 'Daily Support Check' } else { $configuredSubjectPrefix }
+        $subjectPrefix = if ([string]::IsNullOrWhiteSpace($configuredSubjectPrefix)) { 'Daily Support Check - API delivery failed' } else { "$configuredSubjectPrefix - API delivery failed" }
         $serverName = if ([string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { 'Unknown Server' } else { $env:COMPUTERNAME }
         $runDate = try { ([datetime]::Parse([string] $Report.StartedAt)).ToString('yyyy-MM-dd') } catch { (Get-Date).ToString('yyyy-MM-dd') }
         $payload = [ordered]@{
             sender     = [ordered]@{ email = [string] $email.From }
             to         = @($recipients | ForEach-Object { [ordered]@{ email = $_ } })
-            subject    = "$subjectPrefix - $($Report.OverallStatus) - $serverName - $runDate"
+            subject    = "$subjectPrefix - $serverName - $runDate"
             textContent = $textBody
             htmlContent = $htmlBody
         }
@@ -1163,15 +1164,15 @@ function Send-SupportReport {
         $response = & $EmailProvider ([string] $email.ApiUrl) $headers $payload
 
         [pscustomobject]@{
-            Transport = 'Brevo'
+            Transport = 'FailureNotificationEmail'
             Status    = 'Sent'
             Paths     = $ReportPaths
-            Message   = 'Report sent via Brevo.'
+            Message   = 'API failure notification sent via Brevo.'
         }
     }
     catch {
         [pscustomobject]@{
-            Transport = 'Brevo'
+            Transport = 'FailureNotificationEmail'
             Status    = 'Failed'
             Paths     = $ReportPaths
             Message   = $_.Exception.Message
@@ -1202,6 +1203,7 @@ function Send-ServerStatus {
         }
     }
 
+    $requestUri = $null
     try {
         $serverId = [string] $settings.ServerId
         $baseUrl = [string] $settings.BaseUrl
@@ -1275,6 +1277,7 @@ function Send-ServerStatus {
         [pscustomobject]@{
             Transport = 'ServerStatusApi'
             Status    = 'Failed'
+            Uri       = $requestUri
             Message   = $_.Exception.Message
         }
     }
@@ -1287,7 +1290,9 @@ function Invoke-DailySupportCheck {
         [string] $ConfigPath = (Join-Path $PSScriptRoot 'daily-support-check.json'),
         [string[]] $CheckName,
         [switch] $PassThru,
-        [switch] $Strict
+        [switch] $Strict,
+        [scriptblock] $ApiProvider,
+        [scriptblock] $EmailProvider
     )
 
     $startedAt = [datetime]::UtcNow
@@ -1323,10 +1328,21 @@ function Invoke-DailySupportCheck {
     }
 
     $report = Get-SupportReport -StartedAt $startedAt -Results @($results)
-    $transport = Send-ServerStatus -Report $report -Configuration $configuration
+    $transport = Send-ServerStatus -Report $report -Configuration $configuration -ApiProvider $ApiProvider
     $report | Add-Member -NotePropertyName Transport -NotePropertyValue $transport
     $paths = Write-SupportReports -Report $report -OutputPath $OutputPath -RetentionDays ([int] $configuration.ReportRetentionDays)
     $report | Add-Member -NotePropertyName ReportPaths -NotePropertyValue $paths
+    if ($transport.Status -eq 'Failed') {
+        $failureNotificationParameters = @{
+            Report = $report
+            ReportPaths = $paths
+            ApiTransport = $transport
+            Configuration = $configuration
+            EmailProvider = $EmailProvider
+        }
+        $failureNotification = Send-FailureNotificationEmail @failureNotificationParameters
+        $report | Add-Member -NotePropertyName FailureNotification -NotePropertyValue $failureNotification
+    }
 
     Write-Information "Daily Support Check: $($report.OverallStatus) ($($report.Checks.Count) checks)" -InformationAction Continue
     Write-Information "JSON report: $($paths.JsonPath)" -InformationAction Continue

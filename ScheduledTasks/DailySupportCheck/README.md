@@ -181,7 +181,7 @@ Run under an account that can access the systems checked and write to the config
 
 ## Configure Health Monitoring delivery
 
-Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API. Email delivery is no longer used. If an existing local configuration still contains `Email.Enabled: true`, the script emits a warning and ignores that setting; migrate delivery to `ServerStatusApi`.
+Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, the report checks are also posted to the Health Monitoring API. Normal runs do not send email. If the API post fails and `Email.Enabled` is `true` in the local configuration, the script sends a failure notification email containing the API endpoint, error message, check summary, and optionally the generated JSON and HTML reports.
 
 ```powershell
 Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json

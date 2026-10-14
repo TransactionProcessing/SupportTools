@@ -226,12 +226,15 @@ Describe 'Daily support check' {
         Test-Path -LiteralPath $unrelatedPath | Should -BeTrue
     }
 
-    It 'returns the generated files from the local transport seam' {
+    It 'skips failure notification email when email is not configured' {
         $paths = [pscustomobject]@{ JsonPath = 'report.json'; HtmlPath = 'report.html' }
-        $transport = Send-SupportReport -Report ([pscustomobject]@{ OverallStatus = 'Passed' }) -ReportPaths $paths
+        $transport = Send-FailureNotificationEmail `
+            -Report ([pscustomobject]@{ OverallStatus = 'Failed'; Counts = [pscustomobject]@{ Passed = 0; Warning = 0; Failed = 1 }; Checks = @() }) `
+            -ReportPaths $paths `
+            -ApiTransport ([pscustomobject]@{ Status = 'Failed'; Message = 'API unavailable.' })
 
-        $transport.Transport | Should -Be 'LocalFiles'
-        $transport.Status | Should -Be 'Ready'
+        $transport.Transport | Should -Be 'FailureNotificationEmail'
+        $transport.Status | Should -Be 'Disabled'
         $transport.Paths.JsonPath | Should -Be 'report.json'
         $transport.Paths.HtmlPath | Should -Be 'report.html'
     }
@@ -285,6 +288,128 @@ Describe 'Daily support check' {
         $script:captured.Payload.checks[0].details[0].Drive | Should -Be 'C:'
     }
 
+    It 'sends a failure notification email when API delivery fails' {
+        $jsonPath = Join-Path $testOutputRoot 'failure-report.json'
+        $htmlPath = Join-Path $testOutputRoot 'failure-report.html'
+        '{"OverallStatus":"Warning"}' | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+        '<html><body>Warning</body></html>' | Set-Content -LiteralPath $htmlPath -Encoding UTF8
+        $script:captured = $null
+        $configuration = [pscustomobject]@{
+            Email = [pscustomobject]@{
+                Enabled = $true
+                Provider = 'Brevo'
+                ApiUrl = 'https://brevo.test/v3/smtp/email'
+                ApiKey = 'api-test-key'
+                From = 'support@example.com'
+                To = @('recipient@example.com')
+                AttachHtmlReport = $true
+                AttachJsonReport = $true
+            }
+        }
+        $report = [pscustomobject]@{
+            OverallStatus = 'Warning'
+            StartedAt = '2026-10-14T08:00:00.0000000Z'
+            Counts = [pscustomobject]@{ Passed = 1; Warning = 1; Failed = 0 }
+            Checks = @(
+                [pscustomobject]@{
+                    Name = 'Subscription Service'
+                    Status = 'Warning'
+                    Summary = 'Parked messages were found.'
+                    Error = $null
+                }
+            )
+        }
+        $apiTransport = [pscustomobject]@{
+            Transport = 'ServerStatusApi'
+            Status = 'Failed'
+            Uri = 'http://localhost:9620/api/services/transaction-processor/support-checks'
+            Message = 'Connection refused.'
+        }
+        $emailProvider = {
+            param($requestUri, $headers, $payload)
+            $script:captured = [pscustomobject]@{ Uri = $requestUri; Headers = $headers; Payload = $payload }
+            [pscustomobject]@{ messageId = '<failure-message-id>' }
+        }
+        $notificationParameters = @{
+            Report = $report
+            ReportPaths = [pscustomobject]@{ JsonPath = $jsonPath; HtmlPath = $htmlPath }
+            ApiTransport = $apiTransport
+            Configuration = $configuration
+            EmailProvider = $emailProvider
+        }
+
+        $notification = Send-FailureNotificationEmail @notificationParameters
+
+        $notification.Status | Should -Be 'Sent'
+        $notification.Transport | Should -Be 'FailureNotificationEmail'
+        $script:captured.Payload.subject | Should -Match 'API delivery failed'
+        $script:captured.Payload.textContent | Should -Match 'Connection refused'
+        $script:captured.Payload.textContent | Should -Match 'http://localhost:9620/api/services/transaction-processor/support-checks'
+        $script:captured.Payload.textContent | Should -Match 'Parked messages were found'
+        $script:captured.Payload.attachments.name | Should -Contain 'failure-report.json'
+        $script:captured.Payload.attachments.name | Should -Contain 'failure-report.html'
+    }
+
+    It 'uses the failure notification email from the main check flow when API delivery fails' {
+        $outputPath = Join-Path $testOutputRoot 'failure-flow'
+        $configPath = Join-Path $testOutputRoot 'failure-flow.json'
+        @'
+{
+  "DiskSpace": {
+    "Enabled": false,
+    "DefaultMinimumFreePercent": 15,
+    "DriveOverrides": {}
+  },
+  "ServerStatusApi": {
+    "Enabled": true,
+    "BaseUrl": "http://health-monitoring.test:9620",
+    "SupportChecksPath": "/api/services/{serverId}/support-checks",
+    "ServerId": "transaction-processor",
+    "ServerName": "TRANSACTION-SERVER-01",
+    "TimeoutSeconds": 10
+  },
+  "Email": {
+    "Enabled": true,
+    "Provider": "Brevo",
+    "ApiUrl": "https://brevo.test/v3/smtp/email",
+    "ApiKey": "api-test-key",
+    "From": "support@example.com",
+    "To": ["recipient@example.com"],
+    "AttachHtmlReport": true,
+    "AttachJsonReport": true
+  },
+  "HealthMonitoring": { "Enabled": false },
+  "SubscriptionService": { "Enabled": false },
+  "KurrentDbProjections": { "Enabled": false },
+  "ScheduledTasks": { "Enabled": false },
+  "KurrentDbWriteActivity": { "Enabled": false }
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
+        $script:captured = $null
+        $apiProvider = { throw 'Connection refused.' }
+        $emailProvider = {
+            param($requestUri, $headers, $payload)
+            $script:captured = [pscustomobject]@{ Uri = $requestUri; Headers = $headers; Payload = $payload }
+            [pscustomobject]@{ messageId = '<failure-flow-message-id>' }
+        }
+
+        $invokeParameters = @{
+            OutputPath = $outputPath
+            ConfigPath = $configPath
+            CheckName = 'PowerShell Runtime'
+            ApiProvider = $apiProvider
+            EmailProvider = $emailProvider
+            PassThru = $true
+        }
+        $report = Invoke-DailySupportCheck @invokeParameters
+
+        $report.Transport.Status | Should -Be 'Failed'
+        $report.FailureNotification.Status | Should -Be 'Sent'
+        $script:captured.Payload.textContent | Should -Match 'Connection refused'
+        @($script:captured.Payload.attachments.name | Where-Object { $_ -match 'daily-support-check-.*\.json$' }).Count | Should -Be 1
+        @($script:captured.Payload.attachments.name | Where-Object { $_ -match 'daily-support-check-.*\.html$' }).Count | Should -Be 1
+    }
+
     It 'sends a Brevo email with the report summary and attachments' {
         $jsonPath = Join-Path $testOutputRoot 'report.json'
         $htmlPath = Join-Path $testOutputRoot 'report.html'
@@ -310,18 +435,19 @@ Describe 'Daily support check' {
             [pscustomobject]@{ messageId = '<message-id>' }
         }
 
-        $transport = Send-SupportReport `
+        $transport = Send-FailureNotificationEmail `
             -Report ([pscustomobject]@{ OverallStatus = 'Passed'; StartedAt = '2026-09-29T15:30:00.0000000Z'; Counts = [pscustomobject]@{ Passed = 1; Warning = 0; Failed = 0 }; Checks = @() }) `
             -ReportPaths ([pscustomobject]@{ JsonPath = $jsonPath; HtmlPath = $htmlPath }) `
+            -ApiTransport ([pscustomobject]@{ Status = 'Failed'; Uri = 'https://health-monitoring.test/api'; Message = 'Connection refused.' }) `
             -Configuration $configuration `
             -EmailProvider $provider
 
-        $transport.Transport | Should -Be 'Brevo'
+        $transport.Transport | Should -Be 'FailureNotificationEmail'
         $transport.Status | Should -Be 'Sent'
         $script:captured.Uri | Should -Be 'https://brevo.test/v3/smtp/email'
         $script:captured.Headers['api-key'] | Should -Be 'api-test-key'
         $expectedServerName = if ([string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { 'Unknown Server' } else { $env:COMPUTERNAME }
-        $script:captured.Payload.subject | Should -Be "Daily Support Check - Passed - $expectedServerName - 2026-09-29"
+        $script:captured.Payload.subject | Should -Be "Daily Support Check - API delivery failed - $expectedServerName - 2026-09-29"
         $script:captured.Payload.sender.email | Should -Be 'support@example.com'
         $script:captured.Payload.to.email | Should -Contain 'recipient@example.com'
         $script:captured.Payload.attachments.name | Should -Contain 'report.html'
@@ -339,13 +465,14 @@ Describe 'Daily support check' {
                 To = @('recipient@example.com')
             }
         }
-        $transport = Send-SupportReport `
+        $transport = Send-FailureNotificationEmail `
             -Report ([pscustomobject]@{ OverallStatus = 'Failed'; Counts = [pscustomobject]@{ Passed = 0; Warning = 0; Failed = 1 }; Checks = @() }) `
             -ReportPaths ([pscustomobject]@{ JsonPath = 'report.json'; HtmlPath = 'report.html' }) `
+            -ApiTransport ([pscustomobject]@{ Status = 'Failed'; Uri = 'https://health-monitoring.test/api'; Message = 'Health Monitoring API rejected the request.' }) `
             -Configuration $configuration `
             -EmailProvider { param($requestUri, $headers, $payload) throw 'Brevo rejected the request.' }
 
-        $transport.Transport | Should -Be 'Brevo'
+        $transport.Transport | Should -Be 'FailureNotificationEmail'
         $transport.Status | Should -Be 'Failed'
         $transport.Message | Should -Match 'rejected'
         $transport.Message | Should -Not -Match 'api-secret-key'
@@ -472,7 +599,7 @@ Describe 'Daily support check' {
         (Get-Content -Raw -LiteralPath $configPath) | Should -Match 'tracked@example.com'
     }
 
-    It 'warns when legacy email delivery is enabled' {
+    It 'retains email settings for API failure notifications' {
         $configPath = Join-Path $testOutputRoot 'daily-support-check.json'
         @'
 {
@@ -487,11 +614,9 @@ Describe 'Daily support check' {
 }
 '@ | Set-Content -LiteralPath $configPath -Encoding UTF8
 
-        $warnings = @()
-        Get-SupportConfiguration -Path $configPath -WarningVariable warnings | Out-Null
+        $configuration = Get-SupportConfiguration -Path $configPath
 
-        $warnings | Should -Match 'Email delivery is no longer used'
-        $warnings | Should -Match 'ServerStatusApi'
+        $configuration.Email.Enabled | Should -BeTrue
     }
 
     It 'uses a drive override instead of the global disk-space threshold' {
