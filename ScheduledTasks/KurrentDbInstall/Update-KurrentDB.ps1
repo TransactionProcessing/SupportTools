@@ -52,14 +52,23 @@ if ($ArchiveRoot.Equals($PackageRoot, [StringComparison]::OrdinalIgnoreCase) -or
     throw 'ArchiveRoot must be outside the Chocolatey package directory.'
 }
 function Stop-KurrentService {
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+
     $current = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if ($null -ne $current -and $current.Status -ne 'Stopped') {
+    if ($null -ne $current -and $current.Status -ne 'Stopped' -and
+        $PSCmdlet.ShouldProcess($ServiceName, 'Stop service')) {
         Stop-Service -Name $ServiceName -ErrorAction Stop
         $current.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped,
             [TimeSpan]::FromSeconds($ServiceTimeoutSeconds))
     }
 }
 function Start-KurrentService {
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+
+    if (-not $PSCmdlet.ShouldProcess($ServiceName, 'Start service')) { return }
+
     Start-Service -Name $ServiceName -ErrorAction Stop
     $current = Get-Service -Name $ServiceName
     $current.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running,
@@ -100,7 +109,7 @@ try {
         if ($info.StartMode -eq 'Disabled') { throw 'The existing service is disabled. Enable it before updating.' }
         if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Existing service executable not found: $executable" }
         $wasRunning = $service.Status -eq 'Running'
-        Write-Host "Stopping $ServiceName..."
+        Write-Output "Stopping $ServiceName..."
         Stop-KurrentService
         $stoppedByScript = $true
     }
@@ -108,14 +117,14 @@ try {
     New-Item -ItemType Directory -Path $ArchiveRoot -Force | Out-Null
     if (Test-Path -LiteralPath $serviceDirectory -PathType Container) {
         $archive = Join-Path $ArchiveRoot "kurrentservice-$runId"
-        Write-Host "Archiving existing directory to $archive"
+        Write-Output "Archiving existing directory to $archive"
         Copy-DirectoryContents $serviceDirectory $archive
         # Only mark the archive usable after the entire copy succeeds.
         $archiveComplete = $true
     } else { $archiveComplete = $false }
     # Chocolatey 2.x lists locally registered packages by default.
     # Capture output so we can distinguish an installed package from leftover files.
-    Write-Host 'Checking the Chocolatey installed-package list...'
+    Write-Output 'Checking the Chocolatey installed-package list...'
     $packageList = @(& $choco list kurrentdb --exact --limit-output)
     $listExitCode = $LASTEXITCODE
     if ($listExitCode -notin @(0, 2)) {
@@ -123,7 +132,7 @@ try {
     }
     $registeredPackage = @($packageList | Where-Object { $_ -match '^kurrentdb\|' })
     if ($registeredPackage.Count -gt 0) {
-        Write-Host 'Uninstalling the currently registered KurrentDB Chocolatey package...'
+        Write-Output 'Uninstalling the currently registered KurrentDB Chocolatey package...'
         & $choco uninstall kurrentdb --yes --no-progress --limit-output
         $uninstallExitCode = $LASTEXITCODE
         if ($uninstallExitCode -notin @(0, 1605, 1614, 1641, 3010)) {
@@ -142,10 +151,10 @@ try {
             throw 'KurrentDB is still registered in Chocolatey after uninstall. Installation aborted.'
         }
     } else {
-        Write-Host 'KurrentDB is not registered in Chocolatey; proceeding with installation.'
+        Write-Output 'KurrentDB is not registered in Chocolatey; proceeding with installation.'
     }
-    if ($Version) { Write-Host "Installing KurrentDB package version $Version..." }
-    else { Write-Host 'Installing the latest stable KurrentDB package...' }
+    if ($Version) { Write-Output "Installing KurrentDB package version $Version..." }
+    else { Write-Output 'Installing the latest stable KurrentDB package...' }
     $arguments = @('install', 'kurrentdb', '--yes', '--no-progress', '--limit-output')
     if ($Source) { $arguments += "--source=$Source" }
     if ($Version) { $arguments += "--version=$Version" }
@@ -167,22 +176,22 @@ try {
     }
     $staging = Join-Path $ArchiveRoot "staging-$runId"
     Copy-DirectoryContents $sourceDirectory $staging
-    Write-Host "Deploying KurrentDB $installedVersion to $serviceDirectory"
+    Write-Output "Deploying KurrentDB $installedVersion to $serviceDirectory"
     Stop-KurrentService
     $replacementStarted = $true
     if (Test-Path -LiteralPath $serviceDirectory) { Remove-Item -LiteralPath $serviceDirectory -Recurse -Force }
     Copy-DirectoryContents $staging $serviceDirectory
     if ($null -eq $service) {
-        Write-Host "Creating service $ServiceName..."
+        Write-Output "Creating service $ServiceName..."
         New-Service -Name $ServiceName -DisplayName $ServiceName -BinaryPathName $binaryPath -StartupType Automatic | Out-Null
         $createdService = $true
     }
     $startupAttempted = $true
-    Write-Host "Starting $ServiceName..."
+    Write-Output "Starting $ServiceName..."
     Start-KurrentService
-    Write-Host "KurrentDB $installedVersion deployed. Service is running." -ForegroundColor Green
-    if ($archive) { Write-Host "Previous installation archive: $archive" }
-    Write-Host 'Service status was verified; database readiness was not checked.'
+    Write-Output "KurrentDB $installedVersion deployed. Service is running."
+    if ($archive) { Write-Output "Previous installation archive: $archive" }
+    Write-Output 'Service status was verified; database readiness was not checked.'
 } catch {
     $failure = $_
     if ($locked) {
