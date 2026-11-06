@@ -1,0 +1,5 @@
+# CentralLogs database
+
+The schema is owned by EF Core migrations in `CentralLogging.Api/Migrations`. The API applies pending migrations during startup. The initial migration creates a fresh schema or adopts existing tables created by the former SQL scripts, adds missing indexes and the persisted UTC date, and backfills the structured-field catalog if it is empty.
+
+The schema keeps common filters in typed columns and keeps all other event properties in `PropertiesJson`. `LogDateUtc` is a persisted computed column derived from each event's UTC `TimestampUtc`; the `(LogDateUtc, TimestampUtc DESC)` index supports date-bounded searches while retaining precise timestamp ordering. The API includes both date bounds and timestamp bounds in its query. The API updates `ServiceStructuredFields` in the same transaction as each newly accepted event, so the UI can list service-specific fields without scanning log JSON. Events are idempotent by `EventId`, which lets a forwarder retry a batch after a connection interruption.
