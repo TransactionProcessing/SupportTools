@@ -11,7 +11,6 @@ public sealed class ServerStatusDashboardMapperTests
     {
         var status = new ServerStatus
         {
-            ServerId = "transaction-processor",
             ServerName = "TRANSACTION-SERVER-01",
             OverallStatus = "Warning",
             UpdatedAtUtc = DateTimeOffset.Parse("2026-10-14T06:00:00Z"),

@@ -1205,25 +1205,23 @@ function Send-ServerStatus {
 
     $requestUri = $null
     try {
-        $serverId = [string] $settings.ServerId
         $baseUrl = [string] $settings.BaseUrl
         $path = [string] $settings.SupportChecksPath
-        if ([string]::IsNullOrWhiteSpace($serverId)) { throw 'ServerStatusApi.ServerId must be configured.' }
         if ([string]::IsNullOrWhiteSpace($baseUrl)) { throw 'ServerStatusApi.BaseUrl must be configured.' }
         if ([string]::IsNullOrWhiteSpace($path)) { throw 'ServerStatusApi.SupportChecksPath must be configured.' }
 
         $serverName = if ($settings.PSObject.Properties['ServerName'] -and -not [string]::IsNullOrWhiteSpace([string] $settings.ServerName)) {
-            [string] $settings.ServerName
+            ([string] $settings.ServerName).Trim()
         }
         elseif (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) {
-            [string] $env:COMPUTERNAME
+            ([string] $env:COMPUTERNAME).Trim()
         }
         else {
-            'Unknown Server'
+            throw 'ServerStatusApi.ServerName must be configured when COMPUTERNAME is unavailable.'
         }
 
-        $encodedServerId = [Uri]::EscapeDataString($serverId)
-        $requestPath = $path.Replace('{serverId}', $encodedServerId)
+        $encodedServerName = [Uri]::EscapeDataString($serverName)
+        $requestPath = $path.Replace('{serverName}', $encodedServerName)
         $requestUri = "$($baseUrl.TrimEnd('/'))/$($requestPath.TrimStart('/'))"
         $checks = @($Report.Checks | ForEach-Object {
             [ordered]@{
@@ -1238,7 +1236,6 @@ function Send-ServerStatus {
             }
         })
         $payload = [ordered]@{
-            serverName    = $serverName
             overallStatus = [string] $Report.OverallStatus
             checks        = $checks
         }

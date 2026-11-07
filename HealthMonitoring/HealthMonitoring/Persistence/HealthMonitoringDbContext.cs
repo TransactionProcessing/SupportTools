@@ -105,8 +105,7 @@ public sealed class HealthMonitoringDbContext(DbContextOptions<HealthMonitoringD
         {
             entity.ToTable("ServerStatus");
             entity.HasKey(status => status.Id);
-            entity.HasIndex(status => status.ServerId).IsUnique();
-            entity.Property(status => status.ServerId).HasMaxLength(200).IsRequired();
+            entity.HasIndex(status => status.ServerName).IsUnique();
             entity.Property(status => status.ServerName).HasMaxLength(300).IsRequired();
             entity.Property(status => status.OverallStatus).HasMaxLength(20).IsRequired();
             entity.Property(status => status.ChecksJson).HasColumnType(NvarcharMaxColumnType).IsRequired();
