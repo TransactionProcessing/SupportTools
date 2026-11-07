@@ -16,6 +16,7 @@ using TransactionProcessorACL.DataTransferObjects;
 using TransactionProcessorACL.DataTransferObjects.Responses;
 using OperatorTotalRequest = TransactionProcessorACL.DataTransferObjects.OperatorTotalRequest;
 using TransactionProcessing.MerchantPos.Persistence;
+using TransactionProcessor.DataTransferObjects.Responses.Merchant;
 
 namespace TransactionProcessing.MerchantPos.Runtime;
 
@@ -88,7 +89,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                                         Int32 transactionNumber,
                                         CancellationToken cancellationToken) {
 
-        LogonTransactionRequestMessage logonTransactionRequest = new() { ApplicationVersion = cfg.ApplicationVersion, DeviceIdentifier = cfg.DeviceIdentifier, TransactionDateTime = DateTime.Now, TransactionNumber = transactionNumber.ToString("D4") };
+        LogonTransactionRequestMessage logonTransactionRequest = new() { ApplicationVersion = cfg.ApplicationVersion, DeviceIdentifier = cfg.DeviceIdentifier, TransactionDateTime = DateTime.UtcNow, TransactionNumber = transactionNumber.ToString("D4") };
 
         Result<LogonTransactionResponseMessage> result = await this.SendTransactionRequest<LogonTransactionRequestMessage, LogonTransactionResponseMessage>(logonTransactionRequest, "api/logontransactions", token, cancellationToken);
 
@@ -218,8 +219,8 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                                   CancellationToken cancellationToken) {
         var result = await this.TransactionProcessorClient.MakeMerchantDeposit(token.AccessToken, cfg.EstateId, cfg.MerchantId, new MakeMerchantDepositRequest {
             Amount = amount,
-            DepositDateTime = DateTime.Now,
-            Reference = $"AutoDeposit{DateTime.Now:yyyy-MM-dd}"
+            DepositDateTime = DateTime.UtcNow,
+            Reference = $"AutoDeposit{DateTime.UtcNow:yyyy-MM-dd}"
         }, cancellationToken);
 
         if (result.IsFailed) {
@@ -237,7 +238,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         ReconciliationRequestMessage reconciliationRequest = new ReconciliationRequestMessage
         {
             ApplicationVersion = cfg.ApplicationVersion,
-            TransactionDateTime = DateTime.Now,
+            TransactionDateTime = DateTime.UtcNow,
             DeviceIdentifier = cfg.DeviceIdentifier,
             TransactionCount = totals.Sum(t=> t.TotalCount),
             TransactionValue = totals.Sum(t => t.Total),
@@ -285,7 +286,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             ApplicationVersion = cfg.ApplicationVersion,
             DeviceIdentifier = cfg.DeviceIdentifier,
             ContractId = product.ContractId,
-            TransactionDateTime = DateTime.Now,
+            TransactionDateTime = DateTime.UtcNow,
             TransactionNumber = transactionNumber.ToString("D4")
         };
 
@@ -305,7 +306,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             ApplicationVersion = cfg.ApplicationVersion,
             DeviceIdentifier = cfg.DeviceIdentifier,
             ContractId = product.ContractId,
-            TransactionDateTime = DateTime.Now,
+            TransactionDateTime = DateTime.UtcNow,
             TransactionNumber = transactionNumber.ToString("D4")
         };
 
@@ -343,7 +344,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             ApplicationVersion = cfg.ApplicationVersion,
             DeviceIdentifier = cfg.DeviceIdentifier,
             ContractId = product.ContractId,
-            TransactionDateTime = DateTime.Now,
+            TransactionDateTime = DateTime.UtcNow,
             TransactionNumber = transactionNumber.ToString("D4")
         };
         
@@ -365,7 +366,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             ApplicationVersion = cfg.ApplicationVersion,
             DeviceIdentifier = cfg.DeviceIdentifier,
             ContractId = product.ContractId,
-            TransactionDateTime = DateTime.Now,
+            TransactionDateTime = DateTime.UtcNow,
             TransactionNumber = transactionNumber.ToString("D4")
         };
 
@@ -408,7 +409,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         
         var body = new
         {
-            due_date = DateTime.Now.AddDays(1),
+            due_date = DateTime.UtcNow.AddDays(1),
             amount = billAmount,
             account_number = accountNumber,
             account_name = $"Test Account {accountNumber}"
@@ -431,7 +432,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
             String baseAddress = this.SettingsStore.Current.ApiConfiguration.TestHost;
             var body = new
             {
-                due_date = DateTime.Now.AddDays(1),
+                due_date = DateTime.UtcNow.AddDays(1),
                 meter_number = meterNumber,
                 customer_name = $"Customer {meterNumber}"
             };

@@ -111,8 +111,9 @@ try
         var db = scope.ServiceProvider.GetRequiredService<MerchantDbContext>();
         await db.Database.EnsureCreatedAsync();
 
-        var diLogger = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>();
-        Shared.Logger.Logger.Initialise(diLogger);
+        LogManager.Setup().LoadConfigurationFromFile("NLog.config");
+        NLog.Logger dilogger = LogManager.GetLogger("MerchantPOS");
+        Shared.Logger.Logger.Initialise(dilogger, "MerchantPOS");
 
         var serialiser = scope.ServiceProvider.GetRequiredService<IStringSerialiser>();
         StringSerialiser.Initialise(serialiser);

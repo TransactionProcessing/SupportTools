@@ -83,7 +83,7 @@ namespace TransactionProcessor.SystemSetupTool
             Result result = setupMode switch {
                 Mode.SecuritySetup => await identityServerFunctions.CreateConfig(cancellationToken),
                 Mode.EventStoreSetup => await eventStoreFunctions.SetupEventStore(cancellationToken),
-                Mode.EstateSetup => await SetupEstates(configFileName,cancellationToken),
+                Mode.EstateSetup => await SetupEstates(configFileName, identityServerConfiguration, cancellationToken),
                 Mode.FileProcessorSetup => await SetupFileProcessors(fileProcessingOptions, cancellationToken),
                 _ => Result.Invalid($"Invalid mode {setupMode}")
             };
@@ -129,10 +129,10 @@ namespace TransactionProcessor.SystemSetupTool
             return StringSerialiser.DeserializeObject<Object>(arg, type, new SerialiserOptions(SerialiserPropertyFormat.SnakeCase));
         }
 
-        private static async Task<Result> SetupEstates(String configFileName, CancellationToken cancellationToken) {
+        private static async Task<Result> SetupEstates(String configFileName, IdentityServerConfiguration identityServerConfiguration, CancellationToken cancellationToken) {
             EstateConfig estateConfiguration = await GetEstatesConfig(configFileName, cancellationToken);
             foreach (Estate estate in estateConfiguration.Estates) {
-                EstateSetupFunctions estateSetup = new(Program.SecurityServiceClient, Program.TransactionProcessorClient, estate);
+                EstateSetupFunctions estateSetup = new(Program.SecurityServiceClient, Program.TransactionProcessorClient, estate, identityServerConfiguration);
                 Result result = await estateSetup.SetupEstate(cancellationToken);
                 if (result.IsFailed)
                     return ResultHelpers.CreateFailure(result);

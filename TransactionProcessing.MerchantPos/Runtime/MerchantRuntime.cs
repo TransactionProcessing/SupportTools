@@ -159,7 +159,7 @@ public class MerchantRuntime
         while (!token.IsCancellationRequested) {
             Merchant merchant = await this.Repository.GetMerchant(cfg.MerchantId)
                 ?? throw new InvalidOperationException($"Merchant {cfg.MerchantId} was not found.");
-            DateTime currentTime = DateTime.Now;
+            DateTime currentTime = DateTime.UtcNow;
             MerchantResponse merchantConfig = cfg.Merchant
                 ?? throw new InvalidOperationException($"Merchant details were not loaded for {cfg.MerchantName}.");
             (TimeSpan openingTime, TimeSpan closingTime) = GetTradingHours(cfg, merchantConfig, currentTime);
@@ -178,7 +178,7 @@ public class MerchantRuntime
                 continue;
             }
             
-            DateTime now = DateTime.Now;
+            DateTime now = DateTime.UtcNow;
             if (merchant.LastLogonDateTime.Date != now.Date)
             {
                 Result tokenResult = await this.GetUserToken(cfg, token);
@@ -323,7 +323,7 @@ public class MerchantRuntime
         await ApiClient.SendReconciliation(cfg, userToken, totals, cancellationToken);
 
         // Clear totals
-        await this.Repository.UpdateLastEndOfDay(cfg.MerchantId, cfg.MerchantName, DateTime.Now);
+        await this.Repository.UpdateLastEndOfDay(cfg.MerchantId, cfg.MerchantName, DateTime.UtcNow);
         await Repository.ClearTotals(cfg.MerchantId);
 
         this.Metrics.SetLastEndOfDay(cfg.MerchantId);
