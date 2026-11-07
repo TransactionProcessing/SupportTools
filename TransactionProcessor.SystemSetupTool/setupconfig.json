@@ -1,7 +1,6 @@
 {
   "estates": [
     {
-      "id": "435613AC-A468-47A3-AC4F-649D89764C22",
       "name": "Development Estate",
       "email_address": "estateuser@devestate1.co.uk",
       "user": {
@@ -13,8 +12,7 @@
       },
       "merchants": [
         {
-          "merchant_id": "AB1C99FB-1C6C-4694-9A32-B71BE5D1DA33",
-          "name": "Test Merchant 1",
+          "name": "Development Merchant 1",
           "settlement_schedule": "Weekly",
           "address": {
             "address_line1": "test address line 1",
@@ -24,7 +22,7 @@
             "postcode": "AB12 3CD"
           },
           "contact": {
-            "contact_name": "Test Contact",
+            "contact_name": "Development Contact",
             "email_address": "stuart_ferguson1@outlook.com"
           },
           "operators": [
@@ -34,14 +32,14 @@
             "PataPawa PrePay"
           ],
           "user": {
-            "email_address": "merchantuser@testmerchant1.co.uk",
+            "email_address": "merchantuser@devmerchant1.co.uk",
             "password": "",
-            "given_name": "Test Merchant 1",
+            "given_name": "Development Merchant 1",
             "middle_name": "",
             "family_name": "User"
           },
           "device": {
-            "device_identifier": "testmerchant1device"
+            "device_identifier": "devmerchant1device"
           },
           "create_date": "2022-08-31"
         }

@@ -140,8 +140,9 @@ try
 
     using (var scope = app.Services.CreateScope())
     {
-        var startupLogger = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>();
-        SharedLogger.Initialise(startupLogger);
+        LogManager.Setup().LoadConfigurationFromFile("NLog.config");
+        NLog.Logger logger = LogManager.GetLogger("merchantfileprocessor");
+        SharedLogger.Initialise(logger, "merchantfileprocessor");
 
         var serialiser = scope.ServiceProvider.GetRequiredService<IStringSerialiser>();
         StringSerialiser.Initialise(serialiser);

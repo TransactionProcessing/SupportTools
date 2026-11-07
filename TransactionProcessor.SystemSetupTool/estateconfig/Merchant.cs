@@ -3,8 +3,6 @@
     using System;
     public class Merchant
     {
-        public Guid MerchantId { get; set; }
-
         public DateTime CreateDate { get; set; }
 
         public String Name { get; set; }

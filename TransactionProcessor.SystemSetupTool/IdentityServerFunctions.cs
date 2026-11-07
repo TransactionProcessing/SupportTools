@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore.Storage;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,13 +17,26 @@ public class IdentityServerFunctions{
 
     private readonly IdentityServerConfiguration identityServerConfiguration;
 
+    private TokenResponse ManagmementToken;
+
     public IdentityServerFunctions(ISecurityServiceClient securityServiceClient, IdentityServerConfiguration configuration){
         this.SecurityServiceClient = securityServiceClient;
         this.identityServerConfiguration = configuration;
     }
 
+    private async Task<Result> GetManagementToken(CancellationToken cancellationToken) {
+        var result = await this.SecurityServiceClient.GetToken(this.identityServerConfiguration.managementclientid, this.identityServerConfiguration.managementclientsecret, cancellationToken);
+
+        if (result.IsFailed)
+            return Result.Failure("Error getting management token");
+
+        this.ManagmementToken = result.Data;
+
+        return Result.Success();
+    }
+
     private async Task<Result> CreateRoles(CancellationToken cancellationToken) {
-        Result<List<RoleResponse>> rolesResult = await this.SecurityServiceClient.GetRoles(cancellationToken);
+        Result<List<RoleResponse>> rolesResult = await this.SecurityServiceClient.GetRoles(this.ManagmementToken.AccessToken, cancellationToken);
         if (rolesResult.IsFailed)
             return ResultHelpers.CreateFailure(rolesResult);
 
@@ -43,7 +57,7 @@ public class IdentityServerFunctions{
     }
 
     private async Task<Result> CreateApiResources(CancellationToken cancellationToken) {
-        var apiResourcesResult = await this.SecurityServiceClient.GetApiResources(cancellationToken);
+        var apiResourcesResult = await this.SecurityServiceClient.GetApiResources(this.ManagmementToken.AccessToken, cancellationToken);
         if (apiResourcesResult.IsFailed)
             return ResultHelpers.CreateFailure(apiResourcesResult);
 
@@ -62,7 +76,7 @@ public class IdentityServerFunctions{
     }
 
     private async Task<Result> CreateIdentityResources(CancellationToken cancellationToken) {
-        var identityResourcesResult = await this.SecurityServiceClient.GetIdentityResources(cancellationToken);
+        var identityResourcesResult = await this.SecurityServiceClient.GetIdentityResources(this.ManagmementToken.AccessToken, cancellationToken);
         if (identityResourcesResult.IsFailed)
             return ResultHelpers.CreateFailure(identityResourcesResult);
 
@@ -82,7 +96,7 @@ public class IdentityServerFunctions{
     }
 
     private async Task<Result> CreateClients(CancellationToken cancellationToken) {
-        var clientsResult = await this.SecurityServiceClient.GetClients(cancellationToken);
+        var clientsResult = await this.SecurityServiceClient.GetClients(this.ManagmementToken.AccessToken, cancellationToken);
         if (clientsResult.IsFailed)
             return ResultHelpers.CreateFailure(clientsResult);
 
@@ -102,7 +116,7 @@ public class IdentityServerFunctions{
     }
 
     private async Task<Result> CreateApiScopes(CancellationToken cancellationToken) {
-        var apiScopesResult = await this.SecurityServiceClient.GetApiScopes(cancellationToken);
+        var apiScopesResult = await this.SecurityServiceClient.GetApiScopes(this.ManagmementToken.AccessToken, cancellationToken);
         if (apiScopesResult.IsFailed)
             return ResultHelpers.CreateFailure(apiScopesResult);
         var apiScopes = apiScopesResult.Data;
@@ -120,6 +134,10 @@ public class IdentityServerFunctions{
     }
 
     public async Task<Result> CreateConfig(CancellationToken cancellationToken) {
+
+        var managementTokenResult = await this.GetManagementToken(cancellationToken);
+        if (managementTokenResult.IsFailed)
+            return managementTokenResult;
 
         Result createRolesResult = await this.CreateRoles(cancellationToken);
         if (createRolesResult.IsFailed)
@@ -140,7 +158,7 @@ public class IdentityServerFunctions{
         Result createApiScopesResult = await this.CreateApiScopes(cancellationToken);
         if (createApiScopesResult.IsFailed)
             return createApiScopesResult;
-        
+
         return Result.Success();
     }
 
@@ -150,7 +168,7 @@ public class IdentityServerFunctions{
             RoleName = role
         };
 
-        return await this.SecurityServiceClient.CreateRole(createRoleRequest, cancellationToken);
+        return await this.SecurityServiceClient.CreateRole(this.ManagmementToken.AccessToken, createRoleRequest, cancellationToken);
     }
 
     private async Task<Result> CreateApiScope(ApiScope apiscope,
@@ -159,11 +177,11 @@ public class IdentityServerFunctions{
         CreateApiScopeRequest createApiScopeRequest = new CreateApiScopeRequest
         {
             Description = apiscope.description,
-            DisplayName = apiscope.display_name,
+            DisplayName = apiscope.displayName,
             Name = apiscope.name
         };
 
-        return await this.SecurityServiceClient.CreateApiScope(createApiScopeRequest, cancellationToken);
+        return await this.SecurityServiceClient.CreateApiScope(this.ManagmementToken.AccessToken, createApiScopeRequest, cancellationToken);
     }
 
     private async Task<Result> CreateIdentityResource(IdentityResource identityResource,
@@ -173,14 +191,14 @@ public class IdentityServerFunctions{
         {
             Claims = identityResource.claims,
             Description = identityResource.description,
-            DisplayName = identityResource.displayName,
+            DisplayName = identityResource.display_name,
             Emphasize = identityResource.emphasize,
             Name = identityResource.name,
             Required = identityResource.required,
             ShowInDiscoveryDocument = identityResource.showInDiscoveryDocument
         };
 
-        return await this.SecurityServiceClient.CreateIdentityResource(createIdentityResourceRequest, cancellationToken);
+        return await this.SecurityServiceClient.CreateIdentityResource(this.ManagmementToken.AccessToken, createIdentityResourceRequest, cancellationToken);
     }
 
     private async Task<Result> CreateClient(identityserverconfig.Client client, CancellationToken cancellationToken)
@@ -198,7 +216,7 @@ public class IdentityServerFunctions{
             RequireConsent = client.require_consent.GetValueOrDefault(false),
             Secret = client.secret
         };
-        return await this.SecurityServiceClient.CreateClient(createClientRequest, cancellationToken);
+        return await this.SecurityServiceClient.CreateClient(this.ManagmementToken.AccessToken, createClientRequest, cancellationToken);
     }
 
     private async Task<Result> CreateApiResource(ApiResource apiResource,
@@ -214,6 +232,6 @@ public class IdentityServerFunctions{
             UserClaims = apiResource.user_claims
         };
 
-        return await this.SecurityServiceClient.CreateApiResource(createApiResourceRequest, cancellationToken);
+        return await this.SecurityServiceClient.CreateApiResource(this.ManagmementToken.AccessToken, createApiResourceRequest, cancellationToken);
     }
 }

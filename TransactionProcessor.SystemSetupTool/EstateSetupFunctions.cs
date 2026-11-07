@@ -13,12 +13,15 @@ using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
 using TransactionProcessor.DataTransferObjects.Requests.Contract;
 using TransactionProcessor.DataTransferObjects.Requests.Estate;
+using TransactionProcessor.DataTransferObjects.Requests.Float;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;
 using TransactionProcessor.DataTransferObjects.Requests.Operator;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
 using TransactionProcessor.DataTransferObjects.Responses.Estate;
 using TransactionProcessor.DataTransferObjects.Responses.Merchant;
+using TransactionProcessor.DataTransferObjects.Responses.Operator;
 using TransactionProcessor.SystemSetupTool.estateconfig;
+using TransactionProcessor.SystemSetupTool.identityserverconfig;
 using Address = TransactionProcessor.DataTransferObjects.Requests.Merchant.Address;
 using AssignOperatorRequest = TransactionProcessor.DataTransferObjects.Requests.Estate.AssignOperatorRequest;
 using Contact = TransactionProcessor.DataTransferObjects.Requests.Merchant.Contact;
@@ -32,6 +35,7 @@ public class EstateSetupFunctions {
     private readonly ITransactionProcessorClient TransactionProcessorClient;
 
     private readonly Estate EstateConfig;
+    private readonly IdentityServerConfiguration IdentityServerConfiguration;
 
     private TokenResponse TokenResponse;
 
@@ -39,10 +43,12 @@ public class EstateSetupFunctions {
 
     public EstateSetupFunctions(ISecurityServiceClient securityServiceClient,
                                 ITransactionProcessorClient transactionProcessorClient,
-                                Estate estateConfig) {
+                                Estate estateConfig,
+                                IdentityServerConfiguration identityServerConfiguration) {
         this.SecurityServiceClient = securityServiceClient;
         this.TransactionProcessorClient = transactionProcessorClient;
         this.EstateConfig = estateConfig;
+        this.IdentityServerConfiguration = identityServerConfiguration;
     }
 
     public async Task<Result> SetupEstate(CancellationToken cancellationToken) {
@@ -53,7 +59,6 @@ public class EstateSetupFunctions {
         if (createEstateResult.IsFailed)
             return ResultHelpers.CreateFailure(createEstateResult);
         this.EstateId = createEstateResult.Data;
-
 
         Result<EstateResponse> getEstateResult = await this.GetEstate(this.EstateId, cancellationToken);
         if (getEstateResult.IsFailed)
@@ -112,24 +117,13 @@ public class EstateSetupFunctions {
     }
 
     private async Task<Result<Guid>> CreateEstate(CancellationToken cancellationToken) {
-        var estateResponse = await this.GetEstate(Guid.Parse(this.EstateConfig.Id), cancellationToken);
-        if (estateResponse.IsFailed && estateResponse.Status != ResultStatus.NotFound)
-            return ResultHelpers.CreateFailure(estateResponse);
+        CreateEstateRequest createEstateRequest = new CreateEstateRequest { EstateName = this.EstateConfig.Name };
 
-        if (estateResponse.Status == ResultStatus.NotFound) {
-            // need to create the actual estate
-            // Create the estate
-            CreateEstateRequest createEstateRequest = new CreateEstateRequest { EstateId = Guid.Parse(this.EstateConfig.Id), EstateName = this.EstateConfig.Name };
+        Result<Guid> createResult = await this.TransactionProcessorClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
+        if (createResult.IsFailed)
+            return ResultHelpers.CreateFailure(createResult);
 
-            var createResult = await this.TransactionProcessorClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
-
-            return Result.Success(createEstateRequest.EstateId);
-        }
-
-        // Found the estate so just return the Guid
-        return Result.Success(estateResponse.Data.EstateId);
+        return Result.Success(createResult.Data);
     }
 
     private async Task<Result> CreateEstateUser(CancellationToken cancellationToken) {
@@ -172,14 +166,14 @@ public class EstateSetupFunctions {
             }
 
             CreateOperatorRequest createOperatorRequest = new CreateOperatorRequest {
-                OperatorId = Guid.NewGuid(), Name = @operator.Name, RequireCustomMerchantNumber = @operator.RequireCustomMerchantNumber, RequireCustomTerminalNumber = @operator.RequireCustomMerchantNumber,
+                Name = @operator.Name, RequireCustomMerchantNumber = @operator.RequireCustomMerchantNumber, RequireCustomTerminalNumber = @operator.RequireCustomMerchantNumber,
             };
-            Result createResult = await this.TransactionProcessorClient.CreateOperator(this.TokenResponse.AccessToken, this.EstateId, createOperatorRequest, cancellationToken);
+            Result<Guid> createResult = await this.TransactionProcessorClient.CreateOperator(this.TokenResponse.AccessToken, this.EstateId, createOperatorRequest, cancellationToken);
             if (createResult.IsFailed)
                 return ResultHelpers.CreateFailure(createResult);
 
             // Now assign this to the estate
-            var assignResult = await this.TransactionProcessorClient.AssignOperatorToEstate(this.TokenResponse.AccessToken, this.EstateId, new AssignOperatorRequest { OperatorId = createOperatorRequest.OperatorId }, cancellationToken);
+            Result assignResult = await this.TransactionProcessorClient.AssignOperatorToEstate(this.TokenResponse.AccessToken, this.EstateId, new AssignOperatorRequest { OperatorId = createResult.Data }, cancellationToken);
             if (assignResult.IsFailed)
                 return ResultHelpers.CreateFailure(assignResult);
         }
@@ -290,31 +284,31 @@ public class EstateSetupFunctions {
         var @operator = estate.Operators.SingleOrDefault(o => o.Name == contract.OperatorName);
 
         CreateContractRequest createContractRequest = new CreateContractRequest { Description = contract.Description, OperatorId = @operator.OperatorId };
-        Result createResult = await this.TransactionProcessorClient.CreateContract(this.TokenResponse.AccessToken, this.EstateId, createContractRequest, cancellationToken);
+        Result<Guid> createResult = await this.TransactionProcessorClient.CreateContract(this.TokenResponse.AccessToken, this.EstateId, createContractRequest, cancellationToken);
         if (createResult.IsFailed)
             return ResultHelpers.CreateFailure(createResult);
 
         // Contract has been created, we now need to get it from the RM to get the contract Id
-        Result<Guid> getContractIdResult = await GetContractId(contract.Description, cancellationToken);
-        if (getContractIdResult.IsFailed)
-            return ResultHelpers.CreateFailure(getContractIdResult);
+        //Result<Guid> getContractIdResult = await GetContractId(contract.Description, cancellationToken);
+        //if (getContractIdResult.IsFailed)
+        //    return ResultHelpers.CreateFailure(getContractIdResult);
 
         foreach (Product contractProduct in contract.Products) {
             AddProductToContractRequest addProductToContractRequest = new AddProductToContractRequest { DisplayText = contractProduct.DisplayText, ProductName = contractProduct.ProductName, Value = contractProduct.Value };
 
-            Result addProductToContractResult = await this.TransactionProcessorClient.AddProductToContract(this.TokenResponse.AccessToken, this.EstateId, getContractIdResult.Data, addProductToContractRequest, cancellationToken);
+            Result addProductToContractResult = await this.TransactionProcessorClient.AddProductToContract(this.TokenResponse.AccessToken, this.EstateId, createResult.Data, addProductToContractRequest, cancellationToken);
 
             if (addProductToContractResult.IsFailed)
                 return ResultHelpers.CreateFailure(addProductToContractResult);
 
-            Result<Guid> contractProductIdResult = await GetContractProductId(getContractIdResult.Data, contractProduct.ProductName, cancellationToken);
+            Result<Guid> contractProductIdResult = await GetContractProductId(createResult.Data, contractProduct.ProductName, cancellationToken);
             if (contractProductIdResult.IsFailed)
                 return ResultHelpers.CreateFailure(contractProductIdResult);
 
             foreach (TransactionFee contractProductTransactionFee in contractProduct.TransactionFees) {
                 AddTransactionFeeForProductToContractRequest addTransactionFeeForProductToContractRequest = new AddTransactionFeeForProductToContractRequest { Description = contractProductTransactionFee.Description, Value = contractProductTransactionFee.Value, CalculationType = (CalculationType)contractProductTransactionFee.CalculationType, FeeType = (FeeType)contractProductTransactionFee.FeeType };
 
-                Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, getContractIdResult.Data, contractProductIdResult.Data, addTransactionFeeForProductToContractRequest, cancellationToken);
+                Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, createResult.Data, contractProductIdResult.Data, addTransactionFeeForProductToContractRequest, cancellationToken);
 
                 if (addTransactionFeeForProductToContractResult.IsFailed)
                     return ResultHelpers.CreateFailure(addTransactionFeeForProductToContractResult);
@@ -328,7 +322,7 @@ public class EstateSetupFunctions {
         var existingContractsResult= await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
         if (existingContractsResult.IsFailed)
             return ResultHelpers.CreateFailure(existingContractsResult);
-        var estateResponse = await this.GetEstate(Guid.Parse(this.EstateConfig.Id), cancellationToken);
+        var estateResponse = await this.GetEstate(this.EstateId, cancellationToken);
         if (estateResponse.IsFailed)
             return ResultHelpers.CreateFailure(estateResponse);
 
@@ -370,15 +364,14 @@ public class EstateSetupFunctions {
             Contact = new Contact { ContactName = merchant.Contact.ContactName, EmailAddress = merchant.Contact.EmailAddress },
             SettlementSchedule = settlementSchedule,
             CreatedDateTime = merchant.CreateDate,
-            MerchantId = merchant.MerchantId,
         };
-        Result createMerchantResult = await this.TransactionProcessorClient.CreateMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest, cancellationToken);
+        Result<Guid> createMerchantResult = await this.TransactionProcessorClient.CreateMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest, cancellationToken);
         if (createMerchantResult.IsFailed)
             return ResultHelpers.CreateFailure(createMerchantResult);
 
         // Now add devices
         AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest { DeviceIdentifier = merchant.Device.DeviceIdentifier };
-        var addDeviceResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest.MerchantId.Value, addMerchantDeviceRequest, cancellationToken);
+        var addDeviceResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, addMerchantDeviceRequest, cancellationToken);
         if (addDeviceResult.IsFailed)
             return ResultHelpers.CreateFailure(addDeviceResult);
 
@@ -390,7 +383,7 @@ public class EstateSetupFunctions {
             MiddleName = merchant.User.MiddleName,
             Password = ResolveUserPassword(merchant.User.Password)
         };
-        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest.MerchantId.Value, createMerchantUserRequest, cancellationToken);
+        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, createMerchantUserRequest, cancellationToken);
         if (createMerchantUserResult.IsFailed)
             return ResultHelpers.CreateFailure(createMerchantUserResult);
 
@@ -401,7 +394,7 @@ public class EstateSetupFunctions {
         foreach (var @operator in getEstateResult.Data.Operators) {
             TransactionProcessor.DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new() { OperatorId = @operator.OperatorId, MerchantNumber = null, TerminalNumber = null };
 
-            Result assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest.MerchantId.Value, assignOperatorRequest, cancellationToken);
+            Result assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, assignOperatorRequest, cancellationToken);
             if (assignOperatorToMerchantResult.IsFailed)
                 return ResultHelpers.CreateFailure(assignOperatorToMerchantResult);
         }
@@ -413,7 +406,7 @@ public class EstateSetupFunctions {
         // Now contracts
         foreach (ContractResponse contractResponse in getContractsResult.Data) {
             AddMerchantContractRequest addMerchantContractRequest = new() { ContractId = contractResponse.ContractId };
-            var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest.MerchantId.Value, addMerchantContractRequest, cancellationToken);
+            var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, addMerchantContractRequest, cancellationToken);
             if (addContractToMerchantResult.IsFailed)
                 return ResultHelpers.CreateFailure(addContractToMerchantResult);
         }
@@ -430,7 +423,7 @@ public class EstateSetupFunctions {
             return ResultHelpers.CreateFailure(ensureDeviceResult);
         }
 
-        var ensureUserResult = await EnsureMerchantUserAsync(merchant, cancellationToken);
+        var ensureUserResult = await EnsureMerchantUserAsync(merchant, existingMerchant, cancellationToken);
         if (ensureUserResult.IsFailed)
         {
             return ResultHelpers.CreateFailure(ensureUserResult);
@@ -463,9 +456,13 @@ public class EstateSetupFunctions {
         return addDeviceToMerchantResult.IsFailed ? ResultHelpers.CreateFailure(addDeviceToMerchantResult) : Result.Success();
     }
 
-    private async Task<Result> EnsureMerchantUserAsync(Merchant merchant, CancellationToken cancellationToken)
-    {
-        var userResult = await this.SecurityServiceClient.GetUsers(merchant.User.EmailAddress, cancellationToken);
+    private async Task<Result> EnsureMerchantUserAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken) {
+        var managementTokenResult = await this.SecurityServiceClient.GetToken(this.IdentityServerConfiguration.managementclientid, this.IdentityServerConfiguration.managementclientsecret, cancellationToken);
+
+        if (managementTokenResult.IsFailed)
+            return Result.Failure("Error getting management token");
+
+        var userResult = await this.SecurityServiceClient.GetUsers(managementTokenResult.Data.AccessToken, merchant.User.EmailAddress, cancellationToken);
         if (userResult.IsFailed)
         {
             return ResultHelpers.CreateFailure(userResult);
@@ -483,7 +480,7 @@ public class EstateSetupFunctions {
             MiddleName = merchant.User.MiddleName,
             Password = merchant.User.Password
         };
-        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, merchant.MerchantId, createMerchantUserRequest, cancellationToken);
+        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, createMerchantUserRequest, cancellationToken);
         return createMerchantUserResult.IsFailed ? ResultHelpers.CreateFailure(createMerchantUserResult) : Result.Success();
     }
 
@@ -580,12 +577,12 @@ public class EstateSetupFunctions {
         if (getOperatorsResult.IsFailed)
             return ResultHelpers.CreateFailure(getOperatorsResult);
 
-        foreach (var operatorResponse in getOperatorsResult.Data)
+        foreach (OperatorResponse operatorResponse in getOperatorsResult.Data)
         {
             // Create the required floats
-            CreateFloatRequest request = new CreateFloatRequest { FloatId = operatorResponse.OperatorId, CreateDateTime = DateTime.Now };
+            CreateFloatRequest request = new CreateFloatRequest { OperatorId = operatorResponse.OperatorId, CreateDateTime = DateTime.Now };
 
-            Result createFloatResult = await this.TransactionProcessorClient.CreateFloat(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
+            Result<Guid> createFloatResult = await this.TransactionProcessorClient.CreateFloat(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
             if (createFloatResult.IsFailed)
                 return ResultHelpers.CreateFailure(createFloatResult);
         }
