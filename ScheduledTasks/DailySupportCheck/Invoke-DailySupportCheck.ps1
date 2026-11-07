@@ -146,6 +146,23 @@ function Merge-SupportConfiguration {
     $Base
 }
 
+function Assert-HttpEndpointConfiguration {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $SectionName,
+        [Parameter(Mandatory)] [object] $Settings
+    )
+
+    $endpointUri = $null
+    if (-not [uri]::TryCreate([string] $Settings.BaseUrl, [UriKind]::Absolute, [ref] $endpointUri)) {
+        throw "$SectionName.BaseUrl must be an absolute URI."
+    }
+
+    if ([int] $Settings.TimeoutSeconds -le 0) {
+        throw "$SectionName.TimeoutSeconds must be greater than zero."
+    }
+}
+
 function Get-SupportConfiguration {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string] $Path)
@@ -187,14 +204,7 @@ function Get-SupportConfiguration {
             return $configuration
         }
 
-        $healthMonitoringUri = $null
-        if (-not [uri]::TryCreate([string] $configuration.HealthMonitoring.BaseUrl, [UriKind]::Absolute, [ref] $healthMonitoringUri)) {
-            throw 'HealthMonitoring.BaseUrl must be an absolute URI.'
-        }
-
-        if ([int] $configuration.HealthMonitoring.TimeoutSeconds -le 0) {
-            throw 'HealthMonitoring.TimeoutSeconds must be greater than zero.'
-        }
+        Assert-HttpEndpointConfiguration -SectionName 'HealthMonitoring' -Settings $configuration.HealthMonitoring
     }
 
     if ($configuration.PSObject.Properties['SubscriptionService']) {
@@ -202,14 +212,7 @@ function Get-SupportConfiguration {
             return $configuration
         }
 
-        $subscriptionServiceUri = $null
-        if (-not [uri]::TryCreate([string] $configuration.SubscriptionService.BaseUrl, [UriKind]::Absolute, [ref] $subscriptionServiceUri)) {
-            throw 'SubscriptionService.BaseUrl must be an absolute URI.'
-        }
-
-        if ([int] $configuration.SubscriptionService.TimeoutSeconds -le 0) {
-            throw 'SubscriptionService.TimeoutSeconds must be greater than zero.'
-        }
+        Assert-HttpEndpointConfiguration -SectionName 'SubscriptionService' -Settings $configuration.SubscriptionService
     }
 
     if ($configuration.PSObject.Properties['KurrentDbProjections']) {
@@ -217,14 +220,7 @@ function Get-SupportConfiguration {
             return $configuration
         }
 
-        $kurrentDbUri = $null
-        if (-not [uri]::TryCreate([string] $configuration.KurrentDbProjections.BaseUrl, [UriKind]::Absolute, [ref] $kurrentDbUri)) {
-            throw 'KurrentDbProjections.BaseUrl must be an absolute URI.'
-        }
-
-        if ([int] $configuration.KurrentDbProjections.TimeoutSeconds -le 0) {
-            throw 'KurrentDbProjections.TimeoutSeconds must be greater than zero.'
-        }
+        Assert-HttpEndpointConfiguration -SectionName 'KurrentDbProjections' -Settings $configuration.KurrentDbProjections
 
         $hasUsername = $configuration.KurrentDbProjections.PSObject.Properties['Username'] -and -not [string]::IsNullOrWhiteSpace([string] $configuration.KurrentDbProjections.Username)
         $hasPasswordEnvironmentVariable = $configuration.KurrentDbProjections.PSObject.Properties['PasswordEnvironmentVariable'] -and -not [string]::IsNullOrWhiteSpace([string] $configuration.KurrentDbProjections.PasswordEnvironmentVariable)
@@ -944,6 +940,20 @@ function ConvertTo-HtmlEncodedText {
     [System.Net.WebUtility]::HtmlEncode([string] $Value)
 }
 
+function Get-SupportStatusIcon {
+    param([string] $Status)
+
+    switch ($Status) {
+        'Passed' { '🟢' }
+        'Healthy' { '🟢' }
+        'Warning' { '🟠' }
+        'Degraded' { '🟠' }
+        'Failed' { '🔴' }
+        'Unhealthy' { '🔴' }
+        default { '⚪' }
+    }
+}
+
 function Write-SupportReports {
     [CmdletBinding()]
     param(
@@ -973,12 +983,7 @@ function Write-SupportReports {
             $summaryText = $summaryText.Substring(0, 157).TrimEnd() + '…'
         }
         $summary = [System.Net.WebUtility]::HtmlEncode($summaryText)
-        $statusIcon = switch ([string] $check.Status) {
-            'Passed' { '🟢' }
-            'Warning' { '🟠' }
-            'Failed' { '🔴' }
-            default { '⚪' }
-        }
+        $statusIcon = Get-SupportStatusIcon -Status ([string] $check.Status)
         [void] $rows.AppendLine("<tr class=`"status-$status`"><td>$name</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$status`">$statusIcon</span> $status</td><td>$summary</td></tr>")
     }
 
@@ -994,12 +999,7 @@ function Write-SupportReports {
         foreach ($subscription in $subscriptionItems) {
             $detailStatus = ConvertTo-HtmlEncodedText $subscription.Status
             $detailStatusClass = [System.Net.WebUtility]::HtmlEncode("status-$([string] $subscription.Status)")
-            $detailStatusIcon = switch ([string] $subscription.Status) {
-                'Passed' { '🟢' }
-                'Warning' { '🟠' }
-                'Failed' { '🔴' }
-                default { '⚪' }
-            }
+            $detailStatusIcon = Get-SupportStatusIcon -Status ([string] $subscription.Status)
             $reasonParts = @(
                 if ($subscription.PSObject.Properties['operationalReason'] -and -not [string]::IsNullOrWhiteSpace([string] $subscription.OperationalReason)) { "Operational: $($subscription.OperationalReason)" }
                 if ($subscription.PSObject.Properties['runtimeFailureReason'] -and -not [string]::IsNullOrWhiteSpace([string] $subscription.RuntimeFailureReason)) { "Runtime: $($subscription.RuntimeFailureReason)" }
@@ -1022,15 +1022,7 @@ function Write-SupportReports {
         foreach ($service in $healthMonitoringItems) {
             $detailStatus = ConvertTo-HtmlEncodedText $service.Status
             $detailStatusClass = [System.Net.WebUtility]::HtmlEncode("status-$([string] $service.Status)")
-            $detailStatusIcon = switch ([string] $service.Status) {
-                'Passed' { '🟢' }
-                'Healthy' { '🟢' }
-                'Warning' { '🟠' }
-                'Degraded' { '🟠' }
-                'Failed' { '🔴' }
-                'Unhealthy' { '🔴' }
-                default { '⚪' }
-            }
+            $detailStatusIcon = Get-SupportStatusIcon -Status ([string] $service.Status)
             [void] $healthMonitoringDetails.AppendLine("<tr class=`"$detailStatusClass`"><td>$(ConvertTo-HtmlEncodedText $service.ServiceId)</td><td>$(ConvertTo-HtmlEncodedText $service.Name)</td><td><span class=`"status-icon`" role=`"img`" aria-label=`"$detailStatus`">$detailStatusIcon</span> $detailStatus</td><td>$(ConvertTo-HtmlEncodedText $service.LastObservedAtUtc)</td><td>$(ConvertTo-HtmlEncodedText $service.LastError)</td></tr>")
         }
         [void] $healthMonitoringDetails.AppendLine('</tbody></table></div>')
