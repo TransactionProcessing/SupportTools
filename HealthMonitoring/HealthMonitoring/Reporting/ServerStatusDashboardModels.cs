@@ -4,7 +4,6 @@ using HealthMonitoring.Domain;
 namespace HealthMonitoring.Reporting;
 
 public sealed record ServerStatusDashboardModel(
-    string ServerId,
     string ServerName,
     string OverallStatus,
     DateTimeOffset UpdatedAtUtc,
@@ -25,6 +24,6 @@ public static class ServerStatusDashboardMapper
     public static ServerStatusDashboardModel Map(ServerStatus status)
     {
         var checks = JsonSerializer.Deserialize<List<ServerCheckDashboardModel>>(status.ChecksJson, JsonOptions) ?? [];
-        return new ServerStatusDashboardModel(status.ServerId, status.ServerName, status.OverallStatus, status.UpdatedAtUtc, checks);
+        return new ServerStatusDashboardModel(status.ServerName, status.OverallStatus, status.UpdatedAtUtc, checks);
     }
 }

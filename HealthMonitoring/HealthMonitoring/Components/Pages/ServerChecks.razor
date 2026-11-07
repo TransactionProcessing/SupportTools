@@ -16,7 +16,7 @@ else if (_model is null)
 else
 {
     <section class="server-check-summary">
-        <div><p class="eyebrow">SERVER</p><h2>@_model.ServerName</h2><p class="muted">@_model.ServerId</p></div>
+        <div><p class="eyebrow">SERVER</p><h2>@_model.ServerName</h2></div>
         <div class="server-check-summary-status"><ServerCheckStatusBadge Status="@_model.OverallStatus" /><span>Updated @_model.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm:ss")</span></div>
     </section>
     <section class="panel server-check-panel">

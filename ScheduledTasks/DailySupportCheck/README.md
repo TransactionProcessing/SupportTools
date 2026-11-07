@@ -36,8 +36,7 @@ The default configuration file is `daily-support-check.json` beside the script:
   "ServerStatusApi": {
     "Enabled": true,
     "BaseUrl": "http://localhost:9620",
-    "SupportChecksPath": "/api/services/{serverId}/support-checks",
-    "ServerId": "transaction-processor",
+    "SupportChecksPath": "/api/servers/{serverName}/support-checks",
     "ServerName": "",
     "TimeoutSeconds": 30
   },
@@ -187,7 +186,7 @@ Reports are always written locally. When `ServerStatusApi.Enabled` is `true`, th
 Copy-Item .\ScheduledTasks\DailySupportCheck\daily-support-check.local.example.json .\ScheduledTasks\DailySupportCheck\daily-support-check.local.json
 ```
 
-Configure `ServerStatusApi.BaseUrl`, `ServerStatusApi.ServerId`, and optionally `ServerStatusApi.ServerName`. If `ServerName` is empty, the machine's `COMPUTERNAME` is used. The server ID is URL-encoded and substituted into `{serverId}` in `SupportChecksPath`. The request body contains only `serverName`, `overallStatus`, and the API-compatible `checks` array.
+Configure `ServerStatusApi.BaseUrl` and optionally `ServerStatusApi.ServerName`. If `ServerName` is empty, the machine's `COMPUTERNAME` is used; set a stable name explicitly if the machine name may change. The server name is URL-encoded and substituted into `{serverName}` in `SupportChecksPath`. The request body contains only `overallStatus` and the API-compatible `checks` array.
 
 ## Tests
 

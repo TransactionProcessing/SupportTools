@@ -17,7 +17,7 @@ namespace HealthMonitoring.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -203,11 +203,6 @@ namespace HealthMonitoring.Migrations
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("ServerId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("ServerName")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -218,7 +213,7 @@ namespace HealthMonitoring.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ServerId")
+                    b.HasIndex("ServerName")
                         .IsUnique();
 
                     b.ToTable("ServerStatus", (string)null);

@@ -10,7 +10,6 @@ public sealed class ServerStatusValidatorTests
     {
         var request = new ServerStatusRequest
         {
-            ServerName = "TRANSACTION-SERVER-01",
             Checks =
             [
                 Check("PowerShell Runtime", "Passed"),
@@ -20,12 +19,11 @@ public sealed class ServerStatusValidatorTests
         };
 
         request.OverallStatus = "Passed";
-        var result = ServerStatusValidator.Create("transaction-processor", request, DateTimeOffset.UtcNow);
+        var result = ServerStatusValidator.Create(" TRANSACTION-SERVER-01 ", request, DateTimeOffset.UtcNow);
 
         Assert.Empty(result.Errors);
         Assert.NotNull(result.Status);
         Assert.Equal("Warning", result.Status!.OverallStatus);
-        Assert.Equal("transaction-processor", result.Status.ServerId);
         Assert.Equal("TRANSACTION-SERVER-01", result.Status.ServerName);
     }
 
@@ -33,8 +31,8 @@ public sealed class ServerStatusValidatorTests
     public void Request_requires_server_name_and_at_least_one_check()
     {
         var result = ServerStatusValidator.Create(
-            "transaction-processor",
-            new ServerStatusRequest { ServerName = " ", Checks = [] },
+            " ",
+            new ServerStatusRequest { Checks = [] },
             DateTimeOffset.UtcNow);
 
         Assert.Contains(result.Errors, error => error.Contains("ServerName", StringComparison.Ordinal));
@@ -48,7 +46,6 @@ public sealed class ServerStatusValidatorTests
             "transaction-processor",
             new ServerStatusRequest
             {
-                ServerName = "SERVER-01",
                 Checks = [Check("Disk Space", "Unknown")]
             },
             DateTimeOffset.UtcNow);

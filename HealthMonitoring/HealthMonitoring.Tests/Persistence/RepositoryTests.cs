@@ -51,13 +51,13 @@ public sealed class RepositoryTests
         await using var database = await SqlServerTestDatabase.TryCreateAsync();
         if (database is null) return;
 
-        var first = NewServerStatus("server-1", "SERVER-01", "Passed", "[]");
-        var second = NewServerStatus("server-1", "SERVER-01", "Warning", "[{\"name\":\"Disk Space\"}]");
+        var first = NewServerStatus(" SERVER-01 ", "Passed", "[]");
+        var second = NewServerStatus("SERVER-01", "Warning", "[{\"name\":\"Disk Space\"}]");
 
         await database.Repository.UpsertServerStatusAsync(first, CancellationToken.None);
         await database.Repository.UpsertServerStatusAsync(second, CancellationToken.None);
 
-        var current = await database.Repository.GetServerStatusAsync("server-1", CancellationToken.None);
+        var current = await database.Repository.GetServerStatusAsync("SERVER-01", CancellationToken.None);
 
         Assert.NotNull(current);
         Assert.Equal(first.Id, current.Id);
@@ -85,10 +85,9 @@ public sealed class RepositoryTests
         RawResponseJson = raw
     };
 
-    private static ServerStatus NewServerStatus(string serverId, string serverName, string overallStatus, string checksJson) => new()
+    private static ServerStatus NewServerStatus(string serverName, string overallStatus, string checksJson) => new()
     {
         Id = Guid.NewGuid(),
-        ServerId = serverId,
         ServerName = serverName,
         OverallStatus = overallStatus,
         ChecksJson = checksJson,

@@ -3,8 +3,7 @@
   "ServerStatusApi": {
     "Enabled": true,
     "BaseUrl": "http://localhost:9620",
-    "SupportChecksPath": "/api/services/{serverId}/support-checks",
-    "ServerId": "transaction-processor",
+    "SupportChecksPath": "/api/servers/{serverName}/support-checks",
     "ServerName": "",
     "TimeoutSeconds": 30
   },

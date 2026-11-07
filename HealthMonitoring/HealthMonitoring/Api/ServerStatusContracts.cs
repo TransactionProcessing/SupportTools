@@ -5,7 +5,6 @@ namespace HealthMonitoring.Api;
 
 public sealed class ServerStatusRequest
 {
-    public string? ServerName { get; set; }
     public string? OverallStatus { get; set; }
     public List<SupportCheckResultRequest> Checks { get; set; } = [];
 }
@@ -23,7 +22,6 @@ public sealed class SupportCheckResultRequest
 }
 
 public sealed record ServerStatusResponse(
-    string ServerId,
     string ServerName,
     string OverallStatus,
     DateTimeOffset ReceivedAtUtc,
@@ -37,9 +35,10 @@ public static class ServerStatusValidator
     private static readonly HashSet<string> AllowedStatuses = ["Passed", "Warning", "Failed"];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static ServerStatusValidationResult Create(string serverId, ServerStatusRequest request, DateTimeOffset now)
+    public static ServerStatusValidationResult Create(string serverName, ServerStatusRequest request, DateTimeOffset now)
     {
-        var errors = ValidateRequest(serverId, request);
+        serverName = serverName?.Trim() ?? string.Empty;
+        var errors = ValidateRequest(serverName, request);
 
         if (errors.Count > 0) return new ServerStatusValidationResult(errors, null);
 
@@ -47,8 +46,7 @@ public static class ServerStatusValidator
         return new ServerStatusValidationResult(errors, new ServerStatus
         {
             Id = Guid.NewGuid(),
-            ServerId = serverId,
-            ServerName = request.ServerName!.Trim(),
+            ServerName = serverName,
             OverallStatus = CalculateOverallStatus(checks),
             ChecksJson = JsonSerializer.Serialize(checks, JsonOptions),
             ReceivedAtUtc = now,
@@ -56,11 +54,11 @@ public static class ServerStatusValidator
         });
     }
 
-    private static List<string> ValidateRequest(string serverId, ServerStatusRequest request)
+    private static List<string> ValidateRequest(string serverName, ServerStatusRequest request)
     {
         var errors = new List<string>();
-        if (string.IsNullOrWhiteSpace(serverId)) errors.Add("ServerId is required.");
-        if (string.IsNullOrWhiteSpace(request.ServerName)) errors.Add("ServerName is required.");
+        if (string.IsNullOrWhiteSpace(serverName)) errors.Add("ServerName is required.");
+        if (serverName.Length > 300) errors.Add("ServerName cannot exceed 300 characters.");
         if (request.Checks is null || request.Checks.Count == 0) errors.Add("Checks must contain at least one check.");
 
         foreach (var check in request.Checks ?? [])

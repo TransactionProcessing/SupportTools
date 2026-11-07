@@ -239,15 +239,14 @@ Describe 'Daily support check' {
         $transport.Paths.HtmlPath | Should -Be 'report.html'
     }
 
-    It 'posts the API-compatible server status payload with the server id in the URL' {
+    It 'posts the API-compatible server status payload with the server name in the URL' {
         $script:captured = $null
         $configuration = [pscustomobject]@{
             ServerStatusApi = [pscustomobject]@{
                 Enabled = $true
                 BaseUrl = 'http://health-monitoring.test:9820'
-                SupportChecksPath = '/api/services/{serverId}/support-checks'
-                ServerId = 'transaction processor'
-                ServerName = 'TRANSACTION-SERVER-01'
+                SupportChecksPath = '/api/servers/{serverName}/support-checks'
+                ServerName = 'TRANSACTION SERVER 01'
                 TimeoutSeconds = 15
             }
         }
@@ -259,7 +258,7 @@ Describe 'Daily support check' {
                 Payload = $requestPayload
                 TimeoutSeconds = $timeoutSeconds
             }
-            [pscustomobject]@{ serverId = 'transaction processor'; overallStatus = 'Warning' }
+            [pscustomobject]@{ serverName = 'TRANSACTION SERVER 01'; overallStatus = 'Warning' }
         }
         $report = [pscustomobject]@{
             OverallStatus = 'Warning'
@@ -280,12 +279,13 @@ Describe 'Daily support check' {
         $transport = Send-ServerStatus -Report $report -Configuration $configuration -ApiProvider $provider
 
         $transport.Status | Should -Be 'Sent'
-        $script:captured.Uri | Should -Be 'http://health-monitoring.test:9820/api/services/transaction%20processor/support-checks'
+        $script:captured.Uri | Should -Be 'http://health-monitoring.test:9820/api/servers/TRANSACTION%20SERVER%2001/support-checks'
         $script:captured.TimeoutSeconds | Should -Be 15
-        $script:captured.Payload.serverName | Should -Be 'TRANSACTION-SERVER-01'
         $script:captured.Payload.overallStatus | Should -Be 'Warning'
         $script:captured.Payload.checks[0].name | Should -Be 'Disk Space'
         $script:captured.Payload.checks[0].details[0].Drive | Should -Be 'C:'
+        $script:captured.Payload.Keys | Should -Not -Contain 'serverName'
+        $script:captured.Payload.Keys | Should -Not -Contain 'serverId'
     }
 
     It 'sends a failure notification email when API delivery fails' {
@@ -322,7 +322,7 @@ Describe 'Daily support check' {
         $apiTransport = [pscustomobject]@{
             Transport = 'ServerStatusApi'
             Status = 'Failed'
-            Uri = 'http://localhost:9620/api/services/transaction-processor/support-checks'
+            Uri = 'http://localhost:9620/api/servers/TRANSACTION-SERVER-01/support-checks'
             Message = 'Connection refused.'
         }
         $emailProvider = {
@@ -344,7 +344,7 @@ Describe 'Daily support check' {
         $notification.Transport | Should -Be 'FailureNotificationEmail'
         $script:captured.Payload.subject | Should -Match 'API delivery failed'
         $script:captured.Payload.textContent | Should -Match 'Connection refused'
-        $script:captured.Payload.textContent | Should -Match 'http://localhost:9620/api/services/transaction-processor/support-checks'
+        $script:captured.Payload.textContent | Should -Match 'http://localhost:9620/api/servers/TRANSACTION-SERVER-01/support-checks'
         $script:captured.Payload.textContent | Should -Match 'Parked messages were found'
         $script:captured.Payload.attachments.name | Should -Contain 'failure-report.json'
         $script:captured.Payload.attachments.name | Should -Contain 'failure-report.html'
@@ -363,8 +363,7 @@ Describe 'Daily support check' {
   "ServerStatusApi": {
     "Enabled": true,
     "BaseUrl": "http://health-monitoring.test:9620",
-    "SupportChecksPath": "/api/services/{serverId}/support-checks",
-    "ServerId": "transaction-processor",
+    "SupportChecksPath": "/api/servers/{serverName}/support-checks",
     "ServerName": "TRANSACTION-SERVER-01",
     "TimeoutSeconds": 10
   },
