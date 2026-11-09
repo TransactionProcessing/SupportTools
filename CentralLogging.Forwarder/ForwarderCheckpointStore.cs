@@ -13,6 +13,15 @@ public sealed class ForwarderCheckpointStore
                                             String checkpointPath,
                                             CancellationToken cancellationToken)
     {
+        FileCheckpoint checkpoint = await this.GetCheckpointAsync(path, fileIdentity, checkpointPath, cancellationToken);
+        return checkpoint.ByteOffset;
+    }
+
+    public async Task<FileCheckpoint> GetCheckpointAsync(String path,
+                                                          String fileIdentity,
+                                                          String checkpointPath,
+                                                          CancellationToken cancellationToken)
+    {
         await this.Gate.WaitAsync(cancellationToken);
         try
         {
@@ -20,11 +29,12 @@ public sealed class ForwarderCheckpointStore
             Dictionary<String, FileCheckpoint> checkpoints = this.Checkpoints!;
             if (checkpoints.TryGetValue(path, out FileCheckpoint? atPath))
             {
-                if (String.IsNullOrEmpty(atPath.FileIdentity)) return 0;
-                if (atPath.FileIdentity == fileIdentity) return atPath.ByteOffset;
+                if (String.IsNullOrEmpty(atPath.FileIdentity)) return new FileCheckpoint { FileIdentity = fileIdentity };
+                if (atPath.FileIdentity == fileIdentity) return atPath;
             }
 
-            return checkpoints.Values.FirstOrDefault(entry => entry.FileIdentity == fileIdentity)?.ByteOffset ?? 0;
+            return checkpoints.Values.FirstOrDefault(entry => entry.FileIdentity == fileIdentity)
+                ?? new FileCheckpoint { FileIdentity = fileIdentity };
         }
         finally
         {
@@ -36,7 +46,8 @@ public sealed class ForwarderCheckpointStore
                                       String fileIdentity,
                                       Int64 offset,
                                       String checkpointPath,
-                                      CancellationToken cancellationToken)
+                                      CancellationToken cancellationToken,
+                                      String contentFingerprint = "")
     {
         await this.Gate.WaitAsync(cancellationToken);
         try
@@ -48,7 +59,12 @@ public sealed class ForwarderCheckpointStore
                                                          .Select(pair => pair.Key).ToArray())
                 checkpoints.Remove(oldPath);
 
-            checkpoints[path] = new FileCheckpoint { FileIdentity = fileIdentity, ByteOffset = offset };
+            checkpoints[path] = new FileCheckpoint
+            {
+                FileIdentity = fileIdentity,
+                ByteOffset = offset,
+                ContentFingerprint = contentFingerprint
+            };
             await this.PersistAsync(checkpointPath, cancellationToken);
         }
         finally
@@ -138,5 +154,6 @@ public sealed class ForwarderCheckpointStore
 
         public String FileIdentity { get; init; } = "";
         public Int64 ByteOffset { get; init; }
+        public String ContentFingerprint { get; init; } = "";
     }
 }

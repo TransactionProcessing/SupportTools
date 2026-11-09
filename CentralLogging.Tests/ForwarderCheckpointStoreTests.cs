@@ -37,6 +37,19 @@ public sealed class ForwarderCheckpointStoreTests
         document.RootElement.TryGetProperty("C:/logs/current.json.1", out _).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task Reusing_a_path_for_a_different_file_does_not_reuse_its_offset()
+    {
+        using TemporaryDirectory directory = new();
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        ForwarderCheckpointStore store = new();
+
+        await store.SaveOffsetAsync("C:/logs/current.json", FileIdentity, 143, checkpointPath, CancellationToken.None);
+        Int64 offset = await store.GetOffsetAsync("C:/logs/current.json", "replacement-file", checkpointPath, CancellationToken.None);
+
+        offset.ShouldBe(0);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public String Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));
