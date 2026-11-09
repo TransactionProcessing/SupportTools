@@ -12,6 +12,9 @@ namespace CentralLogging.Tests.Api;
 [Collection("CentralLoggingApi")]
 public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
 {
+    private const String AcceptedCountProperty = "accepted";
+    private const String PaymentsServiceName = "Payments";
+
     [SqlServerFact]
     public async Task Upload_retains_malformed_and_incomplete_lines_and_deduplicates_an_identical_reupload()
     {
@@ -23,9 +26,9 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
         using HttpResponseMessage firstResponse = await SendUploadAsync(contents);
         firstResponse.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
         using JsonDocument firstBody = await ApiTestData.ReadJsonAsync(firstResponse);
-        firstBody.RootElement.GetProperty("accepted").GetInt32().ShouldBe(2);
+        firstBody.RootElement.GetProperty(AcceptedCountProperty).GetInt32().ShouldBe(0);
+        firstBody.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(2);
         firstBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(0);
-        firstBody.RootElement.GetProperty("invalidLines").GetInt32().ShouldBe(0);
 
         var stored = await fixture.ReadDatabaseAsync(async database => await database.LogEvents
             .OrderBy(log => log.ServiceName)
@@ -49,9 +52,34 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
 
         using HttpResponseMessage replayResponse = await SendUploadAsync(contents);
         using JsonDocument replayBody = await ApiTestData.ReadJsonAsync(replayResponse);
-        replayBody.RootElement.GetProperty("accepted").GetInt32().ShouldBe(0);
+        replayBody.RootElement.GetProperty(AcceptedCountProperty).GetInt32().ShouldBe(0);
+        replayBody.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(0);
         replayBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(2);
         (await fixture.ReadDatabaseAsync(database => database.LogEvents.CountAsync())).ShouldBe(2);
+    }
+
+    [SqlServerFact]
+    public async Task Upload_reports_valid_retained_and_duplicate_counts_across_batches()
+    {
+        await fixture.ResetDatabaseAsync();
+        Guid duplicateId = Guid.NewGuid();
+        Guid repeatedId = Guid.NewGuid();
+        String[] lines = Enumerable.Range(0, 499)
+            .Select(index => ApiTestData.LogLine(Guid.NewGuid(), PaymentsServiceName, $"event-{index}"))
+            .Append(ApiTestData.LogLine(duplicateId, PaymentsServiceName, "first duplicate"))
+            .Append(ApiTestData.LogLine(duplicateId, PaymentsServiceName, "second duplicate"))
+            .Append("{malformed json")
+            .Append("{\"eventId\":\"" + repeatedId + "\",\"timestampUtc\":\"2026-11-09T12:00:00Z\",\"serviceName\":\"Checkout\",\"severity\":\"Info\",\"message\":\"complete\"}")
+            .Append("{\"loggerName\":\"Checkout\",\"message\":\"incomplete\"}")
+            .ToArray();
+
+        using HttpResponseMessage response = await SendUploadAsync(String.Join('\n', lines) + "\n");
+        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        using JsonDocument body = await ApiTestData.ReadJsonAsync(response);
+        body.RootElement.GetProperty(AcceptedCountProperty).GetInt32().ShouldBe(501);
+        body.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(2);
+        body.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(1);
+        (await fixture.ReadDatabaseAsync(database => database.LogEvents.CountAsync())).ShouldBe(503);
     }
 
     [SqlServerFact]
@@ -59,18 +87,18 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
     {
         await fixture.ResetDatabaseAsync();
         Guid eventId = Guid.NewGuid();
-        String contents = $"\uFEFF{ApiTestData.LogLine(eventId, "Payments", "bom event")}\n";
+        String contents = $"\uFEFF{ApiTestData.LogLine(eventId, PaymentsServiceName, "bom event")}\n";
 
         using HttpResponseMessage response = await SendUploadAsync(contents);
         response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
         using JsonDocument body = await ApiTestData.ReadJsonAsync(response);
-        body.RootElement.GetProperty("accepted").GetInt32().ShouldBe(1);
+        body.RootElement.GetProperty(AcceptedCountProperty).GetInt32().ShouldBe(1);
 
         var stored = await fixture.ReadDatabaseAsync(database => database.LogEvents
             .Select(log => new { log.EventId, log.ServiceName, log.Message })
             .SingleAsync());
         stored.EventId.ShouldBe(eventId);
-        stored.ServiceName.ShouldBe("Payments");
+        stored.ServiceName.ShouldBe(PaymentsServiceName);
         stored.Message.ShouldBe("bom event");
 
         using HttpResponseMessage replayResponse = await SendUploadAsync(contents);
@@ -93,7 +121,7 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
         try
         {
             String[] lines = Enumerable.Range(0, 500)
-                .Select(index => ApiTestData.LogLine(Guid.NewGuid(), "Payments", $"event-{index}"))
+                .Select(index => ApiTestData.LogLine(Guid.NewGuid(), PaymentsServiceName, $"event-{index}"))
                 .Append(ApiTestData.LogLine(Guid.NewGuid(), "FailBatch", "fail the second batch"))
                 .ToArray();
             Byte[] bytes = Encoding.UTF8.GetBytes(String.Join('\n', lines) + "\n");

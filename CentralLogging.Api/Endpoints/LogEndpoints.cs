@@ -45,9 +45,10 @@ public static class LogEndpoints
                 statusCode: StatusCodes.Status413PayloadTooLarge);
 
         Int32 accepted = 0;
+        Int32 retainedLines = 0;
         Int32 duplicates = 0;
         DateTimeOffset uploadTimestamp = DateTimeOffset.UtcNow;
-        List<LogEventInput> batch = new(MaximumBatchSize);
+        List<UploadedLogEvent> batch = new(MaximumBatchSize);
 
         await using Stream stream = file.OpenReadStream();
         String? line;
@@ -61,13 +62,13 @@ public static class LogEndpoints
                 if (String.IsNullOrWhiteSpace(line))
                     continue;
 
-                LogEventInput input = ParseUploadLine(line, lineNumber, uploadTimestamp);
-                batch.Add(input);
+                UploadedLogEvent uploadedEvent = ParseUploadLine(line, lineNumber, uploadTimestamp);
+                batch.Add(uploadedEvent);
                 if (batch.Count == MaximumBatchSize)
                 {
-                    IngestionCounts counts = await IngestBatchAsync(batch, database, cancellationToken);
+                    IngestionCounts counts = await IngestBatchAsync(batch.Select(item => item.Input).ToArray(), database, cancellationToken);
                     database.ChangeTracker.Clear();
-                    accepted += counts.Accepted;
+                    CountUploadResults(batch, counts, ref accepted, ref retainedLines);
                     duplicates += counts.Duplicates;
                     batch.Clear();
                 }
@@ -80,13 +81,31 @@ public static class LogEndpoints
 
         if (batch.Count > 0)
         {
-            IngestionCounts counts = await IngestBatchAsync(batch, database, cancellationToken);
+            IngestionCounts counts = await IngestBatchAsync(batch.Select(item => item.Input).ToArray(), database, cancellationToken);
             database.ChangeTracker.Clear();
-            accepted += counts.Accepted;
+            CountUploadResults(batch, counts, ref accepted, ref retainedLines);
             duplicates += counts.Duplicates;
         }
 
-        return Results.Ok(new { accepted, duplicates, invalidLines = 0 });
+        return Results.Ok(new { accepted, retainedLines, duplicates });
+    }
+
+    private static void CountUploadResults(IEnumerable<UploadedLogEvent> batch,
+                                            IngestionCounts counts,
+                                            ref Int32 accepted,
+                                            ref Int32 retainedLines)
+    {
+        HashSet<Guid> insertedIds = counts.InsertedIds;
+        foreach (UploadedLogEvent item in batch)
+        {
+            if (!insertedIds.Remove(item.Input.EventId))
+                continue;
+
+            if (item.IsRetainedLine)
+                retainedLines++;
+            else
+                accepted++;
+        }
     }
 
     private sealed class BoundedLineReader(Stream stream, Int32 maximumLineBytes)
@@ -134,45 +153,56 @@ public static class LogEndpoints
     private sealed class UploadLimitExceededException(Int32 maximumLineBytes)
         : Exception($"An uploaded line exceeds the {maximumLineBytes} byte limit.");
 
-    private static LogEventInput ParseUploadLine(String line, Int32 lineNumber, DateTimeOffset uploadTimestamp)
+    private static UploadedLogEvent ParseUploadLine(String line, Int32 lineNumber, DateTimeOffset uploadTimestamp)
     {
         try
         {
             using JsonDocument document = JsonDocument.Parse(line);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 ? ParseObjectUploadLine(document.RootElement, line, lineNumber, uploadTimestamp)
-                : CreateRawLineEvent(line, lineNumber, uploadTimestamp);
+                : new UploadedLogEvent(CreateRawLineEvent(line, lineNumber, uploadTimestamp), true);
         }
         catch (JsonException)
         {
-            return CreateRawLineEvent(line, lineNumber, uploadTimestamp);
+            return new UploadedLogEvent(CreateRawLineEvent(line, lineNumber, uploadTimestamp), true);
         }
     }
 
-    private static LogEventInput ParseObjectUploadLine(JsonElement root,
-                                                        String line,
-                                                        Int32 lineNumber,
-                                                        DateTimeOffset uploadTimestamp)
+    private static UploadedLogEvent ParseObjectUploadLine(JsonElement root,
+                                                           String line,
+                                                           Int32 lineNumber,
+                                                           DateTimeOffset uploadTimestamp)
     {
         UploadIdentity identity = ReadUploadIdentity(root);
-        return new LogEventInput
+        JsonElement severity = FindUploadSeverity(root);
+        JsonElement service = FindUploadService(root);
+        JsonElement message = FindUploadMessage(root);
+        Boolean isIncomplete = identity.EventId is null ||
+                               identity.TimestampUtc is null ||
+                               String.IsNullOrWhiteSpace(GetNonEmptyScalarText(severity)) ||
+                               String.IsNullOrWhiteSpace(GetNonEmptyScalarText(service)) ||
+                               String.IsNullOrWhiteSpace(GetScalarText(message));
+        LogEventInput input = new()
         {
             EventId = identity.EventId ?? CreateStableEventId(line, lineNumber),
             TimestampUtc = identity.TimestampUtc ?? uploadTimestamp,
-            Severity = LimitLength(GetNonEmptyScalarText(FindUploadSeverity(root)) ?? UnknownValue, 16),
-            ServiceName = LimitLength(GetNonEmptyScalarText(FindUploadService(root)) ?? UnknownValue, 200),
+            Severity = LimitLength(GetNonEmptyScalarText(severity) ?? UnknownValue, 16),
+            ServiceName = LimitLength(GetNonEmptyScalarText(service) ?? UnknownValue, 200),
             CorrelationId = GetGuid(FindProperty(root, "correlationId")),
             TenantId = GetGuid(FindProperty(root, "tenantId")),
             MerchantId = GetGuid(FindProperty(root, "merchantId")),
             TraceId = LimitLength(GetScalarText(FindProperty(root, "traceId")), 32),
             SpanId = LimitLength(GetScalarText(FindProperty(root, "spanId")), 16),
             RequestId = LimitLength(GetScalarText(FindProperty(root, "requestId")), 200),
-            Message = GetScalarText(FindUploadMessage(root)) ?? line,
+            Message = GetScalarText(message) ?? line,
             MessageTemplate = GetScalarText(FindProperty(root, "messageTemplate")),
             Exception = GetScalarText(FindProperty(root, "exception")),
             AdditionalProperties = ReadUploadProperties(root, line, identity.EventId.HasValue)
         };
+        return new UploadedLogEvent(input, isIncomplete);
     }
+
+    private readonly record struct UploadedLogEvent(LogEventInput Input, Boolean IsRetainedLine);
 
     private static UploadIdentity ReadUploadIdentity(JsonElement root)
     {
@@ -371,7 +401,7 @@ public static class LogEndpoints
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return new IngestionCounts(toInsert.Count, events.Count - toInsert.Count);
+        return new IngestionCounts(toInsert.Count, events.Count - toInsert.Count, acceptedIds);
     }
 
     private static void NormalizeBodyProperties(LogEventInput input)
@@ -456,7 +486,7 @@ public static class LogEndpoints
         }
     }
 
-    private readonly record struct IngestionCounts(Int32 Accepted, Int32 Duplicates);
+    private readonly record struct IngestionCounts(Int32 Accepted, Int32 Duplicates, HashSet<Guid> InsertedIds);
 
     public static async Task<IResult> SearchAsync(CentralLogsDbContext database,
                                                    DateTimeOffset? fromUtc,

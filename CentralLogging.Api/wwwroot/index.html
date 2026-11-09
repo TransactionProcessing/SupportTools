@@ -36,7 +36,7 @@
     <section class="panel upload-panel" aria-labelledby="upload-heading">
       <div class="panel-heading"><div><span class="step-number">02</span><h2 id="upload-heading">Upload a log file</h2></div><span class="panel-caption">Import an existing newline-delimited JSON file</span></div>
       <div class="upload-controls">
-        <label class="form-field upload-file-field" for="log-file"><span>Log file (.json or .jsonl)</span><input id="log-file" type="file" accept=".json,.jsonl,application/json" aria-describedby="upload-help"><small id="upload-help">One structured log event per line. Invalid lines are skipped.</small></label>
+        <label class="form-field upload-file-field" for="log-file"><span>Log file (.json or .jsonl)</span><input id="log-file" type="file" accept=".json,.jsonl,application/json" aria-describedby="upload-help"><small id="upload-help">One log event per line. Malformed or incomplete lines are retained as Unknown events with the original line.</small></label>
         <button id="upload" class="button button-primary" type="button" disabled><span aria-hidden="true">↑</span> Upload to database</button>
       </div>
       <p id="upload-message" class="upload-message" role="status" aria-live="polite"></p>
