@@ -19,10 +19,11 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        String? apiKey = this.Settings.ApiKey;
         if (this.Settings.SourceDirectories.Length == 0 || this.Settings.FilePatterns.Length == 0 ||
             !Uri.TryCreate(this.Settings.Endpoint, UriKind.Absolute, out Uri? endpoint) ||
             (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps)
-            || String.IsNullOrWhiteSpace(this.Settings.ApiKey))
+            || String.IsNullOrWhiteSpace(apiKey))
         {
             throw new InvalidOperationException("Configure LogForwarder:SourceDirectories, Endpoint, and ApiKey.");
         }
@@ -30,7 +31,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         Int32 batchSize = Math.Clamp(this.Settings.BatchSize, 1, 500);
         TimeSpan pollInterval = TimeSpan.FromSeconds(Math.Clamp(this.Settings.PollIntervalSeconds, 1, 300));
         HttpClient client = httpClientFactory.CreateClient("CentralLogs");
-        client.DefaultRequestHeaders.Add("X-Log-Api-Key", this.Settings.ApiKey);
+        client.DefaultRequestHeaders.Add("X-Log-Api-Key", apiKey);
 
         while (!stoppingToken.IsCancellationRequested)
         {

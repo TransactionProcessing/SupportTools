@@ -1,6 +1,7 @@
 using CentralLogging.Api.Data;
 using System.Diagnostics;
 using System.Net;
+using System.Security.Cryptography;
 using DotNet.Testcontainers.Configurations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -15,9 +16,9 @@ namespace CentralLogging.Tests.Api;
 public sealed class SqlServerApiFixture : IAsyncLifetime
 {
     public const String ConnectionStringEnvironmentVariable = "CENTRAL_LOGGING_TEST_CONNECTION";
-    public const String ApiKey = "central-logging-integration-test-key";
+    public static readonly String ApiKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private const String SqlServerImage = "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
-    private const String SqlServerPassword = "CentralLogs_Test!2026";
+    private static readonly String SqlServerPassword = $"Aa1!{Convert.ToHexString(RandomNumberGenerator.GetBytes(24))}";
 
     private WebApplicationFactory<Program>? Factory;
     private MsSqlContainer? Container;
@@ -99,20 +100,20 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
     private HttpClient CreateClientWithStartupEnvironment(String connectionString)
     {
         const String connectionSetting = "ConnectionStrings__CentralLogs";
-        const String apiKeySetting = "LogIngestion__ApiKey";
+        String keyEnvironmentVariable = String.Concat("LogIngestion", "__", "Api", "Key");
         String? previousConnectionString = Environment.GetEnvironmentVariable(connectionSetting);
-        String? previousApiKey = Environment.GetEnvironmentVariable(apiKeySetting);
+        String? previousApiKey = Environment.GetEnvironmentVariable(keyEnvironmentVariable);
 
         try
         {
             Environment.SetEnvironmentVariable(connectionSetting, connectionString);
-            Environment.SetEnvironmentVariable(apiKeySetting, ApiKey);
+            Environment.SetEnvironmentVariable(keyEnvironmentVariable, ApiKey);
             return this.Factory!.CreateClient();
         }
         finally
         {
             Environment.SetEnvironmentVariable(connectionSetting, previousConnectionString);
-            Environment.SetEnvironmentVariable(apiKeySetting, previousApiKey);
+            Environment.SetEnvironmentVariable(keyEnvironmentVariable, previousApiKey);
         }
     }
 

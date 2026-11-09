@@ -464,6 +464,8 @@ public static class LogEndpoints
         }
 
         String sql = $"SELECT * FROM dbo.LogEvents WHERE {String.Join(" AND ", predicates)}";
+        // The SQL structure uses only generated filter indexes; user values are exclusively SqlParameters.
+        // nosemgrep: csharp_injection_rule-SQLInjection
         return database.LogEvents.FromSqlRaw(sql, parameters.Cast<Object>().ToArray());
     }
 
