@@ -35,10 +35,14 @@ public static class LogEndpoints
 
     public static async Task<IResult> UploadAsync(IFormFile? file,
                                                    CentralLogsDbContext database,
+                                                   Microsoft.Extensions.Options.IOptions<LogIngestionOptions> options,
                                                    CancellationToken cancellationToken)
     {
         if (file is null)
             return Results.Problem("Choose a log file to upload.", statusCode: StatusCodes.Status400BadRequest);
+        if (file.Length > options.Value.MaximumUploadBytes)
+            return Results.Problem($"The uploaded file exceeds the {options.Value.MaximumUploadBytes} byte limit.",
+                statusCode: StatusCodes.Status413PayloadTooLarge);
 
         Int32 accepted = 0;
         Int32 duplicates = 0;
@@ -46,25 +50,32 @@ public static class LogEndpoints
         List<LogEventInput> batch = new(MaximumBatchSize);
 
         await using Stream stream = file.OpenReadStream();
-        using StreamReader reader = new(stream);
         String? line;
         Int32 lineNumber = 0;
-        while ((line = await reader.ReadLineAsync(cancellationToken)) is not null)
+        BoundedLineReader lineReader = new(stream, options.Value.MaximumLineBytes);
+        try
         {
-            lineNumber++;
-            if (String.IsNullOrWhiteSpace(line))
-                continue;
-
-            LogEventInput input = ParseUploadLine(line, lineNumber, uploadTimestamp);
-            batch.Add(input);
-            if (batch.Count == MaximumBatchSize)
+            while ((line = await lineReader.ReadLineAsync(cancellationToken)) is not null)
             {
-                IngestionCounts counts = await IngestBatchAsync(batch, database, cancellationToken);
-                database.ChangeTracker.Clear();
-                accepted += counts.Accepted;
-                duplicates += counts.Duplicates;
-                batch.Clear();
+                lineNumber++;
+                if (String.IsNullOrWhiteSpace(line))
+                    continue;
+
+                LogEventInput input = ParseUploadLine(line, lineNumber, uploadTimestamp);
+                batch.Add(input);
+                if (batch.Count == MaximumBatchSize)
+                {
+                    IngestionCounts counts = await IngestBatchAsync(batch, database, cancellationToken);
+                    database.ChangeTracker.Clear();
+                    accepted += counts.Accepted;
+                    duplicates += counts.Duplicates;
+                    batch.Clear();
+                }
             }
+        }
+        catch (UploadLimitExceededException exception)
+        {
+            return Results.Problem(exception.Message, statusCode: StatusCodes.Status413PayloadTooLarge);
         }
 
         if (batch.Count > 0)
@@ -77,6 +88,46 @@ public static class LogEndpoints
 
         return Results.Ok(new { accepted, duplicates, invalidLines = 0 });
     }
+
+    private sealed class BoundedLineReader(Stream stream, Int32 maximumLineBytes)
+    {
+        private readonly Byte[] Buffer = new Byte[8192];
+        private Int32 Offset;
+        private Int32 Count;
+
+        public async Task<String?> ReadLineAsync(CancellationToken cancellationToken)
+        {
+            using MemoryStream line = new(Math.Min(maximumLineBytes, 8192));
+            while (true)
+            {
+                if (this.Offset == this.Count)
+                {
+                    this.Count = await stream.ReadAsync(this.Buffer, cancellationToken);
+                    this.Offset = 0;
+                    if (this.Count == 0)
+                    {
+                        if (line.Length == 0)
+                            return null;
+                        break;
+                    }
+                }
+
+                Byte value = this.Buffer[this.Offset++];
+                if (value == (Byte)'\n')
+                    break;
+                if (line.Length == maximumLineBytes)
+                    throw new UploadLimitExceededException(maximumLineBytes);
+                line.WriteByte(value);
+            }
+
+            Byte[] bytes = line.ToArray();
+            Int32 length = bytes.Length > 0 && bytes[^1] == (Byte)'\r' ? bytes.Length - 1 : bytes.Length;
+            return Encoding.UTF8.GetString(bytes, 0, length);
+        }
+    }
+
+    private sealed class UploadLimitExceededException(Int32 maximumLineBytes)
+        : Exception($"An uploaded line exceeds the {maximumLineBytes} byte limit.");
 
     private static LogEventInput ParseUploadLine(String line, Int32 lineNumber, DateTimeOffset uploadTimestamp)
     {

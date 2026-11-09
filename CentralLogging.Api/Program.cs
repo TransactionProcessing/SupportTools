@@ -4,6 +4,8 @@ using CentralLogging.Api.Data;
 using CentralLogging.Api.Endpoints;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +19,17 @@ if (String.IsNullOrWhiteSpace(configuredApiKey))
 String apiKey = configuredApiKey;
 
 builder.Services.AddDbContext<CentralLogsDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddOptions<LogIngestionOptions>()
+    .Bind(builder.Configuration.GetSection(LogIngestionOptions.SectionName))
+    .Validate(options => options.MaximumRequestBytes > 0 && options.MaximumUploadBytes > 0 && options.MaximumLineBytes > 0,
+        "Log ingestion size limits must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = (builder.Configuration.GetValue<Int64?>("LogIngestion:MaximumUploadBytes") ?? 100 * 1024 * 1024) + 64 * 1024;
+});
 WebApplication app = builder.Build();
+LogIngestionOptions ingestionOptions = app.Services.GetRequiredService<IOptions<LogIngestionOptions>>().Value;
 
 await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {
@@ -34,6 +46,18 @@ app.Use(async (context, next) =>
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return;
+    }
+
+    if (HttpMethods.IsPost(context.Request.Method) && context.Request.Path.StartsWithSegments("/api/logs"))
+    {
+        IHttpMaxRequestBodySizeFeature? sizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeFeature is { IsReadOnly: false })
+        {
+            Int64 maximumBytes = context.Request.Path.StartsWithSegments("/api/logs/upload")
+                ? ingestionOptions.MaximumUploadBytes + 64 * 1024
+                : ingestionOptions.MaximumRequestBytes;
+            sizeFeature.MaxRequestBodySize = maximumBytes;
+        }
     }
 
     await next(context);
