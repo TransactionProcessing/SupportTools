@@ -232,6 +232,44 @@ public sealed class LogForwarderWorkerTests
     }
 
     [Fact]
+    public async Task Worker_tracks_distinct_files_with_identical_first_kilobytes_separately()
+    {
+        using TemporaryDirectory directory = new();
+        String firstPath = Path.Combine(directory.Path, "first.jsonl");
+        String secondPath = Path.Combine(directory.Path, "second.jsonl");
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        Guid eventId = Guid.NewGuid();
+        String commonMessage = new('x', 1400);
+        String firstLine = EventLineWithTrailingProperty(eventId, commonMessage, "first");
+        String secondLine = EventLineWithTrailingProperty(eventId, commonMessage, "second");
+        firstLine[..1024].ShouldBe(secondLine[..1024]);
+        await File.WriteAllTextAsync(firstPath, firstLine + "\n", new UTF8Encoding(false));
+        await File.WriteAllTextAsync(secondPath, secondLine + "\n", new UTF8Encoding(false));
+        File.SetCreationTimeUtc(firstPath, DateTime.UnixEpoch);
+        File.SetCreationTimeUtc(secondPath, DateTime.UnixEpoch);
+        File.SetLastWriteTimeUtc(firstPath, DateTime.UnixEpoch);
+        File.SetLastWriteTimeUtc(secondPath, DateTime.UnixEpoch);
+
+        using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using HttpClient client = new(handler);
+        LogForwarderWorker worker = CreateWorker(directory.Path, checkpointPath, client);
+        using CancellationTokenSource cancellation = new();
+
+        await worker.StartAsync(cancellation.Token);
+        try
+        {
+            String[] received = [(await handler.ReadRequestAsync()).Body, (await handler.ReadRequestAsync()).Body];
+            received.SelectMany(ReadEventIds).Count().ShouldBe(2);
+            await WaitForCheckpointAsync(checkpointPath, firstPath, Encoding.UTF8.GetByteCount(firstLine + "\n"));
+            await WaitForCheckpointAsync(checkpointPath, secondPath, Encoding.UTF8.GetByteCount(secondLine + "\n"));
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task Worker_restarts_from_the_beginning_when_a_checkpointed_file_is_truncated()
     {
         using TemporaryDirectory directory = new();
@@ -324,6 +362,20 @@ public sealed class LogForwarderWorkerTests
         if (requestId is not null)
             value["requestId"] = requestId;
         return JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
+
+    private static String EventLineWithTrailingProperty(Guid eventId, String message, String value)
+    {
+        Dictionary<String, Object> item = new()
+        {
+            ["eventId"] = eventId,
+            ["timestampUtc"] = DateTimeOffset.UnixEpoch,
+            ["severity"] = "Information",
+            ["serviceName"] = PaymentsServiceName,
+            ["message"] = message,
+            ["trailing"] = value
+        };
+        return JsonSerializer.Serialize(item, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 
     private static Guid[] ReadEventIds(String body)

@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using Microsoft.Extensions.Options;
 
 namespace CentralLogging.Forwarder;
@@ -297,19 +299,81 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                           FileStream file,
                                                           CancellationToken cancellationToken)
     {
-        Int64 startingPosition = file.Position;
-        file.Seek(0, SeekOrigin.Begin);
-        Byte[] prefix = new Byte[1024];
-        Int32 bytesRead = await file.ReadAsync(prefix, cancellationToken);
-        file.Seek(startingPosition, SeekOrigin.Begin);
+        if (OperatingSystem.IsWindows() &&
+            GetFileInformationByHandle(file.SafeFileHandle, out ByHandleFileInformation information) &&
+            (information.FileIndexHigh != 0 || information.FileIndexLow != 0))
+            return $"windows:{information.VolumeSerialNumber:X8}:{information.FileIndexHigh:X8}{information.FileIndexLow:X8}";
 
-        // Unix creation-time values can change when a file is renamed, so only include them on Windows.
-        Int32 creationTimeLength = OperatingSystem.IsWindows() ? sizeof(Int64) : 0;
-        Byte[] fingerprintInput = new Byte[creationTimeLength + bytesRead];
-        if (creationTimeLength > 0)
-            BitConverter.GetBytes(File.GetCreationTimeUtc(filePath).Ticks).CopyTo(fingerprintInput, 0);
-        prefix.AsSpan(0, bytesRead).CopyTo(fingerprintInput.AsSpan(creationTimeLength));
-        return Convert.ToHexString(SHA256.HashData(fingerprintInput));
+        if (OperatingSystem.IsLinux() && IntPtr.Size == sizeof(Int64) &&
+            FStat(file.SafeFileHandle.DangerousGetHandle().ToInt32(), out LinuxStat stat) == 0 && stat.Inode != 0)
+            return $"linux:{stat.Device:X16}:{stat.Inode:X16}";
+
+        // Without a platform file ID, prefer replay after a rename to associating a replacement with an old offset.
+        Int64 startingPosition = file.Position;
+        try
+        {
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            String metadata = $"{Path.GetFullPath(filePath)}\n{File.GetCreationTimeUtc(filePath).Ticks}\n{File.GetLastWriteTimeUtc(filePath).Ticks}\n{file.Length}\n";
+            hash.AppendData(Encoding.UTF8.GetBytes(metadata));
+            file.Seek(0, SeekOrigin.Begin);
+            Byte[] buffer = new Byte[81920];
+            Int32 bytesRead;
+            while ((bytesRead = await file.ReadAsync(buffer, cancellationToken)) > 0)
+                hash.AppendData(buffer.AsSpan(0, bytesRead));
+            return $"fallback:{Convert.ToHexString(hash.GetHashAndReset())}";
+        }
+        finally
+        {
+            file.Seek(startingPosition, SeekOrigin.Begin);
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern Boolean GetFileInformationByHandle(SafeFileHandle fileHandle,
+                                                              out ByHandleFileInformation fileInformation);
+
+    [DllImport("libc", EntryPoint = "fstat", SetLastError = true)]
+    private static extern Int32 FStat(Int32 fileDescriptor, out LinuxStat fileInformation);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LinuxStat
+    {
+        public UInt64 Device;
+        public UInt64 Inode;
+        public UInt64 LinkCount;
+        public UInt32 Mode;
+        public UInt32 UserId;
+        public UInt32 GroupId;
+        public Int32 Padding;
+        public UInt64 SpecialDevice;
+        public Int64 Size;
+        public Int64 BlockSize;
+        public Int64 Blocks;
+        public Int64 AccessSeconds;
+        public Int64 AccessNanoseconds;
+        public Int64 ModifiedSeconds;
+        public Int64 ModifiedNanoseconds;
+        public Int64 ChangedSeconds;
+        public Int64 ChangedNanoseconds;
+        public Int64 Reserved0;
+        public Int64 Reserved1;
+        public Int64 Reserved2;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public UInt32 FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public UInt32 VolumeSerialNumber;
+        public UInt32 FileSizeHigh;
+        public UInt32 FileSizeLow;
+        public UInt32 NumberOfLinks;
+        public UInt32 FileIndexHigh;
+        public UInt32 FileIndexLow;
     }
 
     private static Boolean HasFieldsExceedingApiLimits(LogEventInput item) =>
