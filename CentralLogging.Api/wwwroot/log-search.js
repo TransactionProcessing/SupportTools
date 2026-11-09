@@ -237,7 +237,7 @@
     setConnected(true);
     try {
       const summary = await api.upload(file);
-      el('upload-message').textContent = `Upload complete: ${summary.accepted} imported, ${summary.duplicates} duplicate, ${summary.invalidLines} invalid line${summary.invalidLines === 1 ? '' : 's'}.`;
+      el('upload-message').textContent = `Upload complete: ${summary.accepted} valid event${summary.accepted === 1 ? '' : 's'} imported, ${summary.retainedLines} malformed or incomplete line${summary.retainedLines === 1 ? '' : 's'} retained as Unknown, ${summary.duplicates} duplicate${summary.duplicates === 1 ? '' : 's'}.`;
       el('result-count').textContent = 'Search again to view database results';
       results.replaceChildren(makeState('Upload complete', 'Run a search to view matching events in the database. Results can include events from previous imports.'));
     } catch (error) {

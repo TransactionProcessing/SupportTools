@@ -23,9 +23,9 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
         using HttpResponseMessage firstResponse = await SendUploadAsync(contents);
         firstResponse.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
         using JsonDocument firstBody = await ApiTestData.ReadJsonAsync(firstResponse);
-        firstBody.RootElement.GetProperty("accepted").GetInt32().ShouldBe(2);
+        firstBody.RootElement.GetProperty("accepted").GetInt32().ShouldBe(0);
+        firstBody.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(2);
         firstBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(0);
-        firstBody.RootElement.GetProperty("invalidLines").GetInt32().ShouldBe(0);
 
         var stored = await fixture.ReadDatabaseAsync(async database => await database.LogEvents
             .OrderBy(log => log.ServiceName)
@@ -50,8 +50,33 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
         using HttpResponseMessage replayResponse = await SendUploadAsync(contents);
         using JsonDocument replayBody = await ApiTestData.ReadJsonAsync(replayResponse);
         replayBody.RootElement.GetProperty("accepted").GetInt32().ShouldBe(0);
+        replayBody.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(0);
         replayBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(2);
         (await fixture.ReadDatabaseAsync(database => database.LogEvents.CountAsync())).ShouldBe(2);
+    }
+
+    [SqlServerFact]
+    public async Task Upload_reports_valid_retained_and_duplicate_counts_across_batches()
+    {
+        await fixture.ResetDatabaseAsync();
+        Guid duplicateId = Guid.NewGuid();
+        Guid repeatedId = Guid.NewGuid();
+        String[] lines = Enumerable.Range(0, 499)
+            .Select(index => ApiTestData.LogLine(Guid.NewGuid(), "Payments", $"event-{index}"))
+            .Append(ApiTestData.LogLine(duplicateId, "Payments", "first duplicate"))
+            .Append(ApiTestData.LogLine(duplicateId, "Payments", "second duplicate"))
+            .Append("{malformed json")
+            .Append("{\"eventId\":\"" + repeatedId + "\",\"timestampUtc\":\"2026-11-09T12:00:00Z\",\"serviceName\":\"Checkout\",\"severity\":\"Info\",\"message\":\"complete\"}")
+            .Append("{\"loggerName\":\"Checkout\",\"message\":\"incomplete\"}")
+            .ToArray();
+
+        using HttpResponseMessage response = await SendUploadAsync(String.Join('\n', lines) + "\n");
+        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        using JsonDocument body = await ApiTestData.ReadJsonAsync(response);
+        body.RootElement.GetProperty("accepted").GetInt32().ShouldBe(501);
+        body.RootElement.GetProperty("retainedLines").GetInt32().ShouldBe(2);
+        body.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(1);
+        (await fixture.ReadDatabaseAsync(database => database.LogEvents.CountAsync())).ShouldBe(503);
     }
 
     [SqlServerFact]
