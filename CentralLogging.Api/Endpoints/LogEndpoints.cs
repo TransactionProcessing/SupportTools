@@ -94,6 +94,7 @@ public static class LogEndpoints
         private readonly Byte[] Buffer = new Byte[8192];
         private Int32 Offset;
         private Int32 Count;
+        private Boolean IsFirstLine = true;
 
         public async Task<String?> ReadLineAsync(CancellationToken cancellationToken)
         {
@@ -122,7 +123,11 @@ public static class LogEndpoints
 
             Byte[] bytes = line.ToArray();
             Int32 length = bytes.Length > 0 && bytes[^1] == (Byte)'\r' ? bytes.Length - 1 : bytes.Length;
-            return Encoding.UTF8.GetString(bytes, 0, length);
+            String result = Encoding.UTF8.GetString(bytes, 0, length);
+            if (this.IsFirstLine && result.StartsWith('\uFEFF'))
+                result = result[1..];
+            this.IsFirstLine = false;
+            return result;
         }
     }
 
