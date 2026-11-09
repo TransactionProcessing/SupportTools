@@ -185,15 +185,18 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                           FileStream file,
                                                           CancellationToken cancellationToken)
     {
-        DateTime creationTimeUtc = File.GetCreationTimeUtc(filePath);
         Int64 startingPosition = file.Position;
         file.Seek(0, SeekOrigin.Begin);
         Byte[] prefix = new Byte[1024];
         Int32 bytesRead = await file.ReadAsync(prefix, cancellationToken);
         file.Seek(startingPosition, SeekOrigin.Begin);
-        Byte[] fingerprintInput = new Byte[sizeof(Int64) + bytesRead];
-        BitConverter.GetBytes(creationTimeUtc.Ticks).CopyTo(fingerprintInput, 0);
-        prefix.AsSpan(0, bytesRead).CopyTo(fingerprintInput.AsSpan(sizeof(Int64)));
+
+        // Unix creation-time values can change when a file is renamed, so only include them on Windows.
+        Int32 creationTimeLength = OperatingSystem.IsWindows() ? sizeof(Int64) : 0;
+        Byte[] fingerprintInput = new Byte[creationTimeLength + bytesRead];
+        if (creationTimeLength > 0)
+            BitConverter.GetBytes(File.GetCreationTimeUtc(filePath).Ticks).CopyTo(fingerprintInput, 0);
+        prefix.AsSpan(0, bytesRead).CopyTo(fingerprintInput.AsSpan(creationTimeLength));
         return Convert.ToHexString(SHA256.HashData(fingerprintInput));
     }
 
