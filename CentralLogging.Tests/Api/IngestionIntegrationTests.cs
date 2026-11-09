@@ -81,7 +81,8 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
             HttpMethod.Post, "/api/logs", JsonContent.Create(inputs));
         using HttpResponseMessage response = await fixture.Client.SendAsync(request);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        String responseBody = await response.Content.ReadAsStringAsync();
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted, responseBody);
         Int32 catalogRows = await fixture.ReadDatabaseAsync(database => database.ServiceStructuredFields
             .Where(field => field.FieldName == "region")
             .CountAsync());
