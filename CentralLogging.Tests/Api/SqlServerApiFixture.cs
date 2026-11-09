@@ -1,0 +1,165 @@
+using CentralLogging.Api.Data;
+using System.Diagnostics;
+using System.Net;
+using DotNet.Testcontainers.Configurations;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Testcontainers.MsSql;
+
+namespace CentralLogging.Tests.Api;
+
+public sealed class SqlServerApiFixture : IAsyncLifetime
+{
+    public const String ConnectionStringEnvironmentVariable = "CENTRAL_LOGGING_TEST_CONNECTION";
+    public const String ApiKey = "central-logging-integration-test-key";
+    private const String SqlServerImage = "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
+    private const String SqlServerPassword = "CentralLogs_Test!2026";
+
+    private WebApplicationFactory<Program>? Factory;
+    private MsSqlContainer? Container;
+
+    public HttpClient Client { get; private set; } = null!;
+
+    public async Task InitializeAsync()
+    {
+        String? connectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable);
+        if (String.IsNullOrWhiteSpace(connectionString))
+        {
+            await this.ConfigureWslDockerHostAsync();
+            this.Container = new MsSqlBuilder(SqlServerImage)
+                .WithPassword(SqlServerPassword)
+                .WithDatabase("CentralLogsIntegration")
+                .Build();
+            await this.Container.StartAsync();
+            connectionString = this.Container.GetConnectionString();
+        }
+
+        SqlConnectionStringBuilder connectionStringBuilder = new(connectionString)
+        {
+            Encrypt = false,
+            TrustServerCertificate = true
+        };
+
+        this.Factory = new CentralLoggingApiFactory(connectionStringBuilder.ConnectionString);
+        this.Client = this.CreateClientWithStartupEnvironment(connectionStringBuilder.ConnectionString);
+
+        IConfiguration configuration = this.Factory.Services.GetRequiredService<IConfiguration>();
+        if (configuration["LogIngestion:ApiKey"] != ApiKey)
+            throw new InvalidOperationException("The integration test API key was not applied to the test host configuration.");
+    }
+
+    private async Task ConfigureWslDockerHostAsync()
+    {
+        String? configuredHost = TestcontainersSettings.DockerHostOverride;
+        Boolean hasNonLoopbackOverride = !String.IsNullOrWhiteSpace(configuredHost) &&
+            !String.Equals(configuredHost, "localhost", StringComparison.OrdinalIgnoreCase) &&
+            !(IPAddress.TryParse(configuredHost, out IPAddress? configuredAddress) && IPAddress.IsLoopback(configuredAddress));
+        if (!OperatingSystem.IsWindows() || hasNonLoopbackOverride)
+            return;
+
+        try
+        {
+            using Process process = new()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "wsl.exe",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.StartInfo.ArgumentList.Add("-e");
+            process.StartInfo.ArgumentList.Add("hostname");
+            process.StartInfo.ArgumentList.Add("-I");
+
+            if (!process.Start()) return;
+            String output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            if (process.ExitCode != 0) return;
+
+            String? wslHost = output.Split((Char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                .Select(address => IPAddress.TryParse(address, out IPAddress? parsed) ? parsed : null)
+                .FirstOrDefault(address => address is { AddressFamily: System.Net.Sockets.AddressFamily.InterNetwork } && !IPAddress.IsLoopback(address))
+                ?.ToString();
+            if (!String.IsNullOrWhiteSpace(wslHost))
+                TestcontainersSettings.DockerHostOverride = wslHost;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or TimeoutException)
+        {
+            // Without WSL, Testcontainers' default host detection remains in effect.
+        }
+    }
+
+    private HttpClient CreateClientWithStartupEnvironment(String connectionString)
+    {
+        const String connectionSetting = "ConnectionStrings__CentralLogs";
+        const String apiKeySetting = "LogIngestion__ApiKey";
+        String? previousConnectionString = Environment.GetEnvironmentVariable(connectionSetting);
+        String? previousApiKey = Environment.GetEnvironmentVariable(apiKeySetting);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(connectionSetting, connectionString);
+            Environment.SetEnvironmentVariable(apiKeySetting, ApiKey);
+            return this.Factory!.CreateClient();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(connectionSetting, previousConnectionString);
+            Environment.SetEnvironmentVariable(apiKeySetting, previousApiKey);
+        }
+    }
+
+    public async Task ResetDatabaseAsync()
+    {
+        await using AsyncServiceScope scope = this.Factory!.Services.CreateAsyncScope();
+        CentralLogsDbContext database = scope.ServiceProvider.GetRequiredService<CentralLogsDbContext>();
+        await database.ServiceStructuredFields.ExecuteDeleteAsync();
+        await database.LogEvents.ExecuteDeleteAsync();
+    }
+
+    public async Task<T> ReadDatabaseAsync<T>(Func<CentralLogsDbContext, Task<T>> query)
+    {
+        await using AsyncServiceScope scope = this.Factory!.Services.CreateAsyncScope();
+        CentralLogsDbContext database = scope.ServiceProvider.GetRequiredService<CentralLogsDbContext>();
+        return await query(database);
+    }
+
+    public async Task DisposeAsync()
+    {
+        this.Client?.Dispose();
+        this.Factory?.Dispose();
+        if (this.Container is not null)
+            await this.Container.DisposeAsync();
+    }
+
+    private sealed class CentralLoggingApiFactory(String connectionString) : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<String, String?>
+                {
+                    ["ConnectionStrings:CentralLogs"] = connectionString,
+                    ["LogIngestion:ApiKey"] = ApiKey
+                }));
+        }
+    }
+}
+
+[CollectionDefinition(Name)]
+public sealed class CentralLoggingApiCollection : ICollectionFixture<SqlServerApiFixture>
+{
+    public const String Name = "CentralLoggingApi";
+}
+
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class SqlServerFactAttribute : FactAttribute
+{
+}
