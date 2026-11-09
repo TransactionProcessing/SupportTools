@@ -2,7 +2,7 @@ namespace CentralLogging.Api.Data;
 
 public sealed class LogRetentionOptions
 {
-    public const String SectionName = "LogRetention";
+    public static String SectionName { get; } = "LogRetention";
 
     public Boolean Enabled { get; set; }
     public Int32 RetentionDays { get; set; } = 90;
