@@ -371,7 +371,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
     private static extern Int32 FStat(Int32 fileDescriptor, out LinuxStat fileInformation);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct LinuxStat : IEquatable<LinuxStat>
+    private record struct LinuxStat
     {
         public UInt64 Device;
         public UInt64 Inode;
@@ -394,13 +394,10 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         public Int64 Reserved1;
         public Int64 Reserved2;
 
-        public Boolean Equals(LinuxStat other) => this.Device == other.Device && this.Inode == other.Inode;
-        public override Boolean Equals(Object? obj) => obj is LinuxStat other && this.Equals(other);
-        public override Int32 GetHashCode() => HashCode.Combine(this.Device, this.Inode);
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct ByHandleFileInformation : IEquatable<ByHandleFileInformation>
+    private record struct ByHandleFileInformation
     {
         public UInt32 FileAttributes;
         public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
@@ -413,12 +410,6 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         public UInt32 FileIndexHigh;
         public UInt32 FileIndexLow;
 
-        public Boolean Equals(ByHandleFileInformation other) =>
-            this.VolumeSerialNumber == other.VolumeSerialNumber &&
-            this.FileIndexHigh == other.FileIndexHigh &&
-            this.FileIndexLow == other.FileIndexLow;
-        public override Boolean Equals(Object? obj) => obj is ByHandleFileInformation other && this.Equals(other);
-        public override Int32 GetHashCode() => HashCode.Combine(this.VolumeSerialNumber, this.FileIndexHigh, this.FileIndexLow);
     }
 
     private static Boolean HasFieldsExceedingApiLimits(LogEventInput item) =>
