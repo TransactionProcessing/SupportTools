@@ -190,10 +190,10 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
             List<ParsedLogLine> lines = await ReadBatchAsync(file, offset, batchSize, cancellationToken);
             if (lines.Count == 0) return;
 
-            List<LogEventInput> events = ParseEvents(lines, filePath);
+            List<LogEventInput> events = ParseEvents(lines, filePath, fileIdentity, out Int32 retainedLineCount);
 
             Int64 batchEnd = lines[^1].NextOffset;
-            await ForwardBatchAsync(client, events, filePath, cancellationToken);
+            await ForwardBatchAsync(client, events, retainedLineCount, filePath, cancellationToken);
 
             offset = batchEnd;
             await checkpointStore.SaveOffsetAsync(fullFilePath,
@@ -218,9 +218,13 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         return 0;
     }
 
-    private List<LogEventInput> ParseEvents(IReadOnlyList<ParsedLogLine> lines, String filePath)
+    private List<LogEventInput> ParseEvents(IReadOnlyList<ParsedLogLine> lines,
+                                            String filePath,
+                                            String fileIdentity,
+                                            out Int32 retainedLineCount)
     {
         List<LogEventInput> events = new(lines.Count);
+        retainedLineCount = 0;
         foreach (ParsedLogLine line in lines)
         {
             try
@@ -231,7 +235,9 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                     String.IsNullOrWhiteSpace(item.Severity) || String.IsNullOrWhiteSpace(item.ServiceName) ||
                     String.IsNullOrWhiteSpace(item.Message) || HasFieldsExceedingApiLimits(item))
                 {
-                    logger.LogWarning("Skipping invalid structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
+                    events.Add(CreateRawLineEvent(line, fileIdentity, item));
+                    retainedLineCount++;
+                    logger.LogWarning("Retaining invalid structured log entry from {LogFile} at byte {Offset}.", filePath, line.NextOffset);
                     continue;
                 }
 
@@ -239,7 +245,9 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
             }
             catch (JsonException exception)
             {
-                logger.LogWarning(exception, "Skipping malformed structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
+                events.Add(CreateRawLineEvent(line, fileIdentity, null));
+                retainedLineCount++;
+                logger.LogWarning(exception, "Retaining malformed structured log entry from {LogFile} at byte {Offset}.", filePath, line.NextOffset);
             }
         }
 
@@ -248,6 +256,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
     private async Task ForwardBatchAsync(HttpClient client,
                                         IReadOnlyList<LogEventInput> events,
+                                        Int32 retainedLineCount,
                                         String filePath,
                                         CancellationToken cancellationToken)
     {
@@ -256,7 +265,32 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         using StringContent content = new(JsonSerializer.Serialize(events, JsonOptions), Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await client.PostAsync(this.Settings.Endpoint, content, cancellationToken);
         response.EnsureSuccessStatusCode();
-        logger.LogInformation("Forwarded {EventCount} log events from {LogFile}.", events.Count, filePath);
+        logger.LogInformation("Forwarded {EventCount} log events from {LogFile}; retained {RetainedLineCount} invalid lines.",
+                              events.Count, filePath, retainedLineCount);
+    }
+
+    private static LogEventInput CreateRawLineEvent(ParsedLogLine line, String fileIdentity, LogEventInput? source)
+    {
+        Dictionary<String, JsonElement> properties = source?.AdditionalProperties ?? new(StringComparer.OrdinalIgnoreCase);
+        properties["rawLog"] = JsonSerializer.SerializeToElement(line.Content);
+        if (source is null || source.EventId == Guid.Empty)
+            properties["sourceEventId"] = JsonSerializer.SerializeToElement(source?.EventId.ToString());
+
+        return new LogEventInput
+        {
+            EventId = CreateStableEventId(fileIdentity, line.NextOffset, line.Content),
+            TimestampUtc = source is null || source.TimestampUtc == default ? DateTimeOffset.UtcNow : source.TimestampUtc,
+            Severity = "Unknown",
+            ServiceName = "Unknown",
+            Message = line.Content,
+            AdditionalProperties = properties
+        };
+    }
+
+    private static Guid CreateStableEventId(String fileIdentity, Int64 nextOffset, String content)
+    {
+        Byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{fileIdentity}\n{nextOffset}\n{content}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     private static async Task<String> GetFileIdentityAsync(String filePath,
