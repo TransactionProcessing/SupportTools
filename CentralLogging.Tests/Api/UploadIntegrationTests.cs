@@ -55,6 +55,30 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
     }
 
     [SqlServerFact]
+    public async Task Upload_strips_a_UTF8_bom_before_parsing_and_preserves_event_identity()
+    {
+        await fixture.ResetDatabaseAsync();
+        Guid eventId = Guid.NewGuid();
+        String contents = $"\uFEFF{ApiTestData.LogLine(eventId, "Payments", "bom event")}\n";
+
+        using HttpResponseMessage response = await SendUploadAsync(contents);
+        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        using JsonDocument body = await ApiTestData.ReadJsonAsync(response);
+        body.RootElement.GetProperty("accepted").GetInt32().ShouldBe(1);
+
+        var stored = await fixture.ReadDatabaseAsync(database => database.LogEvents
+            .Select(log => new { log.EventId, log.ServiceName, log.Message })
+            .SingleAsync());
+        stored.EventId.ShouldBe(eventId);
+        stored.ServiceName.ShouldBe("Payments");
+        stored.Message.ShouldBe("bom event");
+
+        using HttpResponseMessage replayResponse = await SendUploadAsync(contents);
+        using JsonDocument replayBody = await ApiTestData.ReadJsonAsync(replayResponse);
+        replayBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(1);
+    }
+
+    [SqlServerFact]
     public async Task Upload_keeps_completed_batches_when_a_later_batch_fails()
     {
         await fixture.ResetDatabaseAsync();
@@ -84,7 +108,8 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
             {
                 await fixture.ReadDatabaseAsync(async database =>
                 {
-                    await LogEndpoints.UploadAsync(file, database, CancellationToken.None);
+                    await LogEndpoints.UploadAsync(file, database,
+                        Microsoft.Extensions.Options.Options.Create(new LogIngestionOptions()), CancellationToken.None);
                     return true;
                 });
             });
