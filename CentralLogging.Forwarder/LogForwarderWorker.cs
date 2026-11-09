@@ -180,11 +180,15 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                         CancellationToken cancellationToken)
     {
         String fullFilePath = Path.GetFullPath(filePath);
-        Int64 offset = await checkpointStore.GetOffsetAsync(fullFilePath,
-                                                             fileIdentity,
-                                                             this.Settings.CheckpointPath,
-                                                             cancellationToken);
-        if (file.Length < offset)
+        ForwarderCheckpointStore.FileCheckpoint checkpoint = await checkpointStore.GetCheckpointAsync(fullFilePath,
+                                                                                                       fileIdentity,
+                                                                                                       this.Settings.CheckpointPath,
+                                                                                                       cancellationToken);
+        Int64 offset = checkpoint.ByteOffset;
+        Boolean contentChanged = offset > 0 &&
+            (String.IsNullOrEmpty(checkpoint.ContentFingerprint) ||
+             checkpoint.ContentFingerprint != await GetContentFingerprintAsync(file, offset, cancellationToken));
+        if (file.Length < offset || contentChanged)
             offset = await ResetTruncatedFileAsync(fullFilePath, filePath, fileIdentity, cancellationToken);
 
         while (true)
@@ -195,6 +199,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
             List<LogEventInput> events = ParseEvents(lines, filePath, fileIdentity, out Int32 retainedLineCount);
 
             Int64 batchEnd = lines[^1].NextOffset;
+            String contentFingerprint = await GetContentFingerprintAsync(file, batchEnd, cancellationToken);
             await ForwardBatchAsync(client, events, retainedLineCount, filePath, cancellationToken);
 
             offset = batchEnd;
@@ -202,7 +207,8 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                   fileIdentity,
                                                   offset,
                                                   this.Settings.CheckpointPath,
-                                                  cancellationToken);
+                                                  cancellationToken,
+                                                  contentFingerprint);
         }
     }
 
@@ -211,7 +217,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                        String fileIdentity,
                                                        CancellationToken cancellationToken)
     {
-        logger.LogWarning("Log file {LogFile} was truncated; restarting from its beginning.", filePath);
+        logger.LogWarning("Log file {LogFile} was truncated or rewritten; restarting from its beginning.", filePath);
         await checkpointStore.SaveOffsetAsync(fullFilePath,
                                               fileIdentity,
                                               0,
@@ -299,28 +305,56 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                           FileStream file,
                                                           CancellationToken cancellationToken)
     {
+        Int64 startingPosition = file.Position;
+        String prefixFingerprint;
+        try
+        {
+            file.Seek(0, SeekOrigin.Begin);
+            Byte[] prefix = new Byte[1024];
+            Int32 bytesRead;
+            Int32 totalBytesRead = 0;
+            while (totalBytesRead < prefix.Length &&
+                   (bytesRead = await file.ReadAsync(prefix.AsMemory(totalBytesRead), cancellationToken)) > 0)
+                totalBytesRead += bytesRead;
+            prefixFingerprint = Convert.ToHexString(SHA256.HashData(prefix.AsSpan(0, totalBytesRead)));
+        }
+        finally
+        {
+            file.Seek(startingPosition, SeekOrigin.Begin);
+        }
+
         if (OperatingSystem.IsWindows() &&
             GetFileInformationByHandle(file.SafeFileHandle, out ByHandleFileInformation information) &&
             (information.FileIndexHigh != 0 || information.FileIndexLow != 0))
-            return $"windows:{information.VolumeSerialNumber:X8}:{information.FileIndexHigh:X8}{information.FileIndexLow:X8}";
+            return $"windows:{information.VolumeSerialNumber:X8}:{information.FileIndexHigh:X8}{information.FileIndexLow:X8}:{prefixFingerprint}";
 
         if (OperatingSystem.IsLinux() && IntPtr.Size == sizeof(Int64) &&
             FStat(file.SafeFileHandle.DangerousGetHandle().ToInt32(), out LinuxStat stat) == 0 && stat.Inode != 0)
-            return $"linux:{stat.Device:X16}:{stat.Inode:X16}";
+            return $"linux:{stat.Device:X16}:{stat.Inode:X16}:{prefixFingerprint}";
 
-        // Without a platform file ID, prefer replay after a rename to associating a replacement with an old offset.
+        // Without a platform file ID, avoid mutable length and write-time values so append-only logs stay incremental.
+        return $"fallback:{Path.GetFullPath(filePath)}:{File.GetCreationTimeUtc(filePath).Ticks}:{prefixFingerprint}";
+    }
+
+    private static async Task<String> GetContentFingerprintAsync(FileStream file,
+                                                                 Int64 offset,
+                                                                 CancellationToken cancellationToken)
+    {
         Int64 startingPosition = file.Position;
         try
         {
-            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            String metadata = $"{Path.GetFullPath(filePath)}\n{File.GetCreationTimeUtc(filePath).Ticks}\n{File.GetLastWriteTimeUtc(filePath).Ticks}\n{file.Length}\n";
-            hash.AppendData(Encoding.UTF8.GetBytes(metadata));
-            file.Seek(0, SeekOrigin.Begin);
-            Byte[] buffer = new Byte[81920];
-            Int32 bytesRead;
-            while ((bytesRead = await file.ReadAsync(buffer, cancellationToken)) > 0)
-                hash.AppendData(buffer.AsSpan(0, bytesRead));
-            return $"fallback:{Convert.ToHexString(hash.GetHashAndReset())}";
+            Int64 fingerprintStart = Math.Max(0, offset - 1024);
+            file.Seek(fingerprintStart, SeekOrigin.Begin);
+            Byte[] buffer = new Byte[checked((Int32)(offset - fingerprintStart))];
+            Int32 totalBytesRead = 0;
+            while (totalBytesRead < buffer.Length)
+            {
+                Int32 bytesRead = await file.ReadAsync(buffer.AsMemory(totalBytesRead), cancellationToken);
+                if (bytesRead == 0) break;
+                totalBytesRead += bytesRead;
+            }
+
+            return Convert.ToHexString(SHA256.HashData(buffer.AsSpan(0, totalBytesRead)));
         }
         finally
         {
@@ -337,7 +371,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
     private static extern Int32 FStat(Int32 fileDescriptor, out LinuxStat fileInformation);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct LinuxStat
+    private struct LinuxStat : IEquatable<LinuxStat>
     {
         public UInt64 Device;
         public UInt64 Inode;
@@ -359,10 +393,14 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         public Int64 Reserved0;
         public Int64 Reserved1;
         public Int64 Reserved2;
+
+        public Boolean Equals(LinuxStat other) => this.Device == other.Device && this.Inode == other.Inode;
+        public override Boolean Equals(Object? obj) => obj is LinuxStat other && this.Equals(other);
+        public override Int32 GetHashCode() => HashCode.Combine(this.Device, this.Inode);
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct ByHandleFileInformation
+    private struct ByHandleFileInformation : IEquatable<ByHandleFileInformation>
     {
         public UInt32 FileAttributes;
         public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
@@ -374,6 +412,13 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         public UInt32 NumberOfLinks;
         public UInt32 FileIndexHigh;
         public UInt32 FileIndexLow;
+
+        public Boolean Equals(ByHandleFileInformation other) =>
+            this.VolumeSerialNumber == other.VolumeSerialNumber &&
+            this.FileIndexHigh == other.FileIndexHigh &&
+            this.FileIndexLow == other.FileIndexLow;
+        public override Boolean Equals(Object? obj) => obj is ByHandleFileInformation other && this.Equals(other);
+        public override Int32 GetHashCode() => HashCode.Combine(this.VolumeSerialNumber, this.FileIndexHigh, this.FileIndexLow);
     }
 
     private static Boolean HasFieldsExceedingApiLimits(LogEventInput item) =>

@@ -270,6 +270,54 @@ public sealed class LogForwarderWorkerTests
     }
 
     [Fact]
+    public async Task Worker_replays_when_a_file_is_rewritten_past_the_saved_offset()
+    {
+        using TemporaryDirectory directory = new();
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        Guid eventId = Guid.NewGuid();
+        String message = new('x', 1400);
+        String originalLine = EventLineWithTrailingProperty(eventId, message, "first");
+        String rewrittenLine = EventLineWithTrailingProperty(eventId, message, "other");
+        originalLine[..1024].ShouldBe(rewrittenLine[..1024]);
+        originalLine.Length.ShouldBe(rewrittenLine.Length);
+        await File.WriteAllTextAsync(sourceFile, originalLine + "\n", new UTF8Encoding(false));
+
+        using (RecordingHandler firstHandler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted)))
+        using (HttpClient firstClient = new(firstHandler))
+        {
+            LogForwarderWorker firstWorker = CreateWorker(directory.Path, checkpointPath, firstClient);
+            using CancellationTokenSource firstCancellation = new();
+            await firstWorker.StartAsync(firstCancellation.Token);
+            try
+            {
+                ReadEventIds((await firstHandler.ReadRequestAsync()).Body).ShouldBe([eventId]);
+                await WaitForCheckpointAsync(checkpointPath, sourceFile, Encoding.UTF8.GetByteCount(originalLine + "\n"));
+            }
+            finally
+            {
+                await firstWorker.StopAsync(CancellationToken.None);
+            }
+        }
+
+        await File.WriteAllTextAsync(sourceFile, rewrittenLine + "\n", new UTF8Encoding(false));
+
+        using RecordingHandler restartedHandler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using HttpClient restartedClient = new(restartedHandler);
+        LogForwarderWorker restartedWorker = CreateWorker(directory.Path, checkpointPath, restartedClient);
+        using CancellationTokenSource restartedCancellation = new();
+        await restartedWorker.StartAsync(restartedCancellation.Token);
+        try
+        {
+            ReadEventIds((await restartedHandler.ReadRequestAsync()).Body).ShouldBe([eventId]);
+        }
+        finally
+        {
+            await restartedWorker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task Worker_restarts_from_the_beginning_when_a_checkpointed_file_is_truncated()
     {
         using TemporaryDirectory directory = new();
