@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using CentralLogging.Forwarder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -17,7 +18,7 @@ public sealed class LogForwarderWorkerTests
     private const String CheckpointFileName = "checkpoint.json";
 
     [Fact]
-    public async Task Worker_forwards_complete_lines_skips_malformed_lines_and_leaves_a_partial_tail_uncheckpointed()
+    public async Task Worker_retains_invalid_lines_and_continues_forwarding_valid_lines()
     {
         using TemporaryDirectory directory = new();
         Guid firstId = Guid.NewGuid();
@@ -26,14 +27,16 @@ public sealed class LogForwarderWorkerTests
         String malformedLine = "{broken json";
         String secondLine = EventLine(secondId, PaymentsServiceName, "second", "Information");
         String partialLine = EventLine(Guid.NewGuid(), PaymentsServiceName, "not complete");
-        String completeContent = $"{firstLine}\n{malformedLine}\n{secondLine}\n";
+        String incompleteLine = "{\"eventId\":\"not-a-guid\",\"message\":\"missing fields\"}";
+        String completeContent = $"{firstLine}\n{malformedLine}\n{incompleteLine}\n{secondLine}\n";
         String sourceFile = Path.Combine(directory.Path, SourceFileName);
         String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         await File.WriteAllTextAsync(sourceFile, completeContent + partialLine, new UTF8Encoding(false));
 
+        RecordingLogger logger = new();
         using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
         using HttpClient client = new(handler);
-        LogForwarderWorker worker = CreateWorker(directory.Path, checkpointPath, client);
+        LogForwarderWorker worker = CreateWorker(directory.Path, checkpointPath, client, logger);
         using CancellationTokenSource cancellation = new();
 
         await worker.StartAsync(cancellation.Token);
@@ -44,15 +47,22 @@ public sealed class LogForwarderWorkerTests
             JsonDocument events = JsonDocument.Parse(request.Body);
             using (events)
             {
-                events.RootElement.GetArrayLength().ShouldBe(2);
+                events.RootElement.GetArrayLength().ShouldBe(4);
                 events.RootElement[0].GetProperty("eventId").GetGuid().ShouldBe(firstId);
                 events.RootElement[0].GetProperty("severity").GetString().ShouldBe("Warning");
-                events.RootElement[1].GetProperty("eventId").GetGuid().ShouldBe(secondId);
+                events.RootElement[1].GetProperty("serviceName").GetString().ShouldBe("Unknown");
+                events.RootElement[1].GetProperty("severity").GetString().ShouldBe("Unknown");
+                events.RootElement[1].GetProperty("message").GetString().ShouldBe(malformedLine);
+                events.RootElement[1].GetProperty("rawLog").GetString().ShouldBe(malformedLine);
+                events.RootElement[2].GetProperty("serviceName").GetString().ShouldBe("Unknown");
+                events.RootElement[2].GetProperty("rawLog").GetString().ShouldBe(incompleteLine);
+                events.RootElement[3].GetProperty("eventId").GetGuid().ShouldBe(secondId);
             }
 
             Int64 completedOffset = Encoding.UTF8.GetByteCount(completeContent);
             await WaitForCheckpointAsync(checkpointPath, sourceFile, completedOffset);
             (await ReadCheckpointOffsetAsync(checkpointPath, sourceFile)).ShouldBe((Int64?)completedOffset);
+            logger.Messages.ShouldContain(message => message.Contains("retained 2 invalid lines", StringComparison.Ordinal));
         }
         finally
         {
@@ -82,9 +92,44 @@ public sealed class LogForwarderWorkerTests
         try
         {
             CapturedRequest request = await handler.ReadRequestAsync();
-            ReadEventIds(request.Body).ShouldBe([validId]);
+            using JsonDocument events = JsonDocument.Parse(request.Body);
+            events.RootElement.GetArrayLength().ShouldBe(2);
+            events.RootElement[0].GetProperty("rawLog").GetString().ShouldBe(invalidLine);
+            events.RootElement[1].GetProperty("eventId").GetGuid().ShouldBe(validId);
             await WaitForCheckpointAsync(checkpointPath, sourceFile, Encoding.UTF8.GetByteCount(content));
             handler.RequestCount.ShouldBe(1);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_reuses_the_same_event_id_when_a_retained_line_is_retried()
+    {
+        using TemporaryDirectory directory = new();
+        String malformedLine = "{broken json";
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        await File.WriteAllTextAsync(sourceFile, malformedLine + "\n", new UTF8Encoding(false));
+
+        using RecordingHandler handler = new(attempt => new HttpResponseMessage(
+            attempt == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.Accepted));
+        using HttpClient client = new(handler);
+        LogForwarderWorker worker = CreateWorker(directory.Path, checkpointPath, client);
+        using CancellationTokenSource cancellation = new();
+
+        await worker.StartAsync(cancellation.Token);
+        try
+        {
+            CapturedRequest failedAttempt = await handler.ReadRequestAsync();
+            CapturedRequest retryAttempt = await handler.ReadRequestAsync();
+            Guid[] firstIds = ReadEventIds(failedAttempt.Body);
+            Guid[] retryIds = ReadEventIds(retryAttempt.Body);
+            firstIds.Length.ShouldBe(1);
+            retryIds.ShouldBe(firstIds);
+            await WaitForCheckpointAsync(checkpointPath, sourceFile, Encoding.UTF8.GetByteCount(malformedLine + "\n"));
         }
         finally
         {
@@ -239,7 +284,10 @@ public sealed class LogForwarderWorkerTests
         }
     }
 
-    private static LogForwarderWorker CreateWorker(String sourceDirectory, String checkpointPath, HttpClient client)
+    private static LogForwarderWorker CreateWorker(String sourceDirectory,
+                                                   String checkpointPath,
+                                                   HttpClient client,
+                                                   ILogger<LogForwarderWorker>? logger = null)
     {
         ForwarderOptions options = new()
         {
@@ -255,7 +303,7 @@ public sealed class LogForwarderWorkerTests
         return new LogForwarderWorker(new SingleClientFactory(client),
                                       new ForwarderCheckpointStore(),
                                       Options.Create(options),
-                                      NullLogger<LogForwarderWorker>.Instance);
+                                      logger ?? NullLogger<LogForwarderWorker>.Instance);
     }
 
     private static String EventLine(Guid eventId,
@@ -352,6 +400,29 @@ public sealed class LogForwarderWorkerTests
         {
             name.ShouldBe("CentralLogs");
             return client;
+        }
+    }
+
+    private sealed class RecordingLogger : ILogger<LogForwarderWorker>
+    {
+        public List<String> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            _ = state;
+            return null;
+        }
+
+        public Boolean IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+        public void Log<TState>(LogLevel logLevel,
+                                EventId eventId,
+                                TState state,
+                                Exception? exception,
+                                Func<TState, Exception?, String> formatter)
+        {
+            lock (this.Messages)
+                this.Messages.Add($"{logLevel} {eventId.Id}: {formatter(state, exception)}");
         }
     }
 
