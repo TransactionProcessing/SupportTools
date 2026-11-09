@@ -407,9 +407,13 @@ public sealed class LogForwarderWorkerTests
     {
         public List<String> Messages { get; } = [];
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            _ = state;
+            return null;
+        }
 
-        public Boolean IsEnabled(LogLevel logLevel) => true;
+        public Boolean IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
         public void Log<TState>(LogLevel logLevel,
                                 EventId eventId,
@@ -418,7 +422,7 @@ public sealed class LogForwarderWorkerTests
                                 Func<TState, Exception?, String> formatter)
         {
             lock (this.Messages)
-                this.Messages.Add(formatter(state, exception));
+                this.Messages.Add($"{logLevel} {eventId.Id}: {formatter(state, exception)}");
         }
     }
 
