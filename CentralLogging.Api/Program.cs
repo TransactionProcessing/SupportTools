@@ -19,6 +19,13 @@ if (String.IsNullOrWhiteSpace(configuredApiKey))
 String apiKey = configuredApiKey;
 
 builder.Services.AddDbContext<CentralLogsDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddOptions<LogRetentionOptions>()
+    .Bind(builder.Configuration.GetSection(LogRetentionOptions.SectionName))
+    .Validate(options => options.RetentionDays > 0, "Log retention days must be greater than zero.")
+    .Validate(options => options.BatchSize is > 0 and <= 5_000, "Log retention batch size must be between 1 and 5000.")
+    .Validate(options => options.IntervalMinutes > 0, "Log retention interval must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<LogRetentionWorker>();
 builder.Services.AddOptions<LogIngestionOptions>()
     .Bind(builder.Configuration.GetSection(LogIngestionOptions.SectionName))
     .Validate(options => options.MaximumRequestBytes > 0 && options.MaximumUploadBytes > 0 && options.MaximumLineBytes > 0,

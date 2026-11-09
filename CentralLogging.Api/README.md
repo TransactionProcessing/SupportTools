@@ -15,6 +15,23 @@ This API is the first receiving and query component for the central logging desi
 
 3. Requests to `/api/logs` must send the configured secret in the `X-Log-Api-Key` header. The browser UI prompts for this key at runtime, keeps it in memory only, and sends it with API requests.
 
+## Log retention and storage operations
+
+Retention is disabled by default. To enable it, set `LogRetention__Enabled=true` and configure `LogRetention__RetentionDays` (default `90`), `LogRetention__BatchSize` (default `1000`, allowed `1` to `5000`), and `LogRetention__IntervalMinutes` (default `60`). Restart the API after changing these settings. For example:
+
+```powershell
+$env:LogRetention__Enabled = "true"
+$env:LogRetention__RetentionDays = "90"
+$env:LogRetention__BatchSize = "1000"
+$env:LogRetention__IntervalMinutes = "60"
+```
+
+When enabled, the API runs a purge immediately after startup and then at the configured interval. It deletes events whose `TimestampUtc` is earlier than the run's UTC cutoff. Each `DELETE TOP` statement commits as its own transaction; the batch-size limit bounds the work and lock duration of each transaction. If the process stops or a batch fails, already committed batches remain deleted and a later run continues with the remaining expired events. The API logs each run's cutoff, batch progress, totals, interruption, and failures. Retention uses the existing timestamp index and requires the API database identity to have `DELETE` permission on `dbo.LogEvents`.
+
+Uploaded raw lines are stored in the event's `Message` or `PropertiesJson` columns, so deleting the event removes that raw content as well. No archive is created. `ServiceStructuredFields` is a lifetime-observation catalog: its counts and first/last-seen timestamps describe every event observed since the catalog was populated, including events later removed by retention. This preserves stable field discovery without scanning retained JSON during each purge.
+
+Before enabling retention, choose a period that meets your operational and regulatory requirements and ensure database backups and transaction-log backups are managed separately. A purge frees database pages for reuse but does not reduce the database data-file size automatically. Large purges generate transaction-log activity across committed batches; monitor free data and log space and adjust the batch size and interval to suit the SQL Server workload. Retention does not replace backup expiry or database capacity monitoring.
+
 Ingestion size limits are configured under `LogIngestion` and can be overridden per deployment with environment variables. Defaults are `MaximumRequestBytes` = 10 MiB for JSON ingestion requests, `MaximumUploadBytes` = 100 MiB for the uploaded file, and `MaximumLineBytes` = 1 MiB for an individual uploaded NDJSON line. Multipart framing is allowed an additional 64 KiB. For example, set `LogIngestion__MaximumUploadBytes=209715200` to allow up to 200 MiB files. Upload lines and files beyond their limits receive HTTP 413; JSON requests beyond the request body limit are rejected by the server before JSON binding.
 
 Open `http://localhost:<port>/` to use the search UI. It provides time, service, tenant, correlation ID, and service-specific structured-field filters. `GET /health/ready` checks database connectivity. `POST /api/logs` accepts a JSON array of 1 to 500 events and returns the accepted and duplicate counts. Reposting an `eventId` is safe. `GET /api/logs/services` lists service names seen in stored events.
