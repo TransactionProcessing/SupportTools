@@ -4,7 +4,7 @@ using Shouldly;
 
 namespace CentralLogging.Tests.Api;
 
-[Collection(CentralLoggingApiCollection.Name)]
+[Collection("CentralLoggingApi")]
 public sealed class ApiHostIntegrationTests(SqlServerApiFixture fixture)
 {
     [SqlServerFact]

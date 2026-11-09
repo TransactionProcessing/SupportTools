@@ -12,19 +12,23 @@ namespace CentralLogging.Tests.Forwarder;
 
 public sealed class LogForwarderWorkerTests
 {
+    private const String PaymentsServiceName = "Payments";
+    private const String SourceFileName = "events.jsonl";
+    private const String CheckpointFileName = "checkpoint.json";
+
     [Fact]
     public async Task Worker_forwards_complete_lines_skips_malformed_lines_and_leaves_a_partial_tail_uncheckpointed()
     {
         using TemporaryDirectory directory = new();
         Guid firstId = Guid.NewGuid();
         Guid secondId = Guid.NewGuid();
-        String firstLine = EventLine(firstId, "Payments", "first", "Warning", useLevel: true);
+        String firstLine = EventLine(firstId, PaymentsServiceName, "first", "Warning", useLevel: true);
         String malformedLine = "{broken json";
-        String secondLine = EventLine(secondId, "Payments", "second", "Information");
-        String partialLine = EventLine(Guid.NewGuid(), "Payments", "not complete");
+        String secondLine = EventLine(secondId, PaymentsServiceName, "second", "Information");
+        String partialLine = EventLine(Guid.NewGuid(), PaymentsServiceName, "not complete");
         String completeContent = $"{firstLine}\n{malformedLine}\n{secondLine}\n";
-        String sourceFile = Path.Combine(directory.Path, "events.jsonl");
-        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         await File.WriteAllTextAsync(sourceFile, completeContent + partialLine, new UTF8Encoding(false));
 
         using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
@@ -62,10 +66,10 @@ public sealed class LogForwarderWorkerTests
         using TemporaryDirectory directory = new();
         Guid invalidId = Guid.NewGuid();
         Guid validId = Guid.NewGuid();
-        String invalidLine = EventLine(invalidId, "Payments", "invalid", requestId: new String('r', 201));
-        String validLine = EventLine(validId, "Payments", "valid");
-        String sourceFile = Path.Combine(directory.Path, "events.jsonl");
-        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String invalidLine = EventLine(invalidId, PaymentsServiceName, "invalid", requestId: new String('r', 201));
+        String validLine = EventLine(validId, PaymentsServiceName, "valid");
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         String content = invalidLine + "\n" + validLine + "\n";
         await File.WriteAllTextAsync(sourceFile, content, new UTF8Encoding(false));
 
@@ -93,9 +97,9 @@ public sealed class LogForwarderWorkerTests
     {
         using TemporaryDirectory directory = new();
         Guid eventId = Guid.NewGuid();
-        String line = EventLine(eventId, "Payments", "retry me");
-        String sourceFile = Path.Combine(directory.Path, "events.jsonl");
-        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String line = EventLine(eventId, PaymentsServiceName, "retry me");
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         await File.WriteAllTextAsync(sourceFile, line + "\n", new UTF8Encoding(false));
 
         TaskCompletionSource<HttpResponseMessage> allowRetrySuccess = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -132,11 +136,11 @@ public sealed class LogForwarderWorkerTests
         using TemporaryDirectory directory = new();
         Guid firstId = Guid.NewGuid();
         Guid secondId = Guid.NewGuid();
-        String firstLine = EventLine(firstId, "Payments", new String('x', 1400));
-        String secondLine = EventLine(secondId, "Payments", "second line");
-        String originalPath = Path.Combine(directory.Path, "events.jsonl");
+        String firstLine = EventLine(firstId, PaymentsServiceName, new String('x', 1400));
+        String secondLine = EventLine(secondId, PaymentsServiceName, "second line");
+        String originalPath = Path.Combine(directory.Path, SourceFileName);
         String renamedPath = Path.Combine(directory.Path, "events.jsonl.1.jsonl");
-        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         await File.WriteAllTextAsync(originalPath, firstLine + "\n", new UTF8Encoding(false));
 
         using (RecordingHandler firstHandler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted)))
@@ -189,10 +193,10 @@ public sealed class LogForwarderWorkerTests
         Guid firstId = Guid.NewGuid();
         Guid secondId = Guid.NewGuid();
         String largeMessage = new('x', 1400);
-        String firstLine = EventLine(firstId, "Payments", largeMessage);
-        String secondLine = EventLine(secondId, "Payments", "second");
-        String sourceFile = Path.Combine(directory.Path, "events.jsonl");
-        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String firstLine = EventLine(firstId, PaymentsServiceName, largeMessage);
+        String secondLine = EventLine(secondId, PaymentsServiceName, "second");
+        String sourceFile = Path.Combine(directory.Path, SourceFileName);
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
         String originalContent = firstLine + "\n" + secondLine + "\n";
         await File.WriteAllTextAsync(sourceFile, originalContent, new UTF8Encoding(false));
 
@@ -344,7 +348,11 @@ public sealed class LogForwarderWorkerTests
 
     private sealed class SingleClientFactory(HttpClient client) : IHttpClientFactory
     {
-        public HttpClient CreateClient(String name) => client;
+        public HttpClient CreateClient(String name)
+        {
+            name.ShouldBe("CentralLogs");
+            return client;
+        }
     }
 
     private sealed record CapturedRequest(HttpMethod Method, Uri? Uri, String ApiKey, String Body);

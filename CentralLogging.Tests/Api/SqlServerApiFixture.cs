@@ -16,7 +16,7 @@ namespace CentralLogging.Tests.Api;
 public sealed class SqlServerApiFixture : IAsyncLifetime
 {
     public const String ConnectionStringEnvironmentVariable = "CENTRAL_LOGGING_TEST_CONNECTION";
-    public static readonly String ApiKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+    public static String ApiKey { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private const String SqlServerImage = "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
     private static readonly String SqlServerPassword = $"Aa1!{Convert.ToHexString(RandomNumberGenerator.GetBytes(24))}";
 
@@ -55,13 +55,28 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
 
     private async Task ConfigureWslDockerHostAsync()
     {
-        String? configuredHost = TestcontainersSettings.DockerHostOverride;
-        Boolean hasNonLoopbackOverride = !String.IsNullOrWhiteSpace(configuredHost) &&
-            !String.Equals(configuredHost, "localhost", StringComparison.OrdinalIgnoreCase) &&
-            !(IPAddress.TryParse(configuredHost, out IPAddress? configuredAddress) && IPAddress.IsLoopback(configuredAddress));
-        if (!OperatingSystem.IsWindows() || hasNonLoopbackOverride)
+        if (!ShouldDiscoverWslHost(TestcontainersSettings.DockerHostOverride))
             return;
 
+        String? output = await ReadWslHostAddressesAsync();
+        String? wslHost = FindWslHostAddress(output);
+        if (!String.IsNullOrWhiteSpace(wslHost))
+            TestcontainersSettings.DockerHostOverride = wslHost;
+    }
+
+    private static Boolean ShouldDiscoverWslHost(String? configuredHost)
+    {
+        if (!OperatingSystem.IsWindows() || String.IsNullOrWhiteSpace(configuredHost))
+            return OperatingSystem.IsWindows();
+
+        if (String.Equals(configuredHost, "localhost", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return IPAddress.TryParse(configuredHost, out IPAddress? address) && IPAddress.IsLoopback(address);
+    }
+
+    private static async Task<String?> ReadWslHostAddressesAsync()
+    {
         try
         {
             using Process process = new()
@@ -79,23 +94,23 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
             process.StartInfo.ArgumentList.Add("hostname");
             process.StartInfo.ArgumentList.Add("-I");
 
-            if (!process.Start()) return;
+            if (!process.Start()) return null;
             String output = await process.StandardOutput.ReadToEndAsync();
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-            if (process.ExitCode != 0) return;
-
-            String? wslHost = output.Split((Char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-                .Select(address => IPAddress.TryParse(address, out IPAddress? parsed) ? parsed : null)
-                .FirstOrDefault(address => address is { AddressFamily: System.Net.Sockets.AddressFamily.InterNetwork } && !IPAddress.IsLoopback(address))
-                ?.ToString();
-            if (!String.IsNullOrWhiteSpace(wslHost))
-                TestcontainersSettings.DockerHostOverride = wslHost;
+            return process.ExitCode == 0 ? output : null;
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or TimeoutException)
         {
             // Without WSL, Testcontainers' default host detection remains in effect.
+            return null;
         }
     }
+
+    private static String? FindWslHostAddress(String? output) => output?
+        .Split((Char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+        .Select(address => IPAddress.TryParse(address, out IPAddress? parsed) ? parsed : null)
+        .FirstOrDefault(address => address is { AddressFamily: System.Net.Sockets.AddressFamily.InterNetwork } && !IPAddress.IsLoopback(address))
+        ?.ToString();
 
     private HttpClient CreateClientWithStartupEnvironment(String connectionString)
     {
@@ -154,10 +169,9 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
     }
 }
 
-[CollectionDefinition(Name)]
+[CollectionDefinition("CentralLoggingApi")]
 public sealed class CentralLoggingApiCollection : ICollectionFixture<SqlServerApiFixture>
 {
-    public const String Name = "CentralLoggingApi";
 }
 
 [AttributeUsage(AttributeTargets.Method)]

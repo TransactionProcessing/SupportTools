@@ -2,7 +2,7 @@ namespace CentralLogging.Forwarder;
 
 public sealed class ForwarderOptions
 {
-    public const String SectionName = "LogForwarder";
+    public static String SectionName { get; } = "LogForwarder";
 
     public String[] SourceDirectories { get; init; } = [];
     public String[] FilePatterns { get; init; } = ["structured-logger-*.json*"];

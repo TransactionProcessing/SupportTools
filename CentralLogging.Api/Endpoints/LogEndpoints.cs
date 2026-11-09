@@ -14,6 +14,8 @@ public static class LogEndpoints
 {
     private const Int32 MaximumBatchSize = 500;
     private const Int32 MaximumPageSize = 500;
+    private const String UnknownValue = "Unknown";
+    private const String JsonNumberType = "number";
 
     public static async Task<IResult> IngestAsync(IReadOnlyList<LogEventInput> events,
                                                    CentralLogsDbContext database,
@@ -77,78 +79,101 @@ public static class LogEndpoints
 
     private static LogEventInput ParseUploadLine(String line, Int32 lineNumber, DateTimeOffset uploadTimestamp)
     {
-        JsonDocument? document = null;
         try
         {
-            document = JsonDocument.Parse(line);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-                return CreateRawLineEvent(line, lineNumber, uploadTimestamp);
-
-            JsonElement root = document.RootElement;
-            JsonElement eventIdElement = FindProperty(root, "eventId");
-            Guid eventId = Guid.Empty;
-            Boolean hasEventId = eventIdElement.ValueKind == JsonValueKind.String &&
-                                 eventIdElement.TryGetGuid(out eventId) && eventId != Guid.Empty;
-            JsonElement timestampElement = FindProperty(root, "timestampUtc");
-            DateTimeOffset timestamp = default;
-            Boolean hasTimestamp = timestampElement.ValueKind == JsonValueKind.String &&
-                                   timestampElement.TryGetDateTimeOffset(out timestamp);
-            JsonElement severityElement = FindProperty(root, "severity");
-            if (severityElement.ValueKind == JsonValueKind.Undefined)
-                severityElement = FindProperty(root, "level");
-            JsonElement serviceElement = FindProperty(root, "serviceName");
-            if (serviceElement.ValueKind == JsonValueKind.Undefined)
-                serviceElement = FirstProperty(root, "loggerName", "sourceContext", "category", "fileName", "eventName", "serviceId");
-            JsonElement messageElement = FindProperty(root, "message");
-            if (messageElement.ValueKind == JsonValueKind.Undefined || IsEmptyString(messageElement))
-                messageElement = FindProperty(root, "messageTemplate");
-
-            Dictionary<String, JsonElement> properties = new(StringComparer.OrdinalIgnoreCase);
-            HashSet<String> mappedFields = new(StringComparer.OrdinalIgnoreCase)
-            {
-                "eventId", "timestampUtc", "severity", "level", "serviceName", "loggerName", "sourceContext",
-                "category", "fileName", "eventName", "serviceId", "correlationId", "tenantId", "merchantId",
-                "traceId", "spanId", "requestId", "message", "messageTemplate", "exception"
-            };
-            foreach (JsonProperty property in root.EnumerateObject())
-            {
-                if (!mappedFields.Contains(property.Name) && property.Name.Length <= 200)
-                    properties[property.Name] = property.Value.Clone();
-            }
-
-            if (!hasEventId)
-                properties["sourceEventId"] = eventIdElement.ValueKind == JsonValueKind.Undefined
-                    ? JsonSerializer.SerializeToElement((String?)null)
-                    : eventIdElement.Clone();
-            properties["rawLog"] = JsonSerializer.SerializeToElement(line);
-
-            return new LogEventInput
-            {
-                EventId = hasEventId ? eventId : CreateStableEventId(line, lineNumber),
-                TimestampUtc = hasTimestamp ? timestamp : uploadTimestamp,
-                Severity = LimitLength(GetNonEmptyScalarText(severityElement) ?? "Unknown", 16),
-                ServiceName = LimitLength(GetNonEmptyScalarText(serviceElement) ?? "Unknown", 200),
-                CorrelationId = GetGuid(FindProperty(root, "correlationId")),
-                TenantId = GetGuid(FindProperty(root, "tenantId")),
-                MerchantId = GetGuid(FindProperty(root, "merchantId")),
-                TraceId = LimitLength(GetScalarText(FindProperty(root, "traceId")), 32),
-                SpanId = LimitLength(GetScalarText(FindProperty(root, "spanId")), 16),
-                RequestId = LimitLength(GetScalarText(FindProperty(root, "requestId")), 200),
-                Message = GetScalarText(messageElement) ?? line,
-                MessageTemplate = GetScalarText(FindProperty(root, "messageTemplate")),
-                Exception = GetScalarText(FindProperty(root, "exception")),
-                AdditionalProperties = properties
-            };
+            using JsonDocument document = JsonDocument.Parse(line);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                ? ParseObjectUploadLine(document.RootElement, line, lineNumber, uploadTimestamp)
+                : CreateRawLineEvent(line, lineNumber, uploadTimestamp);
         }
         catch (JsonException)
         {
             return CreateRawLineEvent(line, lineNumber, uploadTimestamp);
         }
-        finally
-        {
-            document?.Dispose();
-        }
     }
+
+    private static LogEventInput ParseObjectUploadLine(JsonElement root,
+                                                        String line,
+                                                        Int32 lineNumber,
+                                                        DateTimeOffset uploadTimestamp)
+    {
+        UploadIdentity identity = ReadUploadIdentity(root);
+        return new LogEventInput
+        {
+            EventId = identity.EventId ?? CreateStableEventId(line, lineNumber),
+            TimestampUtc = identity.TimestampUtc ?? uploadTimestamp,
+            Severity = LimitLength(GetNonEmptyScalarText(FindUploadSeverity(root)) ?? UnknownValue, 16),
+            ServiceName = LimitLength(GetNonEmptyScalarText(FindUploadService(root)) ?? UnknownValue, 200),
+            CorrelationId = GetGuid(FindProperty(root, "correlationId")),
+            TenantId = GetGuid(FindProperty(root, "tenantId")),
+            MerchantId = GetGuid(FindProperty(root, "merchantId")),
+            TraceId = LimitLength(GetScalarText(FindProperty(root, "traceId")), 32),
+            SpanId = LimitLength(GetScalarText(FindProperty(root, "spanId")), 16),
+            RequestId = LimitLength(GetScalarText(FindProperty(root, "requestId")), 200),
+            Message = GetScalarText(FindUploadMessage(root)) ?? line,
+            MessageTemplate = GetScalarText(FindProperty(root, "messageTemplate")),
+            Exception = GetScalarText(FindProperty(root, "exception")),
+            AdditionalProperties = ReadUploadProperties(root, line, identity.EventId.HasValue)
+        };
+    }
+
+    private static UploadIdentity ReadUploadIdentity(JsonElement root)
+    {
+        Guid? eventId = GetGuid(FindProperty(root, "eventId"));
+        if (eventId == Guid.Empty) eventId = null;
+        JsonElement timestampElement = FindProperty(root, "timestampUtc");
+        DateTimeOffset? timestamp = timestampElement.ValueKind == JsonValueKind.String &&
+                                    timestampElement.TryGetDateTimeOffset(out DateTimeOffset parsedTimestamp)
+            ? parsedTimestamp
+            : null;
+        return new UploadIdentity(eventId, timestamp);
+    }
+
+    private static JsonElement FindUploadSeverity(JsonElement root) =>
+        FirstDefinedProperty(FindProperty(root, "severity"), FindProperty(root, "level"));
+
+    private static JsonElement FindUploadService(JsonElement root) =>
+        FirstDefinedProperty(FindProperty(root, "serviceName"),
+                             FirstProperty(root, "loggerName", "sourceContext", "category", "fileName", "eventName", "serviceId"));
+
+    private static JsonElement FindUploadMessage(JsonElement root)
+    {
+        JsonElement message = FindProperty(root, "message");
+        return message.ValueKind == JsonValueKind.Undefined || IsEmptyString(message)
+            ? FindProperty(root, "messageTemplate")
+            : message;
+    }
+
+    private static JsonElement FirstDefinedProperty(JsonElement first, JsonElement second) =>
+        first.ValueKind == JsonValueKind.Undefined ? second : first;
+
+    private static Dictionary<String, JsonElement> ReadUploadProperties(JsonElement root, String line, Boolean hasEventId)
+    {
+        Dictionary<String, JsonElement> properties = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<String> mappedFields = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "eventId", "timestampUtc", "severity", "level", "serviceName", "loggerName", "sourceContext",
+            "category", "fileName", "eventName", "serviceId", "correlationId", "tenantId", "merchantId",
+            "traceId", "spanId", "requestId", "message", "messageTemplate", "exception"
+        };
+        foreach (JsonProperty property in root.EnumerateObject())
+        {
+            if (!mappedFields.Contains(property.Name) && property.Name.Length <= 200)
+                properties[property.Name] = property.Value.Clone();
+        }
+
+        if (!hasEventId)
+        {
+            JsonElement sourceEventId = FindProperty(root, "eventId");
+            properties["sourceEventId"] = sourceEventId.ValueKind == JsonValueKind.Undefined
+                ? JsonSerializer.SerializeToElement((String?)null)
+                : sourceEventId.Clone();
+        }
+        properties["rawLog"] = JsonSerializer.SerializeToElement(line);
+        return properties;
+    }
+
+    private readonly record struct UploadIdentity(Guid? EventId, DateTimeOffset? TimestampUtc);
 
     private static LogEventInput CreateRawLineEvent(String line, Int32 lineNumber, DateTimeOffset uploadTimestamp)
     {
@@ -160,8 +185,8 @@ public static class LogEndpoints
         {
             EventId = CreateStableEventId(line, lineNumber),
             TimestampUtc = uploadTimestamp,
-            Severity = "Unknown",
-            ServiceName = "Unknown",
+            Severity = UnknownValue,
+            ServiceName = UnknownValue,
             Message = line,
             AdditionalProperties = properties
         };
@@ -315,42 +340,47 @@ public static class LogEndpoints
 
     private static JsonNode NormalizeEmbeddedJson(JsonNode node)
     {
-        if (node is JsonObject objectNode)
-        {
-            foreach (String propertyName in objectNode.Select(property => property.Key).ToArray())
-            {
-                JsonNode? child = objectNode[propertyName];
-                if (child is JsonValue valueNode && valueNode.TryGetValue(out String? textValue))
-                {
-                    JsonNode? parsed = ParseJsonObjectOrArray(textValue);
-                    if (parsed is not null)
-                        objectNode[propertyName] = NormalizeEmbeddedJson(parsed);
-                }
-                else if (child is not null)
-                {
-                    NormalizeEmbeddedJson(child);
-                }
-            }
-        }
-        else if (node is JsonArray arrayNode)
-        {
-            for (Int32 index = 0; index < arrayNode.Count; index++)
-            {
-                JsonNode? child = arrayNode[index];
-                if (child is JsonValue valueNode && valueNode.TryGetValue(out String? textValue))
-                {
-                    JsonNode? parsed = ParseJsonObjectOrArray(textValue);
-                    if (parsed is not null)
-                        arrayNode[index] = NormalizeEmbeddedJson(parsed);
-                }
-                else if (child is not null)
-                {
-                    NormalizeEmbeddedJson(child);
-                }
-            }
-        }
+        if (node is JsonObject objectNode) NormalizeObject(objectNode);
+        else if (node is JsonArray arrayNode) NormalizeArray(arrayNode);
 
         return node;
+    }
+
+    private static void NormalizeObject(JsonObject objectNode)
+    {
+        foreach (String propertyName in objectNode.Select(property => property.Key).ToArray())
+        {
+            JsonNode? child = objectNode[propertyName];
+            JsonNode? normalizedChild = NormalizeEmbeddedValue(child);
+            if (!ReferenceEquals(child, normalizedChild))
+                objectNode[propertyName] = normalizedChild;
+        }
+    }
+
+    private static void NormalizeArray(JsonArray arrayNode)
+    {
+        for (Int32 index = 0; index < arrayNode.Count; index++)
+        {
+            JsonNode? child = arrayNode[index];
+            JsonNode? normalizedChild = NormalizeEmbeddedValue(child);
+            if (!ReferenceEquals(child, normalizedChild))
+                arrayNode[index] = normalizedChild;
+        }
+    }
+
+    private static JsonNode? NormalizeEmbeddedValue(JsonNode? child)
+    {
+        if (child is JsonValue valueNode && valueNode.TryGetValue(out String? textValue))
+        {
+            JsonNode? parsed = ParseJsonObjectOrArray(textValue);
+            if (parsed is not null)
+                return NormalizeEmbeddedJson(parsed);
+        }
+
+        if (child is not null)
+            NormalizeEmbeddedJson(child);
+
+        return child;
     }
 
     private static JsonNode? ParseJsonObjectOrArray(String? value)
@@ -404,16 +434,16 @@ public static class LogEndpoints
         }
 
         if (filters.Length > 10 || filters.Any(item => String.IsNullOrWhiteSpace(item.Field) || item.Field.Length > 200 ||
-                                                        item.Type is not ("string" or "number" or "boolean") || item.Value is null))
+                                                        item.Type is not ("string" or JsonNumberType or "boolean") || item.Value is null))
             return Results.Problem("Provide up to 10 filters with a field name (max 200 characters), type (string, number, boolean), and value.", statusCode: StatusCodes.Status400BadRequest);
 
-        if (filters.Any(item => item.Type == "number" && NormalizeJsonNumber(item.Value) is null ||
+        if (filters.Any(item => item.Type == JsonNumberType && NormalizeJsonNumber(item.Value) is null ||
                                 item.Type == "boolean" && !Boolean.TryParse(item.Value, out _)))
             return Results.Problem("Numeric and boolean filters must use valid values for their selected type.", statusCode: StatusCodes.Status400BadRequest);
 
         filters = filters.Select(item => item.Type switch
         {
-            "number" => item with { Value = NormalizeJsonNumber(item.Value)! },
+            JsonNumberType => item with { Value = NormalizeJsonNumber(item.Value)! },
             "boolean" => item with { Value = Boolean.Parse(item.Value).ToString().ToLowerInvariant() },
             _ => item
         }).ToArray();
@@ -456,7 +486,7 @@ public static class LogEndpoints
             String fieldParameter = $"@filter{index}Field";
             String typeParameter = $"@filter{index}Type";
             String valueParameter = $"@filter{index}Value";
-            Int32 jsonType = filter.Type switch { "string" => 1, "number" => 2, "boolean" => 3, _ => throw new InvalidOperationException("Validated filter type expected.") };
+            Int32 jsonType = filter.Type switch { "string" => 1, JsonNumberType => 2, "boolean" => 3, _ => throw new InvalidOperationException("Validated filter type expected.") };
             predicates.Add($"EXISTS (SELECT 1 FROM OPENJSON([PropertiesJson]) AS property WHERE property.[key] COLLATE Latin1_General_100_BIN2 = {fieldParameter} AND DATALENGTH(property.[key]) = DATALENGTH({fieldParameter}) AND property.[type] = {typeParameter} AND property.[value] COLLATE Latin1_General_100_BIN2 = {valueParameter} AND DATALENGTH(property.[value]) = DATALENGTH({valueParameter}))");
             parameters.Add(new SqlParameter(fieldParameter, System.Data.SqlDbType.NVarChar, 200) { Value = filter.Field });
             parameters.Add(new SqlParameter(typeParameter, System.Data.SqlDbType.Int) { Value = jsonType });
@@ -574,7 +604,7 @@ public static class LogEndpoints
     {
         JsonValueKind.Null => "null",
         JsonValueKind.String => "string",
-        JsonValueKind.Number => "number",
+        JsonValueKind.Number => JsonNumberType,
         JsonValueKind.True or JsonValueKind.False => "boolean",
         JsonValueKind.Array => "array",
         JsonValueKind.Object => "object",

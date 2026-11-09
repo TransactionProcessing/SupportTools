@@ -6,9 +6,11 @@ using Shouldly;
 
 namespace CentralLogging.Tests.Api;
 
-[Collection(CentralLoggingApiCollection.Name)]
+[Collection("CentralLoggingApi")]
 public sealed class SearchIntegrationTests(SqlServerApiFixture fixture)
 {
+    private const String PaymentsServiceName = "Payments";
+
     [SqlServerFact]
     public async Task Search_applies_time_service_tenant_and_correlation_filters()
     {
@@ -19,18 +21,18 @@ public sealed class SearchIntegrationTests(SqlServerApiFixture fixture)
         Guid differentCorrelationId = Guid.NewGuid();
         LogEventInput[] events =
         [
-            CreateEvent("Payments", firstTimestamp, tenantId, correlationId),
-            CreateEvent("Payments", firstTimestamp.AddSeconds(10), tenantId, correlationId),
-            CreateEvent("Payments", firstTimestamp.AddSeconds(5), tenantId, differentCorrelationId),
-            CreateEvent("Payments", firstTimestamp, Guid.NewGuid(), correlationId),
+            CreateEvent(PaymentsServiceName, firstTimestamp, tenantId, correlationId),
+            CreateEvent(PaymentsServiceName, firstTimestamp.AddSeconds(10), tenantId, correlationId),
+            CreateEvent(PaymentsServiceName, firstTimestamp.AddSeconds(5), tenantId, differentCorrelationId),
+            CreateEvent(PaymentsServiceName, firstTimestamp, Guid.NewGuid(), correlationId),
             CreateEvent("Orders", firstTimestamp, tenantId, correlationId),
-            CreateEvent("Payments", firstTimestamp.AddMinutes(1), tenantId, correlationId)
+            CreateEvent(PaymentsServiceName, firstTimestamp.AddMinutes(1), tenantId, correlationId)
         ];
         await PostEventsAsync(events);
 
         String path = $"/api/logs?fromUtc={Encode(firstTimestamp.AddSeconds(-1).ToString("O"))}" +
                       $"&toUtc={Encode(firstTimestamp.AddSeconds(30).ToString("O"))}" +
-                      $"&serviceName=Payments&tenantId={tenantId:D}&correlationId={correlationId:D}&take=10";
+                      $"&serviceName={PaymentsServiceName}&tenantId={tenantId:D}&correlationId={correlationId:D}&take=10";
         using HttpRequestMessage request = ApiTestData.AuthorizedRequest(HttpMethod.Get, path);
         using HttpResponseMessage response = await fixture.Client.SendAsync(request);
 
@@ -48,9 +50,9 @@ public sealed class SearchIntegrationTests(SqlServerApiFixture fixture)
         DateTimeOffset timestamp = DateTimeOffset.UtcNow.AddMinutes(-1);
         LogEventInput[] events =
         [
-            CreateEvent("Payments", timestamp, null, null, "{\"value\":12.50}"),
-            CreateEvent("Payments", timestamp.AddSeconds(1), null, null, "{\"value\":\"12.50\"}"),
-            CreateEvent("Payments", timestamp.AddSeconds(2), null, null, "{\"value\":true}")
+            CreateEvent(PaymentsServiceName, timestamp, null, null, "{\"value\":12.50}"),
+            CreateEvent(PaymentsServiceName, timestamp.AddSeconds(1), null, null, "{\"value\":\"12.50\"}"),
+            CreateEvent(PaymentsServiceName, timestamp.AddSeconds(2), null, null, "{\"value\":true}")
         ];
         await PostEventsAsync(events);
 
@@ -66,7 +68,7 @@ public sealed class SearchIntegrationTests(SqlServerApiFixture fixture)
     {
         await fixture.ResetDatabaseAsync();
         LogEventInput[] events = Enumerable.Range(0, 501)
-            .Select(index => CreateEvent("Payments", DateTimeOffset.UtcNow.AddSeconds(index - 1000), null, null))
+            .Select(index => CreateEvent(PaymentsServiceName, DateTimeOffset.UtcNow.AddSeconds(index - 1000), null, null))
             .ToArray();
         await PostEventsAsync(events[..500]);
         await PostEventsAsync(events[500..]);

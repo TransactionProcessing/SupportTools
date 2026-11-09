@@ -7,6 +7,8 @@ namespace CentralLogging.Api.Data;
 
 public sealed class CentralLogsDbContext(DbContextOptions<CentralLogsDbContext> options) : DbContext(options)
 {
+    private const String MaxNvarcharColumnType = "nvarchar(max)";
+
     public DbSet<CentralLogEvent> LogEvents => this.Set<CentralLogEvent>();
     public DbSet<ServiceStructuredField> ServiceStructuredFields => this.Set<ServiceStructuredField>();
 
@@ -25,10 +27,10 @@ public sealed class CentralLogsDbContext(DbContextOptions<CentralLogsDbContext> 
         entity.Property(log => log.TraceId).HasMaxLength(32);
         entity.Property(log => log.SpanId).HasMaxLength(16);
         entity.Property(log => log.RequestId).HasMaxLength(200);
-        entity.Property(log => log.Message).HasColumnType("nvarchar(max)").IsRequired();
-        entity.Property(log => log.MessageTemplate).HasColumnType("nvarchar(max)");
-        entity.Property(log => log.Exception).HasColumnType("nvarchar(max)");
-        entity.Property(log => log.PropertiesJson).HasColumnType("nvarchar(max)").IsRequired();
+        entity.Property(log => log.Message).HasColumnType(MaxNvarcharColumnType).IsRequired();
+        entity.Property(log => log.MessageTemplate).HasColumnType(MaxNvarcharColumnType);
+        entity.Property(log => log.Exception).HasColumnType(MaxNvarcharColumnType);
+        entity.Property(log => log.PropertiesJson).HasColumnType(MaxNvarcharColumnType).IsRequired();
         entity.HasIndex(log => log.TimestampUtc).IsDescending();
         entity.HasIndex(log => new { log.LogDateUtc, log.TimestampUtc })
             .IsDescending(false, true)

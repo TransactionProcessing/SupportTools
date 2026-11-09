@@ -61,4 +61,7 @@ static Boolean HasValidApiKey(IHeaderDictionary headers, String expectedKey)
     return expectedBytes.Length == suppliedBytes.Length && CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
 }
 
-public partial class Program;
+public partial class Program
+{
+    protected Program() { }
+}

@@ -7,9 +7,12 @@ using Shouldly;
 
 namespace CentralLogging.Tests.Api;
 
-[Collection(CentralLoggingApiCollection.Name)]
+[Collection("CentralLoggingApi")]
 public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
 {
+    private const String LogsEndpoint = "/api/logs";
+    private const String RegionFieldName = "region";
+
     [SqlServerFact]
     public async Task Ingest_persists_one_copy_and_reports_duplicate_ids_in_a_batch_and_on_replay()
     {
@@ -24,12 +27,12 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
             Message = "payment accepted",
             AdditionalProperties = new Dictionary<String, JsonElement>
             {
-                ["region"] = JsonSerializer.SerializeToElement("eu-west")
+                [RegionFieldName] = JsonSerializer.SerializeToElement("eu-west")
             }
         };
 
         using HttpRequestMessage batchRequest = ApiTestData.AuthorizedRequest(
-            HttpMethod.Post, "/api/logs", JsonContent.Create(new[] { input, input }));
+            HttpMethod.Post, LogsEndpoint, JsonContent.Create(new[] { input, input }));
         using HttpResponseMessage batchResponse = await fixture.Client.SendAsync(batchRequest);
         batchResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         using JsonDocument batchBody = await ApiTestData.ReadJsonAsync(batchResponse);
@@ -37,7 +40,7 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
         batchBody.RootElement.GetProperty("duplicates").GetInt32().ShouldBe(1);
 
         using HttpRequestMessage replayRequest = ApiTestData.AuthorizedRequest(
-            HttpMethod.Post, "/api/logs", JsonContent.Create(new[] { input }));
+            HttpMethod.Post, LogsEndpoint, JsonContent.Create(new[] { input }));
         using HttpResponseMessage replayResponse = await fixture.Client.SendAsync(replayRequest);
         replayResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         using JsonDocument replayBody = await ApiTestData.ReadJsonAsync(replayResponse);
@@ -46,7 +49,7 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
 
         (Int32 logCount, Int64 fieldCount) = await fixture.ReadDatabaseAsync(async database =>
             (await database.LogEvents.CountAsync(),
-             await database.ServiceStructuredFields.Where(field => field.FieldName == "region")
+             await database.ServiceStructuredFields.Where(field => field.FieldName == RegionFieldName)
                  .Select(field => field.EventCount).SingleAsync()));
         logCount.ShouldBe(1);
         fieldCount.ShouldBe(1);
@@ -58,7 +61,7 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
         await fixture.ResetDatabaseAsync();
         String payload = $"[{{\"eventId\":\"{Guid.NewGuid()}\",\"timestampUtc\":\"{DateTimeOffset.UtcNow:O}\",\"severity\":\"Information\",\"serviceName\":\"Payments\"}}]";
         using HttpRequestMessage request = ApiTestData.AuthorizedRequest(
-            HttpMethod.Post, "/api/logs", new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
+            HttpMethod.Post, LogsEndpoint, new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
 
         using HttpResponseMessage response = await fixture.Client.SendAsync(request);
 
@@ -73,18 +76,18 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
         DateTimeOffset timestamp = DateTimeOffset.UtcNow;
         LogEventInput[] inputs =
         [
-            CreateEvent("Payments", timestamp, "region", "eu-west"),
-            CreateEvent("payments", timestamp.AddSeconds(1), "region", "eu-west")
+            CreateEvent("Payments", timestamp, RegionFieldName, "eu-west"),
+            CreateEvent("payments", timestamp.AddSeconds(1), RegionFieldName, "eu-west")
         ];
 
         using HttpRequestMessage request = ApiTestData.AuthorizedRequest(
-            HttpMethod.Post, "/api/logs", JsonContent.Create(inputs));
+            HttpMethod.Post, LogsEndpoint, JsonContent.Create(inputs));
         using HttpResponseMessage response = await fixture.Client.SendAsync(request);
 
         String responseBody = await response.Content.ReadAsStringAsync();
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted, responseBody);
         Int32 catalogRows = await fixture.ReadDatabaseAsync(database => database.ServiceStructuredFields
-            .Where(field => field.FieldName == "region")
+            .Where(field => field.FieldName == RegionFieldName)
             .CountAsync());
         catalogRows.ShouldBe(2);
     }

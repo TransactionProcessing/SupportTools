@@ -28,7 +28,9 @@
     }
   };
 
-  const el = (id) => document.getElementById(id);
+  function el(id) {
+    return document.getElementById(id);
+  }
   const service = el('service');
   const filterList = el('filter-list');
   const results = el('results');
@@ -119,7 +121,9 @@
     field.className = 'filter-field';
     field.setAttribute('aria-label', 'Structured field');
     field.add(new Option('Select field', ''));
-    selectedFieldData.forEach(item => field.add(new Option(item.name, item.name)));
+    selectedFieldData.forEach(item => {
+      field.add(new Option(item.name, item.name));
+    });
     const type = document.createElement('select');
     type.className = 'filter-type';
     type.setAttribute('aria-label', 'Value type');
@@ -141,7 +145,9 @@
       type.replaceChildren();
       const data = selectedFieldData.find(candidate => candidate.name === field.value);
       const types = (data?.types || []).filter(candidate => ['string', 'number', 'boolean'].includes(candidate));
-      types.forEach(candidate => type.add(new Option(candidate, candidate)));
+      types.forEach(candidate => {
+        type.add(new Option(candidate, candidate));
+      });
       type.disabled = !types.length;
       value.disabled = !types.length;
       updateValueControl(item);
@@ -201,7 +207,9 @@
       if (!data.length) {
         results.append(makeState('No matching events', 'Try widening the time window or removing one of the filters.'));
       } else {
-        data.forEach(log => results.append(renderEvent(log)));
+        data.forEach(log => {
+          results.append(renderEvent(log));
+        });
       }
     } catch (error) {
       if (!api.key) return;
@@ -212,7 +220,9 @@
       results.append(message);
     } finally {
       el('search').disabled = !api.key;
-      el('search').innerHTML = '<span aria-hidden="true">⌕</span> Search logs';
+      const icon = document.createElement('span');
+      icon.setAttribute('aria-hidden', 'true');
+      el('search').replaceChildren(icon, document.createTextNode(' Search logs'));
     }
   }
 
@@ -254,6 +264,11 @@
   function renderEvent(log) {
     const card = document.createElement('article');
     card.className = 'event-card';
+    card.append(createEventHeader(log), createEventBody(log));
+    return card;
+  }
+
+  function createEventHeader(log) {
     const top = document.createElement('div');
     top.className = 'event-top';
     const severity = document.createElement('span');
@@ -267,18 +282,32 @@
     timestamp.dateTime = log.timestampUtc || '';
     timestamp.textContent = log.timestampUtc ? new Date(log.timestampUtc).toLocaleString(undefined, { timeZone: 'UTC', timeZoneName: 'short' }) : '';
     top.append(severity, serviceName, timestamp);
+    return top;
+  }
+
+  function createEventBody(log) {
     const body = document.createElement('div');
     body.className = 'event-body';
     const message = document.createElement('p');
     message.className = 'event-message';
     message.textContent = log.message || '';
     body.append(message);
+    appendEventMetadata(body, log);
+    appendEventProperties(body, log);
+    appendEventException(body, log);
+    return body;
+  }
+
+  function appendEventMetadata(body, log) {
     const meta = document.createElement('div');
     meta.className = 'event-meta';
     if (log.correlationId) meta.append(makeChip(`Correlation: ${log.correlationId}`));
     if (log.tenantId) meta.append(makeChip(`Tenant: ${log.tenantId}`));
     if (log.merchantId) meta.append(makeChip(`Merchant: ${log.merchantId}`));
     if (meta.childElementCount) body.append(meta);
+  }
+
+  function appendEventProperties(body, log) {
     const properties = document.createElement('div');
     properties.className = 'event-properties';
     const data = typeof log.propertiesJson === 'string' ? safeJson(log.propertiesJson) : log.propertiesJson;
@@ -293,6 +322,9 @@
       }
     }
     if (properties.childElementCount) body.append(properties);
+  }
+
+  function appendEventException(body, log) {
     if (log.exception) {
       const details = document.createElement('details');
       const summary = document.createElement('summary');
@@ -304,8 +336,6 @@
       details.append(summary, exception);
       body.append(details);
     }
-    card.append(top, body);
-    return card;
   }
 
   function makeChip(value) {

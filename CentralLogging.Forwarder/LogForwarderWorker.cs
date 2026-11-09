@@ -19,14 +19,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        String? apiKey = this.Settings.ApiKey;
-        if (this.Settings.SourceDirectories.Length == 0 || this.Settings.FilePatterns.Length == 0 ||
-            !Uri.TryCreate(this.Settings.Endpoint, UriKind.Absolute, out Uri? endpoint) ||
-            (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps)
-            || String.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Configure LogForwarder:SourceDirectories, Endpoint, and ApiKey.");
-        }
+        String apiKey = ValidateConfiguration(this.Settings);
 
         Int32 batchSize = Math.Clamp(this.Settings.BatchSize, 1, 500);
         TimeSpan pollInterval = TimeSpan.FromSeconds(Math.Clamp(this.Settings.PollIntervalSeconds, 1, 300));
@@ -37,68 +30,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         {
             try
             {
-                HashSet<String> seenFileIdentities = new(StringComparer.OrdinalIgnoreCase);
-                HashSet<String> discoveredPaths = new(StringComparer.OrdinalIgnoreCase);
-                Boolean scanCompleted = true;
-                foreach (String directory in this.Settings.SourceDirectories)
-                {
-                    if (!Directory.Exists(directory))
-                    {
-                        logger.LogWarning("Log source directory {LogDirectory} does not exist.", directory);
-                        scanCompleted = false;
-                        continue;
-                    }
-
-                    String[] files;
-                    try
-                    {
-                        SearchOption searchOption = this.Settings.IncludeSubdirectories
-                            ? SearchOption.AllDirectories
-                            : SearchOption.TopDirectoryOnly;
-                        files = this.Settings.FilePatterns
-                            .SelectMany(pattern => Directory.EnumerateFiles(directory, pattern, searchOption))
-                            .Select(Path.GetFullPath)
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                            .ToArray();
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.LogError(exception, "Could not scan log source directory {LogDirectory}.", directory);
-                        scanCompleted = false;
-                        continue;
-                    }
-
-                    foreach (String filePath in files)
-                    {
-                        discoveredPaths.Add(filePath);
-                        try
-                        {
-                            await using FileStream file = new(filePath,
-                                                              FileMode.Open,
-                                                              FileAccess.Read,
-                                                              FileShare.ReadWrite | FileShare.Delete);
-                            String fileIdentity = await GetFileIdentityAsync(filePath, file, stoppingToken);
-                            seenFileIdentities.Add(fileIdentity);
-                            await this.ForwardFileAsync(client, file, filePath, fileIdentity, batchSize, stoppingToken);
-                        }
-                        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                        {
-                            throw;
-                        }
-                        catch (Exception exception)
-                        {
-                            logger.LogError(exception, "Could not forward log file {LogFile}; it will be retried.", filePath);
-                            scanCompleted = false;
-                        }
-                    }
-                }
-
-                if (scanCompleted)
-                    await checkpointStore.RemoveUnseenAsync(seenFileIdentities,
-                                                             discoveredPaths,
-                                                             this.Settings.CheckpointPath,
-                                                             stoppingToken);
+                await this.PollAsync(client, batchSize, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -111,6 +43,131 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
             await Task.Delay(pollInterval, stoppingToken);
         }
+    }
+
+    private static String ValidateConfiguration(ForwarderOptions settings)
+    {
+        String? apiKey = settings.ApiKey;
+        if (settings.SourceDirectories.Length == 0 || settings.FilePatterns.Length == 0 ||
+            !Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out Uri? endpoint) ||
+            (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps) ||
+            String.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("Configure LogForwarder:SourceDirectories, Endpoint, and ApiKey.");
+
+        return apiKey;
+    }
+
+    private async Task PollAsync(HttpClient client, Int32 batchSize, CancellationToken cancellationToken)
+    {
+        HashSet<String> seenFileIdentities = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<String> discoveredPaths = new(StringComparer.OrdinalIgnoreCase);
+        Boolean scanCompleted = await this.ProcessDirectoriesAsync(client,
+                                                                   batchSize,
+                                                                   seenFileIdentities,
+                                                                   discoveredPaths,
+                                                                   cancellationToken);
+        if (scanCompleted)
+            await checkpointStore.RemoveUnseenAsync(seenFileIdentities,
+                                                     discoveredPaths,
+                                                     this.Settings.CheckpointPath,
+                                                     cancellationToken);
+    }
+
+    private async Task<Boolean> ProcessDirectoriesAsync(HttpClient client,
+                                                        Int32 batchSize,
+                                                        HashSet<String> seenFileIdentities,
+                                                        HashSet<String> discoveredPaths,
+                                                        CancellationToken cancellationToken)
+    {
+        Boolean scanCompleted = true;
+        foreach (String directory in this.Settings.SourceDirectories)
+        {
+            Boolean directoryCompleted = await this.ProcessDirectoryAsync(client,
+                                                                           directory,
+                                                                           batchSize,
+                                                                           seenFileIdentities,
+                                                                           discoveredPaths,
+                                                                           cancellationToken);
+            scanCompleted = directoryCompleted && scanCompleted;
+        }
+
+        return scanCompleted;
+    }
+
+    private async Task<Boolean> ProcessDirectoryAsync(HttpClient client,
+                                                      String directory,
+                                                      Int32 batchSize,
+                                                      HashSet<String> seenFileIdentities,
+                                                      HashSet<String> discoveredPaths,
+                                                      CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(directory))
+        {
+            logger.LogWarning("Log source directory {LogDirectory} does not exist.", directory);
+            return false;
+        }
+
+        if (!TryEnumerateFiles(directory, out String[] files))
+            return false;
+
+        Boolean scanCompleted = true;
+        foreach (String filePath in files)
+        {
+            discoveredPaths.Add(filePath);
+            try
+            {
+                await this.ForwardDiscoveredFileAsync(client, filePath, batchSize, seenFileIdentities, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Could not forward log file {LogFile}; it will be retried.", filePath);
+                scanCompleted = false;
+            }
+        }
+
+        return scanCompleted;
+    }
+
+    private Boolean TryEnumerateFiles(String directory, out String[] files)
+    {
+        try
+        {
+            SearchOption searchOption = this.Settings.IncludeSubdirectories
+                ? SearchOption.AllDirectories
+                : SearchOption.TopDirectoryOnly;
+            files = this.Settings.FilePatterns
+                .SelectMany(pattern => Directory.EnumerateFiles(directory, pattern, searchOption))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Could not scan log source directory {LogDirectory}.", directory);
+            files = [];
+            return false;
+        }
+    }
+
+    private async Task ForwardDiscoveredFileAsync(HttpClient client,
+                                                   String filePath,
+                                                   Int32 batchSize,
+                                                   HashSet<String> seenFileIdentities,
+                                                   CancellationToken cancellationToken)
+    {
+        await using FileStream file = new(filePath,
+                                          FileMode.Open,
+                                          FileAccess.Read,
+                                          FileShare.ReadWrite | FileShare.Delete);
+        String fileIdentity = await GetFileIdentityAsync(filePath, file, cancellationToken);
+        seenFileIdentities.Add(fileIdentity);
+        await this.ForwardFileAsync(client, file, filePath, fileIdentity, batchSize, cancellationToken);
     }
 
     private async Task ForwardFileAsync(HttpClient client,
@@ -126,52 +183,17 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                              this.Settings.CheckpointPath,
                                                              cancellationToken);
         if (file.Length < offset)
-        {
-            logger.LogWarning("Log file {LogFile} was truncated; restarting from its beginning.", filePath);
-            offset = 0;
-            await checkpointStore.SaveOffsetAsync(fullFilePath,
-                                                  fileIdentity,
-                                                  offset,
-                                                  this.Settings.CheckpointPath,
-                                                  cancellationToken);
-        }
+            offset = await ResetTruncatedFileAsync(fullFilePath, filePath, fileIdentity, cancellationToken);
 
         while (true)
         {
             List<ParsedLogLine> lines = await ReadBatchAsync(file, offset, batchSize, cancellationToken);
             if (lines.Count == 0) return;
 
-            List<LogEventInput> events = new(lines.Count);
-            foreach (ParsedLogLine line in lines)
-            {
-                try
-                {
-                    LogEventInput? item = JsonSerializer.Deserialize<LogEventInput>(line.Content, JsonOptions);
-                    if (item != null) item.Severity ??= item.Level;
-                    if (item == null || item.EventId == Guid.Empty || item.TimestampUtc == default ||
-                        String.IsNullOrWhiteSpace(item.Severity) || String.IsNullOrWhiteSpace(item.ServiceName) ||
-                        String.IsNullOrWhiteSpace(item.Message) || HasFieldsExceedingApiLimits(item))
-                    {
-                        logger.LogWarning("Skipping invalid structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
-                        continue;
-                    }
-
-                    events.Add(item);
-                }
-                catch (JsonException exception)
-                {
-                    logger.LogWarning(exception, "Skipping malformed structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
-                }
-            }
+            List<LogEventInput> events = ParseEvents(lines, filePath);
 
             Int64 batchEnd = lines[^1].NextOffset;
-            if (events.Count > 0)
-            {
-                using StringContent content = new(JsonSerializer.Serialize(events, JsonOptions), Encoding.UTF8, "application/json");
-                using HttpResponseMessage response = await client.PostAsync(this.Settings.Endpoint, content, cancellationToken);
-                response.EnsureSuccessStatusCode();
-                logger.LogInformation("Forwarded {EventCount} log events from {LogFile}.", events.Count, filePath);
-            }
+            await ForwardBatchAsync(client, events, filePath, cancellationToken);
 
             offset = batchEnd;
             await checkpointStore.SaveOffsetAsync(fullFilePath,
@@ -180,6 +202,61 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                                                   this.Settings.CheckpointPath,
                                                   cancellationToken);
         }
+    }
+
+    private async Task<Int64> ResetTruncatedFileAsync(String fullFilePath,
+                                                       String filePath,
+                                                       String fileIdentity,
+                                                       CancellationToken cancellationToken)
+    {
+        logger.LogWarning("Log file {LogFile} was truncated; restarting from its beginning.", filePath);
+        await checkpointStore.SaveOffsetAsync(fullFilePath,
+                                              fileIdentity,
+                                              0,
+                                              this.Settings.CheckpointPath,
+                                              cancellationToken);
+        return 0;
+    }
+
+    private List<LogEventInput> ParseEvents(IReadOnlyList<ParsedLogLine> lines, String filePath)
+    {
+        List<LogEventInput> events = new(lines.Count);
+        foreach (ParsedLogLine line in lines)
+        {
+            try
+            {
+                LogEventInput? item = JsonSerializer.Deserialize<LogEventInput>(line.Content, JsonOptions);
+                if (item is not null) item.Severity ??= item.Level;
+                if (item is null || item.EventId == Guid.Empty || item.TimestampUtc == default ||
+                    String.IsNullOrWhiteSpace(item.Severity) || String.IsNullOrWhiteSpace(item.ServiceName) ||
+                    String.IsNullOrWhiteSpace(item.Message) || HasFieldsExceedingApiLimits(item))
+                {
+                    logger.LogWarning("Skipping invalid structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
+                    continue;
+                }
+
+                events.Add(item);
+            }
+            catch (JsonException exception)
+            {
+                logger.LogWarning(exception, "Skipping malformed structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
+            }
+        }
+
+        return events;
+    }
+
+    private async Task ForwardBatchAsync(HttpClient client,
+                                        IReadOnlyList<LogEventInput> events,
+                                        String filePath,
+                                        CancellationToken cancellationToken)
+    {
+        if (events.Count == 0) return;
+
+        using StringContent content = new(JsonSerializer.Serialize(events, JsonOptions), Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await client.PostAsync(this.Settings.Endpoint, content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        logger.LogInformation("Forwarded {EventCount} log events from {LogFile}.", events.Count, filePath);
     }
 
     private static async Task<String> GetFileIdentityAsync(String filePath,
@@ -259,19 +336,19 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
     private sealed class LogEventInput
     {
-        public Guid EventId { get; init; }
-        public DateTimeOffset TimestampUtc { get; init; }
+        public Guid EventId { get; init; } = Guid.Empty;
+        public DateTimeOffset TimestampUtc { get; init; } = default;
         public String? Severity { get; set; }
         [JsonPropertyName("level")]
         public String? Level { get; init; }
-        public String? ServiceName { get; init; }
+        public String? ServiceName { get; init; } = null;
         public Guid? CorrelationId { get; init; }
         public Guid? TenantId { get; init; }
         public Guid? MerchantId { get; init; }
-        public String? TraceId { get; init; }
-        public String? SpanId { get; init; }
-        public String? RequestId { get; init; }
-        public String? Message { get; init; }
+        public String? TraceId { get; init; } = null;
+        public String? SpanId { get; init; } = null;
+        public String? RequestId { get; init; } = null;
+        public String? Message { get; init; } = null;
         public String? MessageTemplate { get; init; }
         public String? Exception { get; init; }
 
