@@ -57,6 +57,38 @@ public sealed class LogForwarderWorkerTests
     }
 
     [Fact]
+    public async Task Worker_skips_events_with_fields_that_exceed_the_ingestion_api_limits()
+    {
+        using TemporaryDirectory directory = new();
+        Guid invalidId = Guid.NewGuid();
+        Guid validId = Guid.NewGuid();
+        String invalidLine = EventLine(invalidId, "Payments", "invalid", requestId: new String('r', 201));
+        String validLine = EventLine(validId, "Payments", "valid");
+        String sourceFile = Path.Combine(directory.Path, "events.jsonl");
+        String checkpointPath = Path.Combine(directory.Path, "checkpoint.json");
+        String content = invalidLine + "\n" + validLine + "\n";
+        await File.WriteAllTextAsync(sourceFile, content, new UTF8Encoding(false));
+
+        using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using HttpClient client = new(handler);
+        LogForwarderWorker worker = CreateWorker(directory.Path, checkpointPath, client);
+        using CancellationTokenSource cancellation = new();
+
+        await worker.StartAsync(cancellation.Token);
+        try
+        {
+            CapturedRequest request = await handler.ReadRequestAsync();
+            ReadEventIds(request.Body).ShouldBe([validId]);
+            await WaitForCheckpointAsync(checkpointPath, sourceFile, Encoding.UTF8.GetByteCount(content));
+            handler.RequestCount.ShouldBe(1);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task Worker_retries_after_api_failure_and_advances_checkpoint_only_after_success()
     {
         using TemporaryDirectory directory = new();
@@ -226,7 +258,8 @@ public sealed class LogForwarderWorkerTests
                                     String serviceName,
                                     String message,
                                     String severity = "Information",
-                                    Boolean useLevel = false)
+                                    Boolean useLevel = false,
+                                    String? requestId = null)
     {
         Dictionary<String, Object> value = new()
         {
@@ -236,6 +269,8 @@ public sealed class LogForwarderWorkerTests
             ["serviceName"] = serviceName,
             ["message"] = message
         };
+        if (requestId is not null)
+            value["requestId"] = requestId;
         return JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 

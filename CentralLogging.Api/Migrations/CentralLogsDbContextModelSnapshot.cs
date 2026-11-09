@@ -109,6 +109,7 @@ namespace CentralLogging.Api.Migrations
                 {
                     b.Property<string>("ServiceName")
                         .HasMaxLength(200)
+                        .UseCollation("Latin1_General_100_BIN2")
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("FieldName")

@@ -149,7 +149,7 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
                     if (item != null) item.Severity ??= item.Level;
                     if (item == null || item.EventId == Guid.Empty || item.TimestampUtc == default ||
                         String.IsNullOrWhiteSpace(item.Severity) || String.IsNullOrWhiteSpace(item.ServiceName) ||
-                        String.IsNullOrWhiteSpace(item.Message))
+                        String.IsNullOrWhiteSpace(item.Message) || HasFieldsExceedingApiLimits(item))
                     {
                         logger.LogWarning("Skipping invalid structured log entry in {LogFile} at byte {Offset}.", filePath, line.NextOffset);
                         continue;
@@ -199,6 +199,11 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
         prefix.AsSpan(0, bytesRead).CopyTo(fingerprintInput.AsSpan(creationTimeLength));
         return Convert.ToHexString(SHA256.HashData(fingerprintInput));
     }
+
+    private static Boolean HasFieldsExceedingApiLimits(LogEventInput item) =>
+        item.Severity!.Length > 16 || item.ServiceName!.Length > 200 ||
+        item.TraceId?.Length > 32 || item.SpanId?.Length > 16 || item.RequestId?.Length > 200 ||
+        item.AdditionalProperties.Keys.Any(name => name.Length > 200);
 
     private static async Task<List<ParsedLogLine>> ReadBatchAsync(FileStream stream,
                                                                   Int64 offset,

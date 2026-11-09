@@ -39,7 +39,8 @@
   function setConnected(connected) {
     const status = el('connection-status');
     status.classList.toggle('connected', connected);
-    status.innerHTML = connected ? '<i></i> Connected' : '<i></i> Not connected';
+    const indicator = document.createElement('i');
+    status.replaceChildren(indicator, document.createTextNode(connected ? ' Connected' : ' Not connected'));
     el('search').disabled = !connected;
     el('upload').disabled = !connected || !el('log-file').files?.length || api.uploading;
     service.disabled = !connected;

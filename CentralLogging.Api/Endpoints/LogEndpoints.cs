@@ -514,7 +514,7 @@ public static class LogEndpoints
     {
         if (acceptedEvents.Count == 0) return;
 
-        Dictionary<StructuredFieldKey, FieldObservation> observations = new();
+        Dictionary<StructuredFieldKey, FieldObservation> observations = new(StructuredFieldKeyComparer.Instance);
         foreach (LogEventInput logEvent in acceptedEvents)
         {
             DateTimeOffset timestamp = logEvent.TimestampUtc.ToUniversalTime();
@@ -542,7 +542,8 @@ public static class LogEndpoints
             .Where(field => serviceNames.Contains(field.ServiceName))
             .ToListAsync(cancellationToken);
         Dictionary<StructuredFieldKey, ServiceStructuredField> existingByKey = existingFields.ToDictionary(
-            field => new StructuredFieldKey(field.ServiceName, field.FieldName, field.JsonType));
+            field => new StructuredFieldKey(field.ServiceName, field.FieldName, field.JsonType),
+            StructuredFieldKeyComparer.Instance);
 
         foreach ((StructuredFieldKey key, FieldObservation observation) in observations)
         {
@@ -579,5 +580,21 @@ public static class LogEndpoints
     };
 
     private readonly record struct StructuredFieldKey(String ServiceName, String FieldName, String JsonType);
+
+    private sealed class StructuredFieldKeyComparer : IEqualityComparer<StructuredFieldKey>
+    {
+        public static StructuredFieldKeyComparer Instance { get; } = new();
+
+        public Boolean Equals(StructuredFieldKey left, StructuredFieldKey right) =>
+            StringComparer.Ordinal.Equals(left.ServiceName, right.ServiceName) &&
+            StringComparer.Ordinal.Equals(left.FieldName, right.FieldName) &&
+            StringComparer.Ordinal.Equals(left.JsonType, right.JsonType);
+
+        public Int32 GetHashCode(StructuredFieldKey key) => HashCode.Combine(
+            StringComparer.Ordinal.GetHashCode(key.ServiceName),
+            StringComparer.Ordinal.GetHashCode(key.FieldName),
+            StringComparer.Ordinal.GetHashCode(key.JsonType));
+    }
+
     private sealed record FieldObservation(Int64 EventCount, DateTimeOffset FirstSeenUtc, DateTimeOffset LastSeenUtc);
 }

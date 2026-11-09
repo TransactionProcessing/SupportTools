@@ -65,4 +65,42 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await fixture.ReadDatabaseAsync(database => database.LogEvents.CountAsync())).ShouldBe(0);
     }
+
+    [SqlServerFact]
+    public async Task Ingest_tracks_service_names_using_case_sensitive_catalog_keys()
+    {
+        await fixture.ResetDatabaseAsync();
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        LogEventInput[] inputs =
+        [
+            CreateEvent("Payments", timestamp, "region", "eu-west"),
+            CreateEvent("payments", timestamp.AddSeconds(1), "region", "eu-west")
+        ];
+
+        using HttpRequestMessage request = ApiTestData.AuthorizedRequest(
+            HttpMethod.Post, "/api/logs", JsonContent.Create(inputs));
+        using HttpResponseMessage response = await fixture.Client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        Int32 catalogRows = await fixture.ReadDatabaseAsync(database => database.ServiceStructuredFields
+            .Where(field => field.FieldName == "region")
+            .CountAsync());
+        catalogRows.ShouldBe(2);
+    }
+
+    private static LogEventInput CreateEvent(String serviceName,
+                                             DateTimeOffset timestamp,
+                                             String fieldName,
+                                             String value) => new()
+    {
+        EventId = Guid.NewGuid(),
+        TimestampUtc = timestamp,
+        Severity = "Information",
+        ServiceName = serviceName,
+        Message = "catalog collation check",
+        AdditionalProperties = new Dictionary<String, JsonElement>
+        {
+            [fieldName] = JsonSerializer.SerializeToElement(value)
+        }
+    };
 }

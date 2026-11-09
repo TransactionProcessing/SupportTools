@@ -39,7 +39,7 @@ public sealed class CentralLogsDbContext(DbContextOptions<CentralLogsDbContext> 
         EntityTypeBuilder<ServiceStructuredField> structuredField = modelBuilder.Entity<ServiceStructuredField>();
         structuredField.ToTable("ServiceStructuredFields", "dbo");
         structuredField.HasKey(field => new { field.ServiceName, field.FieldName, field.JsonType });
-        structuredField.Property(field => field.ServiceName).HasMaxLength(200).IsRequired();
+        structuredField.Property(field => field.ServiceName).HasMaxLength(200).UseCollation("Latin1_General_100_BIN2").IsRequired();
         structuredField.Property(field => field.FieldName).HasMaxLength(200).UseCollation("Latin1_General_100_BIN2").IsRequired();
         structuredField.Property(field => field.JsonType).HasMaxLength(16).IsRequired();
         structuredField.Property(field => field.FirstSeenUtc).HasColumnType("datetimeoffset(7)").IsRequired();
