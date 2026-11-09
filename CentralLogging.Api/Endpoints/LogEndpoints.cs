@@ -16,6 +16,7 @@ public static class LogEndpoints
     private const Int32 MaximumPageSize = 500;
     private const String UnknownValue = "Unknown";
     private const String JsonNumberType = "number";
+    private const String JsonBooleanType = "boolean";
 
     public static async Task<IResult> IngestAsync(IReadOnlyList<LogEventInput> events,
                                                    CentralLogsDbContext database,
@@ -434,17 +435,17 @@ public static class LogEndpoints
         }
 
         if (filters.Length > 10 || filters.Any(item => String.IsNullOrWhiteSpace(item.Field) || item.Field.Length > 200 ||
-                                                        item.Type is not ("string" or JsonNumberType or "boolean") || item.Value is null))
+                                                        item.Type is not ("string" or JsonNumberType or JsonBooleanType) || item.Value is null))
             return Results.Problem("Provide up to 10 filters with a field name (max 200 characters), type (string, number, boolean), and value.", statusCode: StatusCodes.Status400BadRequest);
 
         if (filters.Any(item => item.Type == JsonNumberType && NormalizeJsonNumber(item.Value) is null ||
-                                item.Type == "boolean" && !Boolean.TryParse(item.Value, out _)))
+                                item.Type == JsonBooleanType && !Boolean.TryParse(item.Value, out _)))
             return Results.Problem("Numeric and boolean filters must use valid values for their selected type.", statusCode: StatusCodes.Status400BadRequest);
 
         filters = filters.Select(item => item.Type switch
         {
             JsonNumberType => item with { Value = NormalizeJsonNumber(item.Value)! },
-            "boolean" => item with { Value = Boolean.Parse(item.Value).ToString().ToLowerInvariant() },
+            JsonBooleanType => item with { Value = Boolean.Parse(item.Value).ToString().ToLowerInvariant() },
             _ => item
         }).ToArray();
 
@@ -486,7 +487,7 @@ public static class LogEndpoints
             String fieldParameter = $"@filter{index}Field";
             String typeParameter = $"@filter{index}Type";
             String valueParameter = $"@filter{index}Value";
-            Int32 jsonType = filter.Type switch { "string" => 1, JsonNumberType => 2, "boolean" => 3, _ => throw new InvalidOperationException("Validated filter type expected.") };
+            Int32 jsonType = filter.Type switch { "string" => 1, JsonNumberType => 2, JsonBooleanType => 3, _ => throw new InvalidOperationException("Validated filter type expected.") };
             predicates.Add($"EXISTS (SELECT 1 FROM OPENJSON([PropertiesJson]) AS property WHERE property.[key] COLLATE Latin1_General_100_BIN2 = {fieldParameter} AND DATALENGTH(property.[key]) = DATALENGTH({fieldParameter}) AND property.[type] = {typeParameter} AND property.[value] COLLATE Latin1_General_100_BIN2 = {valueParameter} AND DATALENGTH(property.[value]) = DATALENGTH({valueParameter}))");
             parameters.Add(new SqlParameter(fieldParameter, System.Data.SqlDbType.NVarChar, 200) { Value = filter.Field });
             parameters.Add(new SqlParameter(typeParameter, System.Data.SqlDbType.Int) { Value = jsonType });
@@ -605,7 +606,7 @@ public static class LogEndpoints
         JsonValueKind.Null => "null",
         JsonValueKind.String => "string",
         JsonValueKind.Number => JsonNumberType,
-        JsonValueKind.True or JsonValueKind.False => "boolean",
+        JsonValueKind.True or JsonValueKind.False => JsonBooleanType,
         JsonValueKind.Array => "array",
         JsonValueKind.Object => "object",
         _ => "unknown"

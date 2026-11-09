@@ -15,7 +15,7 @@ namespace CentralLogging.Tests.Api;
 
 public sealed class SqlServerApiFixture : IAsyncLifetime
 {
-    public const String ConnectionStringEnvironmentVariable = "CENTRAL_LOGGING_TEST_CONNECTION";
+    public static String ConnectionStringEnvironmentVariable => "CENTRAL_LOGGING_TEST_CONNECTION";
     public static String ApiKey { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private const String SqlServerImage = "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
     private static readonly String SqlServerPassword = $"Aa1!{Convert.ToHexString(RandomNumberGenerator.GetBytes(24))}";
