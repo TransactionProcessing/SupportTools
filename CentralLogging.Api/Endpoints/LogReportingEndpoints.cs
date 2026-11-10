@@ -122,24 +122,30 @@ public static partial class LogEndpoints
                 statusCode: StatusCodes.Status400BadRequest);
 
         IQueryable<CentralLogEvent> query = BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters);
-        LogCountByValue[] bySeverity = await query
+        var severityRows = await query
             .GroupBy(log => log.Severity)
-            .Select(group => new LogCountByValue(group.Key, group.LongCount()))
+            .Select(group => new { Value = group.Key, Count = group.LongCount() })
             .OrderByDescending(group => group.Count)
             .ThenBy(group => group.Value)
             .Take(groupLimit)
             .ToArrayAsync(cancellationToken);
+        LogCountByValue[] bySeverity = severityRows
+            .Select(row => new LogCountByValue(row.Value, row.Count))
+            .ToArray();
 
-        LogCountByValue[] byService = await query
+        var serviceRows = await query
             .GroupBy(log => log.ServiceName)
-            .Select(group => new LogCountByValue(group.Key, group.LongCount()))
+            .Select(group => new { Value = group.Key, Count = group.LongCount() })
             .OrderByDescending(group => group.Count)
             .ThenBy(group => group.Value)
             .Take(groupLimit)
             .ToArrayAsync(cancellationToken);
+        LogCountByValue[] byService = serviceRows
+            .Select(row => new LogCountByValue(row.Value, row.Count))
+            .ToArray();
 
         Boolean byHour = timeBucket == "hour";
-        TimeBucketRow[] bucketRows = await query
+        var bucketRows = await query
             .GroupBy(log => new
             {
                 Year = log.TimestampUtc.Year,
@@ -147,8 +153,14 @@ public static partial class LogEndpoints
                 Day = log.TimestampUtc.Day,
                 Hour = byHour ? log.TimestampUtc.Hour : 0
             })
-            .Select(group => new TimeBucketRow(group.Key.Year, group.Key.Month, group.Key.Day,
-                group.Key.Hour, group.LongCount()))
+            .Select(group => new
+            {
+                group.Key.Year,
+                group.Key.Month,
+                group.Key.Day,
+                group.Key.Hour,
+                Count = group.LongCount()
+            })
             .OrderBy(row => row.Year)
             .ThenBy(row => row.Month)
             .ThenBy(row => row.Day)
@@ -300,6 +312,4 @@ public static partial class LogEndpoints
 
         public LogCursor() { }
     }
-
-    private sealed record TimeBucketRow(Int32 Year, Int32 Month, Int32 Day, Int32 Hour, Int64 Count);
 }
