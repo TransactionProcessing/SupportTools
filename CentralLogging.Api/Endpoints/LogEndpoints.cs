@@ -498,11 +498,16 @@ public static partial class LogEndpoints
                                                    Int32? take,
                                                    CancellationToken cancellationToken)
     {
-        if (!TryResolveSearch(fromUtc, toUtc, filter, requireExplicitRange: false, out DateTimeOffset start,
-                out DateTimeOffset end, out StructuredLogFilter[] filters, out IResult? problem))
+        SearchCriteria? criteria = TryResolveSearch(new LogSearchRequest
+        {
+            FromUtc = fromUtc,
+            ToUtc = toUtc,
+            Filter = filter
+        }, requireExplicitRange: false, maximumRangeDays: null, out IResult? problem);
+        if (criteria is null)
             return problem!;
         Int32 pageSize = Math.Clamp(take ?? 100, 1, MaximumPageSize);
-        List<CentralLogEvent> results = await BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters)
+        List<CentralLogEvent> results = await BuildEventQuery(database, criteria, serviceName, tenantId, correlationId)
             .OrderByDescending(log => log.TimestampUtc)
             .ThenByDescending(log => log.EventId)
             .Take(pageSize)

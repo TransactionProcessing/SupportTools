@@ -15,26 +15,22 @@ public static partial class LogEndpoints
     private static readonly JsonSerializerOptions NdjsonOptions = new(JsonSerializerDefaults.Web);
 
     public static async Task<IResult> SearchPageAsync(CentralLogsDbContext database,
-                                                      DateTimeOffset? fromUtc,
-                                                      DateTimeOffset? toUtc,
-                                                      String? serviceName,
-                                                      Guid? tenantId,
-                                                      Guid? correlationId,
-                                                      String[]? filter,
-                                                      String? cursor,
-                                                      Int32? take,
+                                                      [AsParameters] LogSearchRequest request,
                                                       CancellationToken cancellationToken)
     {
-        if (!TryResolveSearch(fromUtc, toUtc, filter, requireExplicitRange: true, out DateTimeOffset start,
-                out DateTimeOffset end, out StructuredLogFilter[] filters, out IResult? problem))
+        SearchCriteria? criteria = TryResolveSearch(request, requireExplicitRange: true, maximumRangeDays: null,
+            out IResult? problem);
+        if (criteria is null)
             return problem!;
 
         LogCursor? position = null;
-        if (!String.IsNullOrWhiteSpace(cursor) && (cursor.Length > 512 || !TryDecodeCursor(cursor, out position)))
+        if (!String.IsNullOrWhiteSpace(request.Cursor) &&
+            (request.Cursor.Length > 512 || !TryDecodeCursor(request.Cursor, out position)))
             return Results.Problem("cursor is not a valid continuation token.", statusCode: StatusCodes.Status400BadRequest);
 
-        Int32 pageSize = Math.Clamp(take ?? 100, 1, MaximumPageSize);
-        IQueryable<CentralLogEvent> query = BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters);
+        Int32 pageSize = Math.Clamp(request.Take ?? 100, 1, MaximumPageSize);
+        IQueryable<CentralLogEvent> query = BuildEventQuery(database, criteria, request.ServiceName, request.TenantId,
+            request.CorrelationId);
         if (position is { } after)
         {
             query = query.Where(log => log.TimestampUtc < after.TimestampUtc ||
@@ -57,26 +53,21 @@ public static partial class LogEndpoints
     }
 
     public static async Task<IResult> ExportAsync(CentralLogsDbContext database,
-                                      DateTimeOffset? fromUtc,
-                                      DateTimeOffset? toUtc,
-                                      String? serviceName,
-                                      Guid? tenantId,
-                                      Guid? correlationId,
-                                      String[]? filter,
-                                      Int32? maxRows,
+                                      [AsParameters] LogSearchRequest request,
                                       HttpContext httpContext,
                                       CancellationToken cancellationToken)
     {
-        if (!TryResolveSearch(fromUtc, toUtc, filter, requireExplicitRange: true, out DateTimeOffset start,
-                out DateTimeOffset end, out StructuredLogFilter[] filters, out IResult? problem,
-                MaximumAggregateRangeDays))
+        SearchCriteria? criteria = TryResolveSearch(request, requireExplicitRange: true,
+            maximumRangeDays: MaximumAggregateRangeDays, out IResult? problem);
+        if (criteria is null)
             return problem!;
 
-        Int32 rowLimit = maxRows ?? DefaultExportRows;
+        Int32 rowLimit = request.MaxRows ?? DefaultExportRows;
         if (rowLimit is < 1 or > MaximumExportRows)
             return Results.Problem($"maxRows must be between 1 and {MaximumExportRows}.", statusCode: StatusCodes.Status400BadRequest);
 
-        IQueryable<CentralLogEvent> filteredQuery = BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters);
+        IQueryable<CentralLogEvent> filteredQuery = BuildEventQuery(database, criteria, request.ServiceName,
+            request.TenantId, request.CorrelationId);
         Int32 rowsThroughLimit = await filteredQuery.Take(rowLimit + 1).CountAsync(cancellationToken);
         httpContext.Response.Headers.Append("X-Log-Export-Max-Rows", rowLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
         httpContext.Response.Headers.Append("X-Log-Export-Truncated", (rowsThroughLimit > rowLimit).ToString().ToLowerInvariant());
@@ -97,31 +88,25 @@ public static partial class LogEndpoints
     }
 
     public static async Task<IResult> AggregateAsync(CentralLogsDbContext database,
-                                                     DateTimeOffset? fromUtc,
-                                                     DateTimeOffset? toUtc,
-                                                     String? serviceName,
-                                                     Guid? tenantId,
-                                                     Guid? correlationId,
-                                                     String[]? filter,
-                                                     String? bucket,
-                                                     Int32? groupTake,
+                                                     [AsParameters] LogSearchRequest request,
                                                      CancellationToken cancellationToken)
     {
-        if (!TryResolveSearch(fromUtc, toUtc, filter, requireExplicitRange: true, out DateTimeOffset start,
-                out DateTimeOffset end, out StructuredLogFilter[] filters, out IResult? problem,
-                MaximumAggregateRangeDays))
+        SearchCriteria? criteria = TryResolveSearch(request, requireExplicitRange: true,
+            maximumRangeDays: MaximumAggregateRangeDays, out IResult? problem);
+        if (criteria is null)
             return problem!;
 
-        String timeBucket = String.IsNullOrWhiteSpace(bucket) ? "hour" : bucket.Trim().ToLowerInvariant();
+        String timeBucket = String.IsNullOrWhiteSpace(request.Bucket) ? "hour" : request.Bucket.Trim().ToLowerInvariant();
         if (timeBucket is not ("hour" or "day"))
             return Results.Problem("bucket must be either hour or day.", statusCode: StatusCodes.Status400BadRequest);
 
-        Int32 groupLimit = groupTake ?? 100;
+        Int32 groupLimit = request.GroupTake ?? 100;
         if (groupLimit is < 1 or > MaximumAggregateGroups)
             return Results.Problem($"groupTake must be between 1 and {MaximumAggregateGroups}.",
                 statusCode: StatusCodes.Status400BadRequest);
 
-        IQueryable<CentralLogEvent> query = BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters);
+        IQueryable<CentralLogEvent> query = BuildEventQuery(database, criteria, request.ServiceName, request.TenantId,
+            request.CorrelationId);
         var severityRows = await query
             .GroupBy(log => log.Severity)
             .Select(group => new { Value = group.Key, Count = group.LongCount() })
@@ -176,42 +161,46 @@ public static partial class LogEndpoints
         return Results.Ok(new LogAggregateResponse(bySeverity, byService, byTimeBucket, timeBucket));
     }
 
-    private static Boolean TryResolveSearch(DateTimeOffset? fromUtc,
-                                            DateTimeOffset? toUtc,
-                                            String[]? filter,
-                                            Boolean requireExplicitRange,
-                                            out DateTimeOffset start,
-                                            out DateTimeOffset end,
-                                            out StructuredLogFilter[] filters,
-                                            out IResult? problem,
-                                            Int32? maximumRangeDays = null)
+    private static SearchCriteria? TryResolveSearch(LogSearchRequest request,
+                                                    Boolean requireExplicitRange,
+                                                    Int32? maximumRangeDays,
+                                                    out IResult? problem)
     {
-        start = default;
-        end = default;
-        filters = Array.Empty<StructuredLogFilter>();
         problem = null;
 
-        if (requireExplicitRange && (!fromUtc.HasValue || !toUtc.HasValue))
+        if (requireExplicitRange && (!request.FromUtc.HasValue || !request.ToUtc.HasValue))
         {
             problem = Results.Problem("fromUtc and toUtc are required.", statusCode: StatusCodes.Status400BadRequest);
-            return false;
+            return null;
         }
 
-        end = toUtc?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
-        start = fromUtc?.ToUniversalTime() ?? end.AddHours(-24);
+        DateTimeOffset end = request.ToUtc?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
+        DateTimeOffset start = request.FromUtc?.ToUniversalTime() ?? end.AddHours(-24);
         if (start >= end)
         {
             problem = Results.Problem("fromUtc must be earlier than toUtc.", statusCode: StatusCodes.Status400BadRequest);
-            return false;
+            return null;
         }
 
         if (maximumRangeDays.HasValue && end - start > TimeSpan.FromDays(maximumRangeDays.Value))
         {
             problem = Results.Problem($"The requested time range cannot exceed {maximumRangeDays.Value} days.",
                 statusCode: StatusCodes.Status400BadRequest);
-            return false;
+            return null;
         }
 
+        if (!TryParseFilters(request.Filter, out StructuredLogFilter[] filters, out problem))
+            return null;
+
+        return new SearchCriteria(start, end, filters);
+    }
+
+    private static Boolean TryParseFilters(String[]? filter,
+                                          out StructuredLogFilter[] filters,
+                                          out IResult? problem)
+    {
+        filters = Array.Empty<StructuredLogFilter>();
+        problem = null;
         try
         {
             filters = (filter ?? Array.Empty<String>())
@@ -227,44 +216,50 @@ public static partial class LogEndpoints
             return false;
         }
 
-        if (filters.Length > 10 || filters.Any(item => String.IsNullOrWhiteSpace(item.Field) || item.Field.Length > 200 ||
-                                                        item.Type is not ("string" or JsonNumberType or JsonBooleanType) || item.Value is null))
+        if (!HasValidFilterDefinitions(filters))
         {
             problem = Results.Problem("Provide up to 10 filters with a field name (max 200 characters), type (string, number, boolean), and value.",
                 statusCode: StatusCodes.Status400BadRequest);
             return false;
         }
 
-        if (filters.Any(item => item.Type == JsonNumberType && NormalizeJsonNumber(item.Value) is null ||
-                                item.Type == JsonBooleanType && !Boolean.TryParse(item.Value, out _)))
+        if (!HasValidFilterValues(filters))
         {
             problem = Results.Problem("Numeric and boolean filters must use valid values for their selected type.",
                 statusCode: StatusCodes.Status400BadRequest);
             return false;
         }
 
-        filters = filters.Select(item => item.Type switch
+        filters = NormalizeFilters(filters);
+        return true;
+    }
+
+    private static Boolean HasValidFilterDefinitions(IReadOnlyList<StructuredLogFilter> filters) =>
+        filters.Count <= 10 && filters.All(item => !String.IsNullOrWhiteSpace(item.Field) && item.Field.Length <= 200 &&
+                                                   (item.Type is "string" or JsonNumberType or JsonBooleanType) && item.Value is not null);
+
+    private static Boolean HasValidFilterValues(IReadOnlyList<StructuredLogFilter> filters) =>
+        filters.All(item => item.Type != JsonNumberType || NormalizeJsonNumber(item.Value) is not null)
+        && filters.All(item => item.Type != JsonBooleanType || Boolean.TryParse(item.Value, out _));
+
+    private static StructuredLogFilter[] NormalizeFilters(IEnumerable<StructuredLogFilter> filters) => filters.Select(item => item.Type switch
         {
             JsonNumberType => item with { Value = NormalizeJsonNumber(item.Value)! },
             JsonBooleanType => item with { Value = Boolean.Parse(item.Value).ToString().ToLowerInvariant() },
             _ => item
         }).ToArray();
-        return true;
-    }
 
     private static IQueryable<CentralLogEvent> BuildEventQuery(CentralLogsDbContext database,
-                                                               DateTimeOffset start,
-                                                               DateTimeOffset end,
+                                                               SearchCriteria criteria,
                                                                String? serviceName,
                                                                Guid? tenantId,
-                                                               Guid? correlationId,
-                                                               IReadOnlyList<StructuredLogFilter> filters)
+                                                               Guid? correlationId)
     {
-        DateOnly firstDateUtc = DateOnly.FromDateTime(start.UtcDateTime);
-        DateOnly lastDateUtc = DateOnly.FromDateTime(end.AddTicks(-1).UtcDateTime);
-        IQueryable<CentralLogEvent> query = BuildStructuredFilterQuery(database, filters).AsNoTracking()
+        DateOnly firstDateUtc = DateOnly.FromDateTime(criteria.Start.UtcDateTime);
+        DateOnly lastDateUtc = DateOnly.FromDateTime(criteria.End.AddTicks(-1).UtcDateTime);
+        IQueryable<CentralLogEvent> query = BuildStructuredFilterQuery(database, criteria.Filters).AsNoTracking()
             .Where(log => log.LogDateUtc >= firstDateUtc && log.LogDateUtc <= lastDateUtc &&
-                          log.TimestampUtc >= start && log.TimestampUtc < end);
+                          log.TimestampUtc >= criteria.Start && log.TimestampUtc < criteria.End);
         if (!String.IsNullOrWhiteSpace(serviceName)) query = query.Where(log => log.ServiceName == serviceName);
         if (tenantId.HasValue) query = query.Where(log => log.TenantId == tenantId);
         if (correlationId.HasValue) query = query.Where(log => log.CorrelationId == correlationId);
@@ -312,4 +307,6 @@ public static partial class LogEndpoints
 
         public LogCursor() { }
     }
+
+    private sealed record SearchCriteria(DateTimeOffset Start, DateTimeOffset End, StructuredLogFilter[] Filters);
 }
