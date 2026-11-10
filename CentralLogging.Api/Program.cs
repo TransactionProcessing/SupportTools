@@ -2,9 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using CentralLogging.Api.Data;
 using CentralLogging.Api.Endpoints;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -55,17 +55,7 @@ app.Use(async (context, next) =>
         return;
     }
 
-    if (HttpMethods.IsPost(context.Request.Method) && context.Request.Path.StartsWithSegments("/api/logs"))
-    {
-        IHttpMaxRequestBodySizeFeature? sizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (sizeFeature is { IsReadOnly: false })
-        {
-            Int64 maximumBytes = context.Request.Path.StartsWithSegments("/api/logs/upload")
-                ? ingestionOptions.MaximumUploadBytes + 64 * 1024
-                : ingestionOptions.MaximumRequestBytes;
-            sizeFeature.MaxRequestBodySize = maximumBytes;
-        }
-    }
+    LogRequestSizeLimit.Apply(context, ingestionOptions);
 
     await next(context);
 });
