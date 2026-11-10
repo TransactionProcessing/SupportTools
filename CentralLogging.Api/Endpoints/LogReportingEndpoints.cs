@@ -23,14 +23,38 @@ public static partial class LogEndpoints
         if (criteria is null)
             return problem!;
 
-        LogCursor? position = null;
-        if (!String.IsNullOrWhiteSpace(request.Cursor) &&
-            (request.Cursor.Length > 512 || !TryDecodeCursor(request.Cursor, out position)))
-            return Results.Problem("cursor is not a valid continuation token.", statusCode: StatusCodes.Status400BadRequest);
+        LogCursor? position = TryResolveCursor(request.Cursor, out problem);
+        if (problem is not null)
+            return problem;
 
         Int32 pageSize = Math.Clamp(request.Take ?? 100, 1, MaximumPageSize);
         IQueryable<CentralLogEvent> query = BuildEventQuery(database, criteria, request.ServiceName, request.TenantId,
             request.CorrelationId);
+        List<CentralLogEvent> rows = await ReadPageRowsAsync(query, position, pageSize, cancellationToken);
+        return CreatePageResponse(rows, pageSize);
+    }
+
+    private static LogCursor? TryResolveCursor(String? cursor, out IResult? problem)
+    {
+        problem = null;
+        if (String.IsNullOrWhiteSpace(cursor))
+            return null;
+
+        if (cursor.Length > 512 || !TryDecodeCursor(cursor, out LogCursor? position))
+        {
+            problem = Results.Problem("cursor is not a valid continuation token.",
+                statusCode: StatusCodes.Status400BadRequest);
+            return null;
+        }
+
+        return position;
+    }
+
+    private static async Task<List<CentralLogEvent>> ReadPageRowsAsync(IQueryable<CentralLogEvent> query,
+                                                                       LogCursor? position,
+                                                                       Int32 pageSize,
+                                                                       CancellationToken cancellationToken)
+    {
         if (position is { } after)
         {
             query = query.Where(log => log.TimestampUtc < after.TimestampUtc ||
@@ -38,12 +62,15 @@ public static partial class LogEndpoints
                                         log.EventId.CompareTo(after.EventId) < 0));
         }
 
-        List<CentralLogEvent> rows = await query
+        return await query
             .OrderByDescending(log => log.TimestampUtc)
             .ThenByDescending(log => log.EventId)
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken);
+    }
 
+    private static IResult CreatePageResponse(List<CentralLogEvent> rows, Int32 pageSize)
+    {
         Boolean hasMore = rows.Count > pageSize;
         if (hasMore)
             rows.RemoveAt(rows.Count - 1);
