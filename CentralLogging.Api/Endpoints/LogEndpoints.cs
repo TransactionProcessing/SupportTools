@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CentralLogging.Api.Endpoints;
 
-public static class LogEndpoints
+public static partial class LogEndpoints
 {
     private const Int32 MaximumBatchSize = 500;
     private const Int32 MaximumPageSize = 500;
@@ -498,53 +498,13 @@ public static class LogEndpoints
                                                    Int32? take,
                                                    CancellationToken cancellationToken)
     {
-        DateTimeOffset end = toUtc?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
-        DateTimeOffset start = fromUtc?.ToUniversalTime() ?? end.AddHours(-24);
-        if (start >= end)
-            return Results.Problem("fromUtc must be earlier than toUtc.", statusCode: StatusCodes.Status400BadRequest);
-
-        DateOnly firstDateUtc = DateOnly.FromDateTime(start.UtcDateTime);
-        DateOnly lastDateUtc = DateOnly.FromDateTime(end.AddTicks(-1).UtcDateTime);
-
-        StructuredLogFilter[] filters;
-        try
-        {
-            filters = (filter ?? Array.Empty<String>())
-                .Select(value => JsonSerializer.Deserialize<StructuredLogFilter>(value,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true })
-                    ?? throw new JsonException("Filter cannot be null."))
-                .ToArray();
-        }
-        catch (JsonException)
-        {
-            return Results.Problem("Each filter must be a JSON object with field, type, and value properties.", statusCode: StatusCodes.Status400BadRequest);
-        }
-
-        if (filters.Length > 10 || filters.Any(item => String.IsNullOrWhiteSpace(item.Field) || item.Field.Length > 200 ||
-                                                        item.Type is not ("string" or JsonNumberType or JsonBooleanType) || item.Value is null))
-            return Results.Problem("Provide up to 10 filters with a field name (max 200 characters), type (string, number, boolean), and value.", statusCode: StatusCodes.Status400BadRequest);
-
-        if (filters.Any(item => item.Type == JsonNumberType && NormalizeJsonNumber(item.Value) is null ||
-                                item.Type == JsonBooleanType && !Boolean.TryParse(item.Value, out _)))
-            return Results.Problem("Numeric and boolean filters must use valid values for their selected type.", statusCode: StatusCodes.Status400BadRequest);
-
-        filters = filters.Select(item => item.Type switch
-        {
-            JsonNumberType => item with { Value = NormalizeJsonNumber(item.Value)! },
-            JsonBooleanType => item with { Value = Boolean.Parse(item.Value).ToString().ToLowerInvariant() },
-            _ => item
-        }).ToArray();
-
+        if (!TryResolveSearch(fromUtc, toUtc, filter, requireExplicitRange: false, out DateTimeOffset start,
+                out DateTimeOffset end, out StructuredLogFilter[] filters, out IResult? problem))
+            return problem!;
         Int32 pageSize = Math.Clamp(take ?? 100, 1, MaximumPageSize);
-        IQueryable<CentralLogEvent> query = BuildStructuredFilterQuery(database, filters).AsNoTracking()
-            .Where(log => log.LogDateUtc >= firstDateUtc && log.LogDateUtc <= lastDateUtc &&
-                          log.TimestampUtc >= start && log.TimestampUtc < end);
-        if (!String.IsNullOrWhiteSpace(serviceName)) query = query.Where(log => log.ServiceName == serviceName);
-        if (tenantId.HasValue) query = query.Where(log => log.TenantId == tenantId);
-        if (correlationId.HasValue) query = query.Where(log => log.CorrelationId == correlationId);
-
-        List<CentralLogEvent> results = await query
+        List<CentralLogEvent> results = await BuildEventQuery(database, start, end, serviceName, tenantId, correlationId, filters)
             .OrderByDescending(log => log.TimestampUtc)
+            .ThenByDescending(log => log.EventId)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
         return Results.Ok(results);

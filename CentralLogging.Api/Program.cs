@@ -77,6 +77,9 @@ app.MapGet("/health/ready", async (CentralLogsDbContext database, CancellationTo
 app.MapPost("/api/logs", LogEndpoints.IngestAsync);
 app.MapPost("/api/logs/upload", LogEndpoints.UploadAsync).DisableAntiforgery();
 app.MapGet("/api/logs", LogEndpoints.SearchAsync);
+app.MapGet("/api/logs/page", LogEndpoints.SearchPageAsync);
+app.MapGet("/api/logs/export", LogEndpoints.ExportAsync);
+app.MapGet("/api/logs/aggregates", LogEndpoints.AggregateAsync);
 app.MapGet("/api/logs/fields", LogEndpoints.GetStructuredFieldsAsync);
 app.MapGet("/api/logs/services", LogEndpoints.GetServicesAsync);
 
