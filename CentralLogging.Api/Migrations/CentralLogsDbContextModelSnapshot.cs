@@ -99,6 +99,10 @@ namespace CentralLogging.Api.Migrations
                     b.HasIndex("TenantId", "TimestampUtc")
                         .IsDescending(false, true);
 
+                    b.HasIndex("TimestampUtc", "EventId")
+                        .IsDescending()
+                        .HasDatabaseName("IX_LogEvents_TimestampUtc_EventId");
+
                     b.ToTable("LogEvents", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_LogEvents_PropertiesJson_IsJson", "ISJSON([PropertiesJson]) = 1");
@@ -109,8 +113,8 @@ namespace CentralLogging.Api.Migrations
                 {
                     b.Property<string>("ServiceName")
                         .HasMaxLength(200)
-                        .UseCollation("Latin1_General_100_BIN2")
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .UseCollation("Latin1_General_100_BIN2");
 
                     b.Property<string>("FieldName")
                         .HasMaxLength(200)

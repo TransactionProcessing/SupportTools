@@ -32,6 +32,9 @@ public sealed class CentralLogsDbContext(DbContextOptions<CentralLogsDbContext> 
         entity.Property(log => log.Exception).HasColumnType(MaxNvarcharColumnType);
         entity.Property(log => log.PropertiesJson).HasColumnType(MaxNvarcharColumnType).IsRequired();
         entity.HasIndex(log => log.TimestampUtc).IsDescending();
+        entity.HasIndex(log => new { log.TimestampUtc, log.EventId })
+            .IsDescending(true, true)
+            .HasDatabaseName("IX_LogEvents_TimestampUtc_EventId");
         entity.HasIndex(log => new { log.LogDateUtc, log.TimestampUtc })
             .IsDescending(false, true)
             .HasDatabaseName("IX_LogEvents_LogDateUtc_TimestampUtc");
