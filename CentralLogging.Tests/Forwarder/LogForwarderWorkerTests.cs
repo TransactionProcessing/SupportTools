@@ -384,6 +384,7 @@ public sealed class LogForwarderWorkerTests
         await worker.StartAsync(CancellationToken.None);
         try
         {
+            await logger.WaitForMessageAsync(message => message.Contains("does not exist", StringComparison.Ordinal));
             logger.Messages.ShouldContain(message => message.Contains("does not exist", StringComparison.Ordinal));
             handler.RequestCount.ShouldBe(0);
         }
@@ -410,6 +411,7 @@ public sealed class LogForwarderWorkerTests
         await worker.StartAsync(CancellationToken.None);
         try
         {
+            await logger.WaitForMessageAsync(message => message.Contains("Could not scan log source directory", StringComparison.Ordinal));
             logger.Messages.ShouldContain(message => message.Contains("Could not scan log source directory", StringComparison.Ordinal));
             handler.RequestCount.ShouldBe(0);
         }
@@ -556,6 +558,23 @@ public sealed class LogForwarderWorkerTests
     private sealed class RecordingLogger : ILogger<LogForwarderWorker>
     {
         public List<String> Messages { get; } = [];
+
+        public async Task WaitForMessageAsync(Func<String, Boolean> predicate)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                lock (this.Messages)
+                {
+                    if (this.Messages.Any(predicate))
+                        return;
+                }
+
+                await Task.Delay(20);
+            }
+
+            throw new TimeoutException("The expected background worker log message was not recorded.");
+        }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {

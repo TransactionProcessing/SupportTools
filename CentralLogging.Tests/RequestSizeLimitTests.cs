@@ -12,10 +12,12 @@ namespace CentralLogging.Tests;
 
 public sealed class RequestSizeLimitTests
 {
+    private const String LogsRoute = "/api/logs";
+
     [Fact]
     public void Json_ingestion_uses_the_configured_request_limit()
     {
-        DefaultHttpContext context = CreateContext(HttpMethods.Post, "/api/logs");
+        DefaultHttpContext context = CreateContext(HttpMethods.Post, LogsRoute);
         TestRequestBodySizeFeature feature = new();
         context.Features.Set<IHttpMaxRequestBodySizeFeature>(feature);
 
@@ -37,7 +39,7 @@ public sealed class RequestSizeLimitTests
     }
 
     [Theory]
-    [InlineData("GET", "/api/logs")]
+    [InlineData("GET", LogsRoute)]
     [InlineData("POST", "/api/health")]
     public void Non_ingestion_requests_do_not_change_the_server_limit(String method, String path)
     {
@@ -53,7 +55,7 @@ public sealed class RequestSizeLimitTests
     [Fact]
     public void Request_limit_is_left_unchanged_when_server_feature_is_read_only()
     {
-        DefaultHttpContext context = CreateContext(HttpMethods.Post, "/api/logs");
+        DefaultHttpContext context = CreateContext(HttpMethods.Post, LogsRoute);
         TestRequestBodySizeFeature feature = new() { IsReadOnly = true, MaxRequestBodySize = 789 };
         context.Features.Set<IHttpMaxRequestBodySizeFeature>(feature);
 
@@ -69,7 +71,7 @@ public sealed class RequestSizeLimitTests
         try
         {
             using HttpClient client = CreateClient(app);
-            using HttpResponseMessage response = await client.PostAsync("/api/logs", new StringContent(new String('x', 65)));
+            using HttpResponseMessage response = await client.PostAsync(LogsRoute, new StringContent(new String('x', 65)));
 
             response.StatusCode.ShouldBe(System.Net.HttpStatusCode.RequestEntityTooLarge);
         }
@@ -86,7 +88,7 @@ public sealed class RequestSizeLimitTests
         try
         {
             using HttpClient client = CreateClient(app);
-            using HttpResponseMessage response = await client.PostAsync("/api/logs", new StringContent(new String('x', 64)));
+            using HttpResponseMessage response = await client.PostAsync(LogsRoute, new StringContent(new String('x', 64)));
 
             response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
         }
@@ -99,7 +101,7 @@ public sealed class RequestSizeLimitTests
     [Fact]
     public void Missing_server_limit_feature_is_ignored()
     {
-        DefaultHttpContext context = CreateContext(HttpMethods.Post, "/api/logs");
+        DefaultHttpContext context = CreateContext(HttpMethods.Post, LogsRoute);
 
         Should.NotThrow(() => LogRequestSizeLimit.Apply(context,
             new LogIngestionOptions { MaximumRequestBytes = 123, MaximumUploadBytes = 456 }));
@@ -116,7 +118,7 @@ public sealed class RequestSizeLimitTests
             LogRequestSizeLimit.Apply(context, options);
             await next(context);
         });
-        app.MapPost("/api/logs", async (HttpRequest request) =>
+        app.MapPost(LogsRoute, async (HttpRequest request) =>
         {
             await request.Body.CopyToAsync(Stream.Null);
             return Results.Ok();

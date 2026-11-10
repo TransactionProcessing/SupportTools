@@ -71,7 +71,7 @@ public sealed class LogRetentionWorkerTests(SqlServerApiFixture fixture)
     [Fact]
     public async Task Worker_logs_database_failures_without_stopping_the_background_service()
     {
-        await using ServiceProvider provider = CreateServiceProvider("Server=127.0.0.1,1;Database=CentralLogs;User Id=test;Password=test;Encrypt=False;Connect Timeout=1");
+        await using ServiceProvider provider = CreateServiceProvider("Server=127.0.0.1,1;Database=CentralLogs;Integrated Security=True;Encrypt=False;Connect Timeout=1");
         RecordingLogger logger = new();
         LogRetentionWorker worker = new(provider.GetRequiredService<IServiceScopeFactory>(),
             Options.Create(new LogRetentionOptions { Enabled = true, RetentionDays = 90, BatchSize = 100, IntervalMinutes = 60 }),
@@ -150,7 +150,7 @@ public sealed class LogRetentionWorkerTests(SqlServerApiFixture fixture)
                                 Func<TState, Exception?, String> formatter)
         {
             lock (this.Messages)
-                this.Messages.Add(formatter(state, exception));
+                this.Messages.Add($"{logLevel} {eventId.Id}: {formatter(state, exception)}");
         }
     }
 }

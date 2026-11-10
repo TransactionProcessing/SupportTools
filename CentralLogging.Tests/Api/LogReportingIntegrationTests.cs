@@ -9,12 +9,20 @@ namespace CentralLogging.Tests.Api;
 [Collection("CentralLoggingApi")]
 public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
 {
+    private const String PaymentsServiceName = "Payments";
+    private const String OrdersServiceName = "Orders";
+    private const String InformationSeverity = "Information";
+    private const String EventMessage = "reporting integration event";
+    private const String ValuePropertyName = "value";
+    private const String CountPropertyName = "count";
+    private const String RegionPropertyName = "region";
+
     [SqlServerFact]
     public async Task Page_uses_a_stable_cursor_for_events_with_the_same_timestamp()
     {
         await fixture.ResetDatabaseAsync();
         DateTimeOffset timestamp = DateTimeOffset.UtcNow.AddMinutes(-2);
-        LogEventInput[] events = Enumerable.Range(0, 3).Select(_ => NewEvent(timestamp, "Payments")).ToArray();
+        LogEventInput[] events = Enumerable.Range(0, 3).Select(_ => NewEvent(timestamp, PaymentsServiceName)).ToArray();
         await PostEventsAsync(events);
 
         using HttpResponseMessage first = await GetAsync($"/api/logs/page?fromUtc={Encode(timestamp.AddMinutes(-1).ToString("O"))}&toUtc={Encode(timestamp.AddMinutes(1).ToString("O"))}&take=2");
@@ -51,9 +59,9 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         DateTimeOffset timestamp = DateTimeOffset.UtcNow.AddMinutes(-2);
         LogEventInput[] events =
         [
-            NewEvent(timestamp, "Payments"),
-            NewEvent(timestamp.AddSeconds(1), "Payments"),
-            NewEvent(timestamp.AddSeconds(2), "Orders")
+            NewEvent(timestamp, PaymentsServiceName),
+            NewEvent(timestamp.AddSeconds(1), PaymentsServiceName),
+            NewEvent(timestamp.AddSeconds(2), OrdersServiceName)
         ];
         await PostEventsAsync(events);
         String path = $"/api/logs/export?fromUtc={Encode(timestamp.AddMinutes(-1).ToString("O"))}&toUtc={Encode(timestamp.AddMinutes(1).ToString("O"))}&serviceName=Payments&maxRows=1";
@@ -74,7 +82,7 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
     {
         await fixture.ResetDatabaseAsync();
         DateTimeOffset timestamp = DateTimeOffset.UtcNow.AddMinutes(-2);
-        await PostEventsAsync(Enumerable.Range(0, 2).Select(_ => NewEvent(timestamp, "Payments")).ToArray());
+        await PostEventsAsync(Enumerable.Range(0, 2).Select(_ => NewEvent(timestamp, PaymentsServiceName)).ToArray());
 
         using HttpResponseMessage response = await GetAsync($"/api/logs/export?fromUtc={Encode(timestamp.AddMinutes(-1).ToString("O"))}&toUtc={Encode(timestamp.AddMinutes(1).ToString("O"))}&maxRows=2");
 
@@ -108,9 +116,9 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         DateTimeOffset hour = new(2026, 11, 9, 10, 0, 0, TimeSpan.Zero);
         LogEventInput[] events =
         [
-            NewEvent(hour.AddMinutes(1), "Payments", "Error"),
-            NewEvent(hour.AddMinutes(2), "Payments", "Information"),
-            NewEvent(hour.AddHours(1).AddMinutes(3), "Orders", "Error")
+            NewEvent(hour.AddMinutes(1), PaymentsServiceName, "Error"),
+            NewEvent(hour.AddMinutes(2), PaymentsServiceName, InformationSeverity),
+            NewEvent(hour.AddHours(1).AddMinutes(3), OrdersServiceName, "Error")
         ];
         await PostEventsAsync(events);
         String range = $"fromUtc={Encode(hour.AddHours(-1).ToString("O"))}&toUtc={Encode(hour.AddHours(3).ToString("O"))}";
@@ -121,29 +129,29 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         hourlyBody.RootElement.GetProperty("timeBucket").GetString().ShouldBe("hour");
         JsonElement severityCounts = hourlyBody.RootElement.GetProperty("bySeverity");
         severityCounts.GetArrayLength().ShouldBe(2);
-        severityCounts[0].GetProperty("value").GetString().ShouldBe("Error");
-        severityCounts[0].GetProperty("count").GetInt64().ShouldBe(2);
-        severityCounts[1].GetProperty("value").GetString().ShouldBe("Information");
-        severityCounts[1].GetProperty("count").GetInt64().ShouldBe(1);
+        severityCounts[0].GetProperty(ValuePropertyName).GetString().ShouldBe("Error");
+        severityCounts[0].GetProperty(CountPropertyName).GetInt64().ShouldBe(2);
+        severityCounts[1].GetProperty(ValuePropertyName).GetString().ShouldBe(InformationSeverity);
+        severityCounts[1].GetProperty(CountPropertyName).GetInt64().ShouldBe(1);
         JsonElement serviceCounts = hourlyBody.RootElement.GetProperty("byService");
         serviceCounts.GetArrayLength().ShouldBe(2);
-        serviceCounts[0].GetProperty("value").GetString().ShouldBe("Payments");
-        serviceCounts[0].GetProperty("count").GetInt64().ShouldBe(2);
-        serviceCounts[1].GetProperty("value").GetString().ShouldBe("Orders");
-        serviceCounts[1].GetProperty("count").GetInt64().ShouldBe(1);
+        serviceCounts[0].GetProperty(ValuePropertyName).GetString().ShouldBe(PaymentsServiceName);
+        serviceCounts[0].GetProperty(CountPropertyName).GetInt64().ShouldBe(2);
+        serviceCounts[1].GetProperty(ValuePropertyName).GetString().ShouldBe(OrdersServiceName);
+        serviceCounts[1].GetProperty(CountPropertyName).GetInt64().ShouldBe(1);
         JsonElement hourBuckets = hourlyBody.RootElement.GetProperty("byTimeBucket");
         hourBuckets.GetArrayLength().ShouldBe(2);
         hourBuckets[0].GetProperty("bucketStartUtc").GetDateTimeOffset().ShouldBe(hour);
-        hourBuckets[0].GetProperty("count").GetInt64().ShouldBe(2);
+        hourBuckets[0].GetProperty(CountPropertyName).GetInt64().ShouldBe(2);
 
         using HttpResponseMessage daily = await GetAsync($"/api/logs/aggregates?{range}&bucket=day&groupTake=1");
         using JsonDocument dailyBody = await ApiTestData.ReadJsonAsync(daily);
         daily.StatusCode.ShouldBe(HttpStatusCode.OK);
         dailyBody.RootElement.GetProperty("timeBucket").GetString().ShouldBe("day");
         dailyBody.RootElement.GetProperty("byService").GetArrayLength().ShouldBe(1);
-        dailyBody.RootElement.GetProperty("byService")[0].GetProperty("value").GetString().ShouldBe("Payments");
+        dailyBody.RootElement.GetProperty("byService")[0].GetProperty(ValuePropertyName).GetString().ShouldBe(PaymentsServiceName);
         dailyBody.RootElement.GetProperty("byTimeBucket").GetArrayLength().ShouldBe(1);
-        dailyBody.RootElement.GetProperty("byTimeBucket")[0].GetProperty("count").GetInt64().ShouldBe(3);
+        dailyBody.RootElement.GetProperty("byTimeBucket")[0].GetProperty(CountPropertyName).GetInt64().ShouldBe(3);
     }
 
     [SqlServerFact]
@@ -190,28 +198,28 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         [
             new LogEventInput
             {
-                EventId = Guid.NewGuid(), TimestampUtc = firstSeen, Severity = "Information", ServiceName = "Payments", Message = "reporting integration event",
+                EventId = Guid.NewGuid(), TimestampUtc = firstSeen, Severity = InformationSeverity, ServiceName = PaymentsServiceName, Message = EventMessage,
                 AdditionalProperties = new Dictionary<String, JsonElement>
                 {
-                    ["region"] = JsonSerializer.SerializeToElement("eu-west"),
+                    [RegionPropertyName] = JsonSerializer.SerializeToElement("eu-west"),
                     ["attempt"] = JsonSerializer.SerializeToElement(1)
                 }
             },
             new LogEventInput
             {
-                EventId = Guid.NewGuid(), TimestampUtc = lastSeen, Severity = "Information", ServiceName = "Payments", Message = "reporting integration event",
+                EventId = Guid.NewGuid(), TimestampUtc = lastSeen, Severity = InformationSeverity, ServiceName = PaymentsServiceName, Message = EventMessage,
                 AdditionalProperties = new Dictionary<String, JsonElement>
                 {
-                    ["region"] = JsonSerializer.SerializeToElement(42),
+                    [RegionPropertyName] = JsonSerializer.SerializeToElement(42),
                     ["attempt"] = JsonSerializer.SerializeToElement(2)
                 }
             },
             new LogEventInput
             {
-                EventId = Guid.NewGuid(), TimestampUtc = firstSeen, Severity = "Information", ServiceName = "Orders", Message = "reporting integration event",
+                EventId = Guid.NewGuid(), TimestampUtc = firstSeen, Severity = InformationSeverity, ServiceName = OrdersServiceName, Message = EventMessage,
                 AdditionalProperties = new Dictionary<String, JsonElement>
                 {
-                    ["region"] = JsonSerializer.SerializeToElement("eu-west")
+                    [RegionPropertyName] = JsonSerializer.SerializeToElement("eu-west")
                 }
             }
         ];
@@ -229,7 +237,7 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         fields[0].GetProperty("eventCount").GetInt64().ShouldBe(2);
         fields[0].GetProperty("firstSeenUtc").GetDateTimeOffset().ShouldBe(firstSeen);
         fields[0].GetProperty("lastSeenUtc").GetDateTimeOffset().ShouldBe(lastSeen);
-        fields[1].GetProperty("name").GetString().ShouldBe("region");
+        fields[1].GetProperty("name").GetString().ShouldBe(RegionPropertyName);
         fields[1].GetProperty("types")[0].GetString().ShouldBe("number");
         fields[1].GetProperty("types")[1].GetString().ShouldBe("string");
         fields[1].GetProperty("eventCount").GetInt64().ShouldBe(2);
@@ -261,13 +269,13 @@ public sealed class LogReportingIntegrationTests(SqlServerApiFixture fixture)
         return await fixture.Client.SendAsync(request);
     }
 
-    private static LogEventInput NewEvent(DateTimeOffset timestamp, String service, String severity = "Information") => new()
+    private static LogEventInput NewEvent(DateTimeOffset timestamp, String service, String severity = InformationSeverity) => new()
     {
         EventId = Guid.NewGuid(),
         TimestampUtc = timestamp,
         Severity = severity,
         ServiceName = service,
-        Message = "reporting integration event"
+        Message = EventMessage
     };
 
     private static String Encode(String value) => Uri.EscapeDataString(value);
