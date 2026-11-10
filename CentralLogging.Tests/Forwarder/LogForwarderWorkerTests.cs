@@ -370,15 +370,67 @@ public sealed class LogForwarderWorkerTests
         }
     }
 
+    [Fact]
+    public async Task Worker_keeps_checkpoint_cleanup_incomplete_when_a_source_directory_is_missing()
+    {
+        using TemporaryDirectory directory = new();
+        String missingDirectory = Path.Combine(directory.Path, "missing");
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        RecordingLogger logger = new();
+        using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using HttpClient client = new(handler);
+        LogForwarderWorker worker = CreateWorker(missingDirectory, checkpointPath, client, logger);
+
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await logger.WaitForMessageAsync(message => message.Contains("does not exist", StringComparison.Ordinal));
+            logger.Messages.ShouldContain(message => message.Contains("does not exist", StringComparison.Ordinal));
+            handler.RequestCount.ShouldBe(0);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_logs_a_scan_failure_when_a_file_pattern_is_invalid()
+    {
+        using TemporaryDirectory directory = new();
+        String checkpointPath = Path.Combine(directory.Path, CheckpointFileName);
+        RecordingLogger logger = new();
+        using RecordingHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using HttpClient client = new(handler);
+        LogForwarderWorker worker = CreateWorker(directory.Path,
+                                                 checkpointPath,
+                                                 client,
+                                                 logger,
+                                                 [null!]);
+
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await logger.WaitForMessageAsync(message => message.Contains("Could not scan log source directory", StringComparison.Ordinal));
+            logger.Messages.ShouldContain(message => message.Contains("Could not scan log source directory", StringComparison.Ordinal));
+            handler.RequestCount.ShouldBe(0);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
     private static LogForwarderWorker CreateWorker(String sourceDirectory,
                                                    String checkpointPath,
                                                    HttpClient client,
-                                                   ILogger<LogForwarderWorker>? logger = null)
+                                                   ILogger<LogForwarderWorker>? logger = null,
+                                                   String[]? filePatterns = null)
     {
         ForwarderOptions options = new()
         {
             SourceDirectories = [sourceDirectory],
-            FilePatterns = ["*.jsonl"],
+            FilePatterns = filePatterns ?? ["*.jsonl"],
             IncludeSubdirectories = false,
             Endpoint = "http://localhost/api/logs",
             ApiKey = "forwarder-test-key",
@@ -506,6 +558,23 @@ public sealed class LogForwarderWorkerTests
     private sealed class RecordingLogger : ILogger<LogForwarderWorker>
     {
         public List<String> Messages { get; } = [];
+
+        public async Task WaitForMessageAsync(Func<String, Boolean> predicate)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                lock (this.Messages)
+                {
+                    if (this.Messages.Any(predicate))
+                        return;
+                }
+
+                await Task.Delay(20);
+            }
+
+            throw new TimeoutException("The expected background worker log message was not recorded.");
+        }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {

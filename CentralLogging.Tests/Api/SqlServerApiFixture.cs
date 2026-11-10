@@ -24,6 +24,7 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
     private MsSqlContainer? Container;
 
     public HttpClient Client { get; private set; } = null!;
+    public String ConnectionString { get; private set; } = String.Empty;
 
     public async Task InitializeAsync()
     {
@@ -44,9 +45,10 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
             Encrypt = false,
             TrustServerCertificate = true
         };
+        this.ConnectionString = connectionStringBuilder.ConnectionString;
 
-        this.Factory = new CentralLoggingApiFactory(connectionStringBuilder.ConnectionString);
-        this.Client = this.CreateClientWithStartupEnvironment(connectionStringBuilder.ConnectionString);
+        this.Factory = new CentralLoggingApiFactory(this.ConnectionString);
+        this.Client = this.CreateClientWithStartupEnvironment(this.ConnectionString);
 
         IConfiguration configuration = this.Factory.Services.GetRequiredService<IConfiguration>();
         if (configuration["LogIngestion:ApiKey"] != ApiKey)

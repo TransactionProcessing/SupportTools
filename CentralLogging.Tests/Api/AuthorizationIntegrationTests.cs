@@ -19,13 +19,24 @@ public sealed class AuthorizationIntegrationTests(SqlServerApiFixture fixture)
     {
         await fixture.ResetDatabaseAsync();
 
-        using HttpResponseMessage missingKey = await fixture.Client.GetAsync("/api/logs/services");
-        missingKey.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        String[] protectedRoutes =
+        [
+            "/api/logs/services",
+            "/api/logs/page?fromUtc=2026-11-09T00%3A00%3A00Z&toUtc=2026-11-10T00%3A00%3A00Z",
+            "/api/logs/export?fromUtc=2026-11-09T00%3A00%3A00Z&toUtc=2026-11-10T00%3A00%3A00Z",
+            "/api/logs/aggregates?fromUtc=2026-11-09T00%3A00%3A00Z&toUtc=2026-11-10T00%3A00%3A00Z"
+        ];
 
-        using HttpRequestMessage wrongKeyRequest = new(HttpMethod.Get, "/api/logs/services");
-        wrongKeyRequest.Headers.Add("X-Log-Api-Key", "incorrect-key");
-        using HttpResponseMessage wrongKey = await fixture.Client.SendAsync(wrongKeyRequest);
-        wrongKey.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        foreach (String route in protectedRoutes)
+        {
+            using HttpResponseMessage missingKey = await fixture.Client.GetAsync(route);
+            missingKey.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+            using HttpRequestMessage wrongKeyRequest = new(HttpMethod.Get, route);
+            wrongKeyRequest.Headers.Add("X-Log-Api-Key", "incorrect-key");
+            using HttpResponseMessage wrongKey = await fixture.Client.SendAsync(wrongKeyRequest);
+            wrongKey.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        }
     }
 
     [SqlServerFact]
