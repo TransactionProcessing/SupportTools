@@ -175,6 +175,24 @@ public sealed class HealthMonitoringRegistrationClientTests
         Assert.Contains(logger.Messages, message => message.Contains("missing-service", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task SetDependencyMappingsAsync_skips_mappings_without_a_dependency_name()
+    {
+        var handler = new QueueHandler(JsonResponse(HttpStatusCode.OK, Array.Empty<object>()));
+        var logger = new RecordingLogger<HealthMonitoringRegistrationClient>();
+        var client = new HealthMonitoringRegistrationClient(
+            new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) },
+            logger);
+
+        await client.SetDependencyMappingsAsync(PaymentsApiServiceId, new[]
+        {
+            new DependencyMappingOptions(string.Empty, SecurityServiceId)
+        });
+
+        Assert.Single(handler.Requests);
+        Assert.Contains(logger.Messages, message => message.Contains("dependency name", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static HealthMonitoringRegistrationClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri(MonitoringBaseUrl) });
 

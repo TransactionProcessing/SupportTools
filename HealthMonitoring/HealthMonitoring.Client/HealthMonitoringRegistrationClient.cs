@@ -95,8 +95,13 @@ public sealed class HealthMonitoringRegistrationClient(
         var existing = await GetDependencyLinksAsync(serviceId, cancellationToken);
         foreach (var mapping in mappings)
         {
-            if (string.IsNullOrWhiteSpace(mapping.DependencyName)) throw new ArgumentException("A dependency name is required.", nameof(mappings));
-            if (string.IsNullOrWhiteSpace(mapping.TargetServiceId)) throw new ArgumentException("A target service ID is required.", nameof(mappings));
+            if (mapping is null || string.IsNullOrWhiteSpace(mapping.DependencyName) || string.IsNullOrWhiteSpace(mapping.TargetServiceId))
+            {
+                logger?.LogWarning(
+                    "Skipping an invalid dependency mapping for service '{ServiceId}' because its dependency name or target service ID is missing.",
+                    serviceId);
+                continue;
+            }
 
             ServiceIdentityPayload target;
             try

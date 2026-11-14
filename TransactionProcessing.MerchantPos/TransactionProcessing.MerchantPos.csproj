@@ -8,7 +8,6 @@
     <None Include="appsettings.development.json" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="HealthMonitoring.Client" Version="2026.10.2.55" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="11.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="11.0.0" />
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
@@ -21,6 +20,9 @@
 	  <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.5" />
 	  <PackageReference Include="TransactionProcessorACL.DataTransferObjects" Version="2026.10.3.166" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HealthMonitoring\HealthMonitoring.Client\HealthMonitoring.Client.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="hosting.json">
