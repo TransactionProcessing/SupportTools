@@ -1,4 +1,4 @@
-﻿name: Push to Main
+name: Push to Main
 
 on:
   push:
@@ -17,10 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Install NET 9
+    - name: Install NET 11
       uses: actions/setup-dotnet@v4.0.1
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '11.0.x'
         
     - name: 'Get Previous tag'
       id: get-latest-tag
@@ -112,10 +112,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install NET 10
+    - name: Install NET 11
       uses: actions/setup-dotnet@v4.0.1
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '11.0.x'
 
     - name: Publish SQL Agent Job Deployment Tool
       shell: pwsh

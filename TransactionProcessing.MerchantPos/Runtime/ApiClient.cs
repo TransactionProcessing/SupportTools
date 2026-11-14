@@ -1,13 +1,12 @@
 using MerchantPos.EF.Models;
 using SecurityService.Client;
-using Shared.Logger;
-using SimpleResults;
+using TransactionProcessing.Shared.Logger;
+using TransactionProcessing.UnionResults;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Newtonsoft.Json;
 using SecurityService.DataTransferObjects;
-using Shared.Results;
-using Shared.Serialisation;
+using TransactionProcessing.Shared.Serialisation;
 using System.Security.Cryptography;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects;
@@ -36,7 +35,7 @@ public interface IApiClient
     Task<Result> SendReconciliation(MerchantConfig cfg, TokenResponse token, List<OperatorTotal> totals, CancellationToken cancellationToken);
 }
 
-public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
+public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, IApiClient {
     private const string AmountKey = "Amount";
     private const string DefaultCustomerAccountNumber = "07777777705";
     private readonly ISecurityServiceClient SecurityClient;
@@ -74,7 +73,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         Logger.LogDebug($"Merchant Request details:  Estate Id {estateId} Merchant Id {merchantId} Access Token {token.AccessToken}");
         
         // Process the response
-        Result<MerchantResponse>? result = await this.Get<MerchantResponse>(requestUri, token.AccessToken, cancellationToken);
+        Result<MerchantResponse> result = await this.Get<MerchantResponse>(requestUri, token.AccessToken, cancellationToken);
         
         if (result.IsFailed) {
             Logger.LogInformation($"GetMerchant failed {result.Message}");
@@ -114,7 +113,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
         Logger.LogInformation("About to request merchant contracts");
         Logger.LogDebug($"Merchant Contract Request details:  Estate Id {estateId} Merchant Id {merchantId} Access Token {token.AccessToken}");
 
-        Result<List<ContractResponseX>?>? result = await this.Get<List<ContractResponseX>?>(requestUri, token.AccessToken, cancellationToken);
+        Result<List<ContractResponseX>?> result = await this.Get<List<ContractResponseX>?>(requestUri, token.AccessToken, cancellationToken);
 
         // Process the response
         if (result.IsFailed) {
@@ -169,7 +168,7 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
     public async Task<Result<Decimal>> GetBalance(MerchantConfig cfg,
                                           TokenResponse token,
                                           CancellationToken cancellationToken) {
-        Result<MerchantBalanceResponse>? result = await this.TransactionProcessorClient.GetMerchantBalance(token.AccessToken, cfg.EstateId, cfg.MerchantId, cancellationToken);
+        Result<MerchantBalanceResponse> result = await this.TransactionProcessorClient.GetMerchantBalance(token.AccessToken, cfg.EstateId, cfg.MerchantId, cancellationToken);
         
         if (result.IsFailed) {
             Logger.LogWarning($"Error retrieving merchant balance for merchant {cfg.MerchantName}");
@@ -384,14 +383,19 @@ public class ApiClient : ClientProxyBase.ClientProxyBase, IApiClient {
                                                                                       CancellationToken cancellationToken) {
         String requestUri = this.BuildRequestUrl(route);
         try {
-            Result<TResponse>? result = await this.Post<TRequest, TResponse>(requestUri, request, tokenResponse.AccessToken, cancellationToken);
-            
+            Result<TResponse> result = await this.Post<TRequest, TResponse>(requestUri, request, tokenResponse.AccessToken, cancellationToken);
+
+            if (result.IsFailed)
+            {
+                return Result<TResponse>.FromFailure(result);
+            }
+
             return Result.Success(result.Data);
         }
         catch (Exception ex) {
             // An exception has occurred, add some additional information to the message
 
-            return ResultExtensions.FailureExtended("Error posting transaction", ex);
+            return Result<TResponse>.Fail(ResultHelpers.CreateFailure(ResultExtensions.FailureExtended("Error posting transaction", ex)));
         }
     }
 

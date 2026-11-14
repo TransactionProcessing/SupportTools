@@ -1,4 +1,4 @@
-using ClientProxyBase;
+using TransactionProcessing.ClientProxyBase;
 using FileProcessor.Client;
 using HealthChecks.UI.Client;
 using HealthMonitoring.Client;
@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Extensions.Logging;
 using SecurityService.Client;
-using Shared.Serialisation;
+using TransactionProcessing.Shared.Serialisation;
 using System.Reflection;
 using TransactionProcessing.MerchantFileProcessor;
 using TransactionProcessing.MerchantFileProcessor.Clients;
@@ -17,7 +17,7 @@ using TransactionProcessing.MerchantFileProcessor.Persistence;
 using TransactionProcessing.MerchantFileProcessor.Reporting;
 using TransactionProcessing.MerchantFileProcessor.Services;
 using TransactionProcessor.Client;
-using SharedLogger = Shared.Logger.Logger;
+using SharedLogger = TransactionProcessing.Shared.Logger.Logger;
 
 var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
                       ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
@@ -172,7 +172,7 @@ try
         new HealthCheckOptions
         {
             Predicate = _ => true,
-            ResponseWriter = Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
+            ResponseWriter = TransactionProcessing.Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
         });
     app.MapHealthChecks("healthui",
         new HealthCheckOptions

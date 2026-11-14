@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,14 +21,15 @@
 
   <ItemGroup>
     <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
-    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.184" />
+    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.186" />
     <PackageReference Include="KurrentDB.Client" Version="1.6.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.14" />
-    <PackageReference Include="SecurityService.Client" Version="2026.10.3.207" />
-    <PackageReference Include="Shared" Version="2026.11.2" />
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.428" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
+    <PackageReference Include="SecurityService.Client" Version="2026.10.3.212" />
+    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.5" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.435" />
+    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.5" />
   </ItemGroup>
 
   <ItemGroup>

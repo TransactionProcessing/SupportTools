@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Shared.Logger;
+using TransactionProcessing.Shared.Logger;
 using TransactionProcessing.MerchantPos.Runtime;
 
 public class WorkerHost : BackgroundService

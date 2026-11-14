@@ -1,8 +1,7 @@
 using MerchantPos.EF.Persistence;
 using SecurityService.Client;
-using Shared.Logger;
-using Shared.Results;
-using SimpleResults;
+using TransactionProcessing.Shared.Logger;
+using TransactionProcessing.UnionResults;
 using MerchantPos.EF.Models;
 using SecurityService.DataTransferObjects;
 using TransactionProcessing.MerchantPos.Runtime;

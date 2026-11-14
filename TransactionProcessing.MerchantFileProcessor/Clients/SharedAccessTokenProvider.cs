@@ -1,6 +1,6 @@
 using SecurityService.Client;
-using Shared.Logger;
-using SimpleResults;
+using TransactionProcessing.Shared.Logger;
+using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 
 namespace TransactionProcessing.MerchantFileProcessor.Clients;
@@ -61,24 +61,14 @@ public sealed class SharedAccessTokenProvider(
 
         if (tokenResult.IsFailed)
         {
-            return new Result<CachedToken>
-            {
-                IsSuccess = false,
-                Status = ResultStatus.Failure,
-                Message = "Security service client failed to retrieve an access token."
-            };
+            return Result<CachedToken>.Fail(Error.Failure("Security service client failed to retrieve an access token."));
         }
 
         var token = tokenResult.Data;
 
         if (string.IsNullOrWhiteSpace(token.AccessToken))
         {
-            return new Result<CachedToken>
-            {
-                IsSuccess = false,
-                Status = ResultStatus.Failure,
-                Message = "Security service client returned an empty access token."
-            };
+            return Result<CachedToken>.Fail(Error.Failure("Security service client returned an empty access token."));
         }
 
         return Result.Success(new CachedToken(token.AccessToken, DateTimeOffset.UtcNow.AddSeconds(Convert.ToInt32(token.ExpiresIn))));

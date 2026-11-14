@@ -1,25 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-MerchantFileProcessor-315512c1-9124-49b4-8877-aa1cbc82076c</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.184" />
+    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.186" />
     <PackageReference Include="HealthMonitoring.Client" Version="2026.10.2.55" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="11.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="11.0.0" />
     <PackageReference Include="NLog.Extensions.Logging" Version="6.2.2" />
-    <PackageReference Include="SecurityService.Client" Version="2026.10.3.207" />
-    <PackageReference Include="Shared" Version="2026.11.2" />
-    <PackageReference Include="Shared.Logger" Version="2026.11.2" />
-    <PackageReference Include="Shared.Results" Version="2026.11.2" />
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.427" />
+    <PackageReference Include="SecurityService.Client" Version="2026.10.3.212" />
+    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.5" />
+    <PackageReference Include="TransactionProcessing.Shared.Logger" Version="2026.11.5" />
+    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.5" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.435" />
 	  <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
   </ItemGroup>
 

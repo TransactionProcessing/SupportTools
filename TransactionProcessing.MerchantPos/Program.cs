@@ -1,4 +1,4 @@
-using ClientProxyBase;
+using TransactionProcessing.ClientProxyBase;
 using HealthChecks.UI.Client;
 using MerchantPos.EF.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -7,7 +7,7 @@ using NLog;
 using NLog.Extensions.Logging;
 using NLog.Web;
 using SecurityService.Client;
-using Shared.Serialisation;
+using TransactionProcessing.Shared.Serialisation;
 using System.Reflection;
 using HealthMonitoring.Client;
 using TransactionProcessing.MerchantPos.Persistence;
@@ -113,7 +113,7 @@ try
 
         LogManager.Setup().LoadConfigurationFromFile("NLog.config");
         NLog.Logger dilogger = LogManager.GetLogger("MerchantPOS");
-        Shared.Logger.Logger.Initialise(dilogger, "MerchantPOS");
+        TransactionProcessing.Shared.Logger.Logger.Initialise(dilogger, "MerchantPOS");
 
         var serialiser = scope.ServiceProvider.GetRequiredService<IStringSerialiser>();
         StringSerialiser.Initialise(serialiser);
@@ -130,7 +130,7 @@ try
         new HealthCheckOptions
         {
             Predicate = _ => true,
-            ResponseWriter = Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
+            ResponseWriter = TransactionProcessing.Shared.HealthChecks.HealthCheckMiddleware.WriteResponse
         });
     app.MapHealthChecks("healthui",
         new HealthCheckOptions

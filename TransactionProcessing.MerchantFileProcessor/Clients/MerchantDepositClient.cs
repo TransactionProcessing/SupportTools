@@ -1,5 +1,5 @@
-using Shared.Logger;
-using SimpleResults;
+using TransactionProcessing.Shared.Logger;
+using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;

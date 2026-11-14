@@ -1,12 +1,11 @@
-﻿using System;
+using System;
 using System.Data;
 using FileProcessor.Client;
 using FileProcessor.DataTransferObjects.Requests;
 using KurrentDB.Client;
 using SecurityService.DataTransferObjects;
-using Shared.Results;
-using Shared.Serialisation;
-using SimpleResults;
+using TransactionProcessing.UnionResults;
+using TransactionProcessing.Shared.Serialisation;
 using TransactionProcessor.SystemSetupTool.fileprofileconfig;
 
 namespace TransactionProcessor.SystemSetupTool
@@ -20,7 +19,7 @@ namespace TransactionProcessor.SystemSetupTool
     using identityserverconfig;
     using SecurityService.Client;
     using Microsoft.Extensions.Configuration;
-    using Shared.General;
+    using TransactionProcessing.Shared.General;
 
     class Program
     {
@@ -92,7 +91,7 @@ namespace TransactionProcessor.SystemSetupTool
                 Console.WriteLine($"{setupMode} completed successfully");
             }
             else {
-                Console.WriteLine($"Status: {result.Status} Message: {result.Message}");
+                Console.WriteLine($"Status: {result.Errors[0].ErrorType} Message: {result.Message}");
             }
         }
 

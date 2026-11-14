@@ -1,5 +1,5 @@
-using Shared.Logger;
-using SimpleResults;
+using TransactionProcessing.Shared.Logger;
+using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
@@ -30,14 +30,14 @@ public sealed class MerchantContractDataClient(
             merchant.GetMerchantGuid(),
             cancellationToken);
 
-        if (result.IsFailed || result.Data is null || result.Data.Count == 0)
+        if (result.IsFailed)
         {
-            return new Result<IReadOnlyList<ContractOptions>>
-            {
-                IsSuccess = false,
-                Status = ResultStatus.Failure,
-                Message = $"Transaction processor client did not return any contracts for merchant '{merchant.MerchantId}'."
-            };
+            return Result<IReadOnlyList<ContractOptions>>.FromFailure(result);
+        }
+
+        if (result.Data is null || result.Data.Count == 0)
+        {
+            return Result<IReadOnlyList<ContractOptions>>.Fail(Error.Failure($"Transaction processor client did not return any contracts for merchant '{merchant.MerchantId}'."));
         }
 
         var contracts = MapContracts(result.Data);
@@ -45,13 +45,12 @@ public sealed class MerchantContractDataClient(
 
         if (validationResult.IsFailed)
         {
-            return new Result<IReadOnlyList<ContractOptions>>
+            if (validationResult.Errors.Count == 1)
             {
-                IsSuccess = false,
-                Status = validationResult.Status,
-                Message = validationResult.Message,
-                Errors = validationResult.Errors.ToList()
-            };
+                return Result<IReadOnlyList<ContractOptions>>.Fail(validationResult.Errors[0]);
+            }
+
+            return Result<IReadOnlyList<ContractOptions>>.Fail(new ErrorList(validationResult.Errors));
         }
 
         Logger.LogInformation($"Retrieved {contracts.Count} contracts from TransactionProcessor for merchant {merchant.MerchantId}");
