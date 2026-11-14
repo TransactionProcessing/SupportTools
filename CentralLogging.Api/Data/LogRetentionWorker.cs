@@ -47,7 +47,7 @@ public sealed class LogRetentionWorker(
                 await using (AsyncServiceScope scope = scopeFactory.CreateAsyncScope())
                 {
                     CentralLogsDbContext database = scope.ServiceProvider.GetRequiredService<CentralLogsDbContext>();
-                    deleted = await database.Database.ExecuteSqlInterpolatedAsync(
+                    deleted = await database.Database.ExecuteSqlAsync(
                         $"DELETE TOP ({this.Settings.BatchSize}) FROM dbo.LogEvents WHERE TimestampUtc < {cutoffUtc};",
                         cancellationToken);
                 }

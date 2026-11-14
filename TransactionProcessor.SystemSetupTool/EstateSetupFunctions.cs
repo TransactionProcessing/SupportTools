@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects;
-using Shared.Exceptions;
-using Shared.Results;
-using SimpleResults;
+using TransactionProcessing.Shared.Exceptions;
+using TransactionProcessing.UnionResults;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -112,7 +111,7 @@ public class EstateSetupFunctions {
                                                          CancellationToken cancellationToken) {
         var estateResponse = await this.TransactionProcessorClient.GetEstates(this.TokenResponse.AccessToken, estateId, cancellationToken);
         if (estateResponse.IsFailed)
-            return ResultHelpers.CreateFailure(estateResponse);
+            return Result<EstateResponse>.FromFailure(estateResponse);
         return Result.Success(estateResponse.Data.Single());
     }
 
@@ -121,7 +120,7 @@ public class EstateSetupFunctions {
 
         Result<Guid> createResult = await this.TransactionProcessorClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
         if (createResult.IsFailed)
-            return ResultHelpers.CreateFailure(createResult);
+            return Result<Guid>.FromFailure(createResult);
 
         return Result.Success(createResult.Data);
     }
@@ -520,12 +519,12 @@ public class EstateSetupFunctions {
         }
 
         var merchantContractsResult = await this.TransactionProcessorClient.GetMerchantContracts(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, cancellationToken);
-        if (merchantContractsResult.IsFailed && merchantContractsResult.Status != ResultStatus.NotFound)
+        if (merchantContractsResult.IsFailed && merchantContractsResult.Errors[0].ErrorType != ErrorType.NotFound)
         {
             return ResultHelpers.CreateFailure(merchantContractsResult);
         }
 
-        var merchantContracts = merchantContractsResult.Status == ResultStatus.NotFound || merchantContractsResult.Data is null
+        var merchantContracts = merchantContractsResult.IsFailed || merchantContractsResult.Data is null
             ? new List<ContractResponse>()
             : merchantContractsResult.Data;
 
@@ -550,10 +549,12 @@ public class EstateSetupFunctions {
     private async Task<Result> CreateMerchants(CancellationToken cancellationToken) {
 
         var getMerchantsResult = await this.GetMerchants(cancellationToken);
-        if (getMerchantsResult.IsFailed && getMerchantsResult.Status != ResultStatus.NotFound)
+        if (getMerchantsResult.IsFailed && getMerchantsResult.Errors[0].ErrorType != ErrorType.NotFound)
             return ResultHelpers.CreateFailure(getMerchantsResult);
 
-        var merchants = getMerchantsResult.Data == null ? new List<MerchantResponse>() : getMerchantsResult.Data;
+        var merchants = getMerchantsResult.IsFailed || getMerchantsResult.Data is null
+            ? new List<MerchantResponse>()
+            : getMerchantsResult.Data;
         foreach (Merchant merchant in this.EstateConfig.Merchants) {
             MerchantResponse existingMerchant = merchants.SingleOrDefault(m => m.MerchantName == merchant.Name);
             if (existingMerchant == null) {

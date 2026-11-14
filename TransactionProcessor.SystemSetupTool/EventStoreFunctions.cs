@@ -8,8 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EventStore.Client;
 using KurrentDB.Client;
-using Shared.Results;
-using SimpleResults;
+using TransactionProcessing.UnionResults;
 
 namespace TransactionProcessor.SystemSetupTool;
 

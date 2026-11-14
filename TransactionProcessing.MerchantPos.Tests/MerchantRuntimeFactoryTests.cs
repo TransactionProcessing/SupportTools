@@ -1,11 +1,11 @@
-using ClientProxyBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MerchantPos.EF.Persistence;
 using SecurityService.Client;
-using Shared.Serialisation;
+using TransactionProcessing.ClientProxyBase;
+using TransactionProcessing.Shared.Serialisation;
 using TransactionProcessing.MerchantPos.Persistence;
 using TransactionProcessing.MerchantPos.Runtime;
 using TransactionProcessor.Client;

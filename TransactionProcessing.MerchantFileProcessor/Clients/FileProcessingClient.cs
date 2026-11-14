@@ -1,7 +1,7 @@
 using FileProcessor.Client;
 using FileProcessor.DataTransferObjects;
 using FileProcessor.DataTransferObjects.Responses;
-using SimpleResults;
+using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessing.MerchantFileProcessor.FileBuilding;
 using TransactionProcessing.MerchantFileProcessor.Services;
@@ -37,7 +37,7 @@ public sealed class FileProcessingClient(
 
         if (fileProfile is null)
         {
-            return new Result<Guid> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"Generated file references unknown file profile '{file.FileProfileId}'." };
+            return Result<Guid>.Fail(Error.Failure($"Generated file references unknown file profile '{file.FileProfileId}'."));
         }
 
         UploadFileRequest request = new UploadFileRequest
@@ -49,11 +49,11 @@ public sealed class FileProcessingClient(
             UploadDateTime = DateTime.UtcNow
         };
 
-        Result<Guid>? result = await fileProcessorClient.UploadFile(accessToken, file.FileName, file.Content, request, cancellationToken);
+        Result<Guid> result = await fileProcessorClient.UploadFile(accessToken, file.FileName, file.Content, request, cancellationToken);
 
         if (result.IsFailed)
         {
-            return new Result<Guid> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"File processor client failed to upload file '{file.FileName}'." };
+            return Result<Guid>.Fail(Error.Failure($"File processor client failed to upload file '{file.FileName}'."));
         }
 
         return Result.Success(result.Data);
@@ -64,11 +64,11 @@ public sealed class FileProcessingClient(
                                                                           Guid fileId,
                                                                           CancellationToken cancellationToken)
     {
-        Result<FileDetails>? result = await fileProcessorClient.GetFile(accessToken, estateId, fileId, cancellationToken);
+        Result<FileDetails> result = await fileProcessorClient.GetFile(accessToken, estateId, fileId, cancellationToken);
 
         if (result.IsFailed || result.Data is null)
         {
-            return new Result<FileProcessingStatusSnapshot> { IsSuccess = false, Status = ResultStatus.Failure, Message = $"File processor client failed to retrieve status for file '{fileId}'." };
+            return Result<FileProcessingStatusSnapshot>.Fail(Error.Failure($"File processor client failed to retrieve status for file '{fileId}'."));
         }
 
         FileDetails? fileDetails = result.Data;

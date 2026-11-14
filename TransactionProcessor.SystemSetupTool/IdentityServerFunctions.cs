@@ -6,8 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SecurityService.Client;
 using SecurityService.DataTransferObjects;
-using Shared.Results;
-using SimpleResults;
+using TransactionProcessing.UnionResults;
 using TransactionProcessor.SystemSetupTool.identityserverconfig;
 
 namespace TransactionProcessor.SystemSetupTool;

@@ -1,8 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using EventStore.Client;
 using KurrentDB.Client;
 using Microsoft.Extensions.Configuration;
-using Shared.General;
+using TransactionProcessing.Shared.General;
 
 namespace StreamManagementTool
 {

@@ -1,4 +1,4 @@
-using Shared.Logger;
+using TransactionProcessing.Shared.Logger;
 
 namespace TransactionProcessing.MerchantFileProcessor.Services;
 
