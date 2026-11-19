@@ -14,6 +14,11 @@ namespace TransactionProcessing.MerchantPos.Tests;
 
 public sealed class MerchantRuntimeTests
 {
+    private const string ServiceClientId = "service-client";
+    private const string ServiceClientSecret = "service-secret";
+    private const string PosClientId = "pos-client";
+    private const string PosClientSecret = "pos-secret";
+
     public enum SaleOutcome { Authorised, Declined, ApiFailure }
 
     [Theory]
@@ -56,9 +61,9 @@ public sealed class MerchantRuntimeTests
         var serviceToken = TokenResponse.Create("service-token", "refresh-token", 3600, issued, issued.AddHours(1));
         var userToken = TokenResponse.Create("merchant-token", "refresh-token", 3600, issued, issued.AddHours(1));
         var security = new Mock<ISecurityServiceClient>(MockBehavior.Strict);
-        security.Setup(client => client.GetToken("service-client", "service-secret", ct))
+        security.Setup(client => client.GetToken(ServiceClientId, ServiceClientSecret, ct))
             .ReturnsAsync(Result.Success(serviceToken));
-        security.Setup(client => client.GetToken(config.Username, config.Password, "pos-client", "pos-secret", ct))
+        security.Setup(client => client.GetToken(config.Username, config.Password, PosClientId, PosClientSecret, ct))
             .ReturnsAsync(Result.Success(userToken));
 
         var api = new Mock<IApiClient>(MockBehavior.Strict);
@@ -90,7 +95,7 @@ public sealed class MerchantRuntimeTests
         var metrics = new MerchantMetrics();
         var runtime = new MerchantRuntime(api.Object, security.Object, new EfRepository(db), metrics);
 
-        await runtime.RunAsync(("service-client", "service-secret"), ("pos-client", "pos-secret"), config, ct);
+        await runtime.RunAsync((ServiceClientId, ServiceClientSecret), (PosClientId, PosClientSecret), config, ct);
 
         api.Verify(client => client.SendLogon(config, userToken, 0, ct), Times.Once);
         api.Verify(client => client.SendSale(config, userToken, product, expectedSaleAmount, 1, ct), Times.Once);
@@ -149,8 +154,8 @@ public sealed class MerchantRuntimeTests
         var issued = DateTimeOffset.UtcNow;
         var token = TokenResponse.Create("token", "refresh-token", 3600, issued, issued.AddHours(1));
         var security = new Mock<ISecurityServiceClient>(MockBehavior.Strict);
-        security.Setup(client => client.GetToken("service-client", "service-secret", ct)).ReturnsAsync(Result.Success(token));
-        security.Setup(client => client.GetToken(config.Username, config.Password, "pos-client", "pos-secret", ct))
+        security.Setup(client => client.GetToken(ServiceClientId, ServiceClientSecret, ct)).ReturnsAsync(Result.Success(token));
+        security.Setup(client => client.GetToken(config.Username, config.Password, PosClientId, PosClientSecret, ct))
             .ReturnsAsync(Result.Success(token));
 
         var api = new Mock<IApiClient>(MockBehavior.Strict);
@@ -168,7 +173,7 @@ public sealed class MerchantRuntimeTests
         var metrics = new MerchantMetrics();
         var runtime = new MerchantRuntime(api.Object, security.Object, new EfRepository(db), metrics);
 
-        await runtime.RunAsync(("service-client", "service-secret"), ("pos-client", "pos-secret"), config, ct);
+        await runtime.RunAsync((ServiceClientId, ServiceClientSecret), (PosClientId, PosClientSecret), config, ct);
 
         api.Verify(client => client.SendReconciliation(config, token, It.IsAny<List<OperatorTotal>>(), ct), Times.Once);
         await using var readDb = new MerchantDbContext(options);

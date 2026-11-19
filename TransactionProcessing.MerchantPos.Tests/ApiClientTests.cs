@@ -19,13 +19,15 @@ namespace TransactionProcessing.MerchantPos.Tests;
 
 public sealed class ApiClientTests
 {
+    private const string ApplicationVersion = "1.2.3";
+
     [Fact]
     public async Task SendReconciliation_posts_the_amount_and_count_for_each_operator_and_the_grand_totals()
     {
         using var handler = new RecordingHandler("{}");
         using var httpClient = new HttpClient(handler);
         var client = CreateClient(httpClient);
-        var config = new MerchantConfig { DeviceIdentifier = "terminal-1", ApplicationVersion = "1.2.3" };
+        var config = new MerchantConfig { DeviceIdentifier = "terminal-1", ApplicationVersion = ApplicationVersion };
         var first = new OperatorTotal { OperatorId = Guid.NewGuid(), ContractId = Guid.NewGuid(), Total = 19.75m, TotalCount = 2 };
         var second = new OperatorTotal { OperatorId = Guid.NewGuid(), ContractId = Guid.NewGuid(), Total = 4.50m, TotalCount = 1 };
 
@@ -39,7 +41,7 @@ public sealed class ApiClientTests
         var body = JsonConvert.DeserializeObject<ReconciliationRequestMessage>(request.Body);
         body.ShouldNotBeNull();
         body.DeviceIdentifier.ShouldBe("terminal-1");
-        body.ApplicationVersion.ShouldBe("1.2.3");
+        body.ApplicationVersion.ShouldBe(ApplicationVersion);
         body.TransactionCount.ShouldBe(3);
         body.TransactionValue.ShouldBe(24.25m);
         body.OperatorTotals.Select(total => (total.OperatorId, total.ContractId, total.TransactionCount, total.TransactionValue))
@@ -127,13 +129,13 @@ public sealed class ApiClientTests
         using var httpClient = new HttpClient(handler);
         var client = CreateClient(httpClient);
 
-        var result = await client.GetProductList(new MerchantConfig { ApplicationVersion = "1.2.3" },
+        var result = await client.GetProductList(new MerchantConfig { ApplicationVersion = ApplicationVersion },
             CreateToken(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue(result.Message);
         var request = handler.Requests.ShouldHaveSingleItem();
         request.Method.ShouldBe(HttpMethod.Get);
-        request.Uri.PathAndQuery.ShouldBe("/api/merchants/contracts?applicationVersion=1.2.3");
+        request.Uri.PathAndQuery.ShouldBe($"/api/merchants/contracts?applicationVersion={ApplicationVersion}");
         var products = result.Data;
         products.Count.ShouldBe(2);
         products.ShouldAllBe(product => product.ContractId == contract.ContractId && product.OperatorId == contract.OperatorId
@@ -152,7 +154,7 @@ public sealed class ApiClientTests
         using var handler = new RecordingHandler(JsonConvert.SerializeObject(new SaleTransactionResponseMessage { ResponseCode = responseCode }));
         using var httpClient = new HttpClient(handler);
         var client = CreateClient(httpClient);
-        var config = new MerchantConfig { DeviceIdentifier = "terminal-1", ApplicationVersion = "1.2.3" };
+        var config = new MerchantConfig { DeviceIdentifier = "terminal-1", ApplicationVersion = ApplicationVersion };
         var product = new Product
         {
             ProductId = Guid.NewGuid(),
