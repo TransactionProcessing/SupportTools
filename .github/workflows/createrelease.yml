@@ -67,6 +67,12 @@ jobs:
         name: merchantfileprocessor
         path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/merchantfileprocessor.zip
 
+    - name: Download PowerShell 7.7 for scheduled tasks
+      run: |
+        curl --fail --location --silent --show-error --retry 3 \
+          --output ScheduledTasks/PowerShell-7.7.0-win-x64.zip \
+          https://github.com/PowerShell/PowerShell/releases/download/v7.7.0/PowerShell-7.7.0-win-x64.zip
+
     - name: Upload ScheduledTasks
       uses: actions/upload-artifact@v4.4.0
       with:
@@ -153,10 +159,12 @@ jobs:
             $scheduledTasksRoot = $scheduledTasksDownloadRoot
           }
 
+          & (Join-Path $scheduledTasksRoot 'Install-ScheduledTaskPowerShell.ps1')
+
           New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
 
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.ps1 |
-            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' -and $_.Name -ne 'Install-ScheduledTaskPowerShell.ps1' } |
             Copy-Item -Destination $taskScriptDir -Force
 
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter daily-support-check.json |
@@ -367,10 +375,12 @@ jobs:
             $scheduledTasksRoot = $scheduledTasksDownloadRoot
           }
 
+          & (Join-Path $scheduledTasksRoot 'Install-ScheduledTaskPowerShell.ps1')
+
           New-Item -ItemType Directory -Path $taskScriptDir -Force | Out-Null
 
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter *.ps1 |
-            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' -and $_.Name -ne 'Install-ScheduledTaskPowerShell.ps1' } |
             Copy-Item -Destination $taskScriptDir -Force
 
           Get-ChildItem -Path $scheduledTasksRoot -Recurse -Filter daily-support-check.json |
