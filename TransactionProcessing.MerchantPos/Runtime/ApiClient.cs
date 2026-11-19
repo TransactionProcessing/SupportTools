@@ -234,13 +234,28 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
                                                  TokenResponse token,
                                                  List<OperatorTotal> totals,
                                                  CancellationToken cancellationToken) {
+        var invalidTotal = totals.FirstOrDefault(total => (total.TotalCount == 0) != (total.Total == 0m));
+        if (invalidTotal is not null)
+        {
+            return Result.Failure(
+                $"Operator {invalidTotal.OperatorId}, contract {invalidTotal.ContractId} has an inconsistent reconciliation total " +
+                $"(count {invalidTotal.TotalCount}, value {invalidTotal.Total}). Count and value must both be zero or both be non-zero.");
+        }
+
+        var transactionCount = totals.Sum(total => total.TotalCount);
+        var transactionValue = totals.Sum(total => total.Total);
+        if ((transactionCount == 0 && transactionValue > 0m) || (transactionValue == 0m && transactionCount > 0))
+        {
+            return Result.Failure($"Inconsistent aggregate reconciliation totals (count {transactionCount}, value {transactionValue}).");
+        }
+
         ReconciliationRequestMessage reconciliationRequest = new ReconciliationRequestMessage
         {
             ApplicationVersion = cfg.ApplicationVersion,
             TransactionDateTime = DateTime.UtcNow,
             DeviceIdentifier = cfg.DeviceIdentifier,
-            TransactionCount = totals.Sum(t=> t.TotalCount),
-            TransactionValue = totals.Sum(t => t.Total),
+            TransactionCount = transactionCount,
+            TransactionValue = transactionValue,
             OperatorTotals = new List<OperatorTotalRequest>()
         };
         foreach (var modelOperatorTotal in totals)

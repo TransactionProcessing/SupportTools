@@ -136,12 +136,13 @@ namespace MerchantPos.EF.Persistence
                     MerchantId = merchantId,
                     OperatorId = operatorId,
                     ContractId = contractId,
-                    Total = amount
+                    Total = amount,
+                    TotalCount = 1
                 };
                 _db.OperatorTotals.Add(entry);
             }
-            else
-            {
+            else {
+                entry.TotalCount++;
                 entry.Total += amount;
             }
 

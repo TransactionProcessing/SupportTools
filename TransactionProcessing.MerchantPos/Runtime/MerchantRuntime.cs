@@ -319,7 +319,12 @@ public class MerchantRuntime
             ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
 
         List<OperatorTotal> totals = await Repository.GetTotals(cfg.MerchantId);
-        await ApiClient.SendReconciliation(cfg, userToken, totals, cancellationToken);
+        Result reconciliation = await ApiClient.SendReconciliation(cfg, userToken, totals, cancellationToken);
+        if (reconciliation.IsFailed)
+        {
+            Logger.LogWarning($"Could not complete reconciliation for merchant {cfg.MerchantId}. {reconciliation.Message}");
+            return;
+        }
 
         // Clear totals
         await this.Repository.UpdateLastEndOfDay(cfg.MerchantId, cfg.MerchantName, DateTime.UtcNow);
