@@ -169,10 +169,12 @@ Add a focused Pester test for the check, especially for its warning and failure 
 
 ## Schedule it
 
+The deployment workflows install PowerShell 7.7 under `C:\Program Files\PowerShell\7.7` before registering the scheduled tasks. For a manual installation, extract the official Windows x64 PowerShell 7.7 ZIP to that directory before importing the task definition.
+
 For Windows Task Scheduler, use an action similar to:
 
 ```text
-Program:  pwsh.exe
+Program:  C:\Program Files\PowerShell\7.7\pwsh.exe
 Arguments: -NoProfile -File "G:\Git\TransactionProcessing\SupportTools\ScheduledTasks\DailySupportCheck\Invoke-DailySupportCheck.ps1" -OutputPath "C:\SupportReports\Daily" -ConfigPath "C:\SupportConfig\daily-support-check.json"
 ```
 
