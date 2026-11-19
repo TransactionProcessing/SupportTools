@@ -15,9 +15,9 @@ namespace TransactionProcessing.MerchantPos.Tests;
 public sealed class MerchantRuntimeTests
 {
     private const string ServiceClientId = "service-client";
-    private const string ServiceClientSecret = "service-secret";
     private const string PosClientId = "pos-client";
-    private const string PosClientSecret = "pos-secret";
+    private static readonly string ServiceClientSecret = Guid.NewGuid().ToString("N");
+    private static readonly string PosClientSecret = Guid.NewGuid().ToString("N");
 
     public enum SaleOutcome { Authorised, Declined, ApiFailure }
 
