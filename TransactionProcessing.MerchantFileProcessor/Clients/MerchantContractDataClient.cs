@@ -3,6 +3,7 @@ using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects.Responses.Contract;
+using Results = TransactionProcessing.UnionResults.Results;
 
 namespace TransactionProcessing.MerchantFileProcessor.Clients;
 
@@ -30,32 +31,32 @@ public sealed class MerchantContractDataClient(
             merchant.GetMerchantGuid(),
             cancellationToken);
 
-        if (result.IsFailed)
+        if (result.Value is not Success<List<ContractResponse>> success)
         {
-            return Result<IReadOnlyList<ContractOptions>>.FromFailure(result);
-        }
-
-        if (result.Data is null || result.Data.Count == 0)
-        {
-            return Result<IReadOnlyList<ContractOptions>>.Fail(Error.Failure($"Transaction processor client did not return any contracts for merchant '{merchant.MerchantId}'."));
-        }
-
-        var contracts = MapContracts(result.Data);
-        var validationResult = ValidateContracts(merchant.MerchantId, contracts);
-
-        if (validationResult.IsFailed)
-        {
-            if (validationResult.Errors.Count == 1)
+            return result.Value switch
             {
-                return Result<IReadOnlyList<ContractOptions>>.Fail(validationResult.Errors[0]);
-            }
+                Error error => error,
+                ErrorList errors => errors,
+                _ => new Error(ErrorType.Critical, "Transaction processor client returned an uninitialized result.")
+            };
+        }
 
-            return Result<IReadOnlyList<ContractOptions>>.Fail(new ErrorList(validationResult.Errors));
+        if (success.Value is not { Count: > 0 } sourceContracts)
+        {
+            return new Error(ErrorType.Failure, $"Transaction processor client did not return any contracts for merchant '{merchant.MerchantId}'.");
+        }
+
+        var contracts = MapContracts(sourceContracts);
+        var validationError = ValidateContracts(merchant.MerchantId, contracts);
+
+        if (validationError is not null)
+        {
+            return validationError;
         }
 
         Logger.LogInformation($"Retrieved {contracts.Count} contracts from TransactionProcessor for merchant {merchant.MerchantId}");
 
-        return Result.Success<IReadOnlyList<ContractOptions>>(contracts);
+        return Results.Ok<IReadOnlyList<ContractOptions>>(contracts);
     }
 
     private static List<ContractOptions> MapContracts(IReadOnlyList<ContractResponse> sourceContracts)
@@ -105,13 +106,13 @@ public sealed class MerchantContractDataClient(
             : contract.Description.Trim();
     }
 
-    private static Result ValidateContracts(string merchantId, IReadOnlyList<ContractOptions> contracts)
+    private static Error? ValidateContracts(string merchantId, IReadOnlyList<ContractOptions> contracts)
     {
         foreach (var contract in contracts)
         {
             if (string.IsNullOrWhiteSpace(contract.ContractId) || contract.Products.Count == 0)
             {
-                return Result.Failure($"Contract data for merchant '{merchantId}' is missing a contract identifier or products.");
+                return new Error(ErrorType.Failure, $"Contract data for merchant '{merchantId}' is missing a contract identifier or products.");
             }
 
             foreach (var product in contract.Products)
@@ -121,11 +122,11 @@ public sealed class MerchantContractDataClient(
                     product.UnitAmount < 0 ||
                     string.IsNullOrWhiteSpace(product.Currency))
                 {
-                    return Result.Failure($"Contract data for merchant '{merchantId}' contains an invalid product definition.");
+                    return new Error(ErrorType.Failure, $"Contract data for merchant '{merchantId}' contains an invalid product definition.");
                 }
             }
         }
 
-        return Result.Success();
+        return null;
     }
 }

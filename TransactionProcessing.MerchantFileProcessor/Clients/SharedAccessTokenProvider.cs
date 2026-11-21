@@ -1,7 +1,9 @@
 using SecurityService.Client;
+using SecurityService.DataTransferObjects;
 using TransactionProcessing.Shared.Logger;
 using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
+using Results = TransactionProcessing.UnionResults.Results;
 
 namespace TransactionProcessing.MerchantFileProcessor.Clients;
 
@@ -21,7 +23,7 @@ public sealed class SharedAccessTokenProvider(
     {
         if (IsTokenValid(this.currentToken))
         {
-            return Result.Success(this.currentToken!);
+            return Results.Ok(this.currentToken!);
         }
 
         await this.refreshLock.WaitAsync(cancellationToken);
@@ -30,20 +32,18 @@ public sealed class SharedAccessTokenProvider(
         {
             if (IsTokenValid(this.currentToken))
             {
-                return Result.Success(this.currentToken!);
+                return Results.Ok(this.currentToken!);
             }
 
             var tokenResult = await this.RequestToken(cancellationToken);
 
-            if (tokenResult.IsFailed || tokenResult.Data is null) {
-                return Result.Failure(string.Join("; ", tokenResult.Errors));
+            if (tokenResult.Value is Success<CachedToken> { Value: var token })
+            {
+                this.currentToken = token;
+                Logger.LogInformation($"Retrieved shared access token that expires at {token.ExpiresUtc:O}");
             }
 
-            this.currentToken = tokenResult.Data;
-            Logger.LogInformation(
-                $"Retrieved shared access token that expires at {this.currentToken.ExpiresUtc:O}");
-
-            return Result.Success(this.currentToken);
+            return tokenResult;
         }
         finally
         {
@@ -59,19 +59,17 @@ public sealed class SharedAccessTokenProvider(
             authentication.ClientSecret,
             cancellationToken);
 
-        if (tokenResult.IsFailed)
+        if (tokenResult.Value is not Success<TokenResponse> { Value: { } token })
         {
-            return Result<CachedToken>.Fail(Error.Failure("Security service client failed to retrieve an access token."));
+            return new Error(ErrorType.Failure, "Security service client failed to retrieve an access token.");
         }
-
-        var token = tokenResult.Data;
 
         if (string.IsNullOrWhiteSpace(token.AccessToken))
         {
-            return Result<CachedToken>.Fail(Error.Failure("Security service client returned an empty access token."));
+            return new Error(ErrorType.Failure, "Security service client returned an empty access token.");
         }
 
-        return Result.Success(new CachedToken(token.AccessToken, DateTimeOffset.UtcNow.AddSeconds(Convert.ToInt32(token.ExpiresIn))));
+        return Results.Ok(new CachedToken(token.AccessToken, DateTimeOffset.UtcNow.AddSeconds(Convert.ToInt32(token.ExpiresIn))));
     }
 
     private static bool IsTokenValid(CachedToken? token) =>

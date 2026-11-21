@@ -1,6 +1,7 @@
 using TransactionProcessing.MerchantFileProcessor.Clients;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessing.MerchantFileProcessor.FileBuilding;
+using TransactionProcessing.UnionResults;
 
 namespace TransactionProcessing.MerchantFileProcessor.Services;
 
@@ -88,13 +89,13 @@ public sealed class MerchantProcessingService(
         logger.LogInformation("Requesting access token");
 
         var accessTokenResult = await accessTokenProvider.GetAccessToken(cancellationToken);
-        if (accessTokenResult.IsFailed)
+        if (accessTokenResult.Value is not Success<SharedAccessTokenProvider.CachedToken> { Value: { } token })
         {
-            throw new InvalidOperationException(string.Join("; ", accessTokenResult.Errors));
+            throw new InvalidOperationException(accessTokenResult.GetErrorMessage() ?? "Access token result did not contain a token.");
         }
 
         logger.LogInformation("Access token retrieved successfully");
-        return accessTokenResult.Data.AccessToken;
+        return token.AccessToken;
     }
 
     private async Task<IReadOnlyList<ContractOptions>> GetConfiguredContractsAsync(
@@ -106,15 +107,15 @@ public sealed class MerchantProcessingService(
         logger.LogInformation("Requesting contract data");
 
         var contractsResult = await merchantContractDataClient.GetContracts(merchant, accessToken, cancellationToken);
-        if (contractsResult.IsFailed || contractsResult.Data is null)
+        if (contractsResult.Value is not Success<IReadOnlyList<ContractOptions>> { Value: { } contracts })
         {
-            throw new InvalidOperationException(string.Join("; ", contractsResult.Errors));
+            throw new InvalidOperationException(contractsResult.GetErrorMessage() ?? "Contract result did not contain contracts.");
         }
 
-        logger.LogInformation($"Retrieved {contractsResult.Data.Count} contracts");
+        logger.LogInformation($"Retrieved {contracts.Count} contracts");
 
-        var configuredContracts = transactionFileGenerationService.GetConfiguredContracts(contractsResult.Data);
-        var skippedUnconfiguredContracts = contractsResult.Data.Count - configuredContracts.Count;
+        var configuredContracts = transactionFileGenerationService.GetConfiguredContracts(contracts);
+        var skippedUnconfiguredContracts = contracts.Count - configuredContracts.Count;
         if (skippedUnconfiguredContracts > 0)
         {
             logger.LogInformation($"Skipping {skippedUnconfiguredContracts} contracts because they do not have a configured file profile.");
@@ -184,20 +185,19 @@ public sealed class MerchantProcessingService(
             var depositAmount = CalculateDepositAmount(generatedFile);
             var depositReference = BuildDepositReference(runId, contract, generatedFile);
             var depositResult = await merchantDepositClient.MakeDeposit(merchant, accessToken, depositAmount, depositReference, processingTimestampUtc, cancellationToken);
-            if (depositResult.IsFailed)
+            if (!depositResult.IsSuccess())
             {
-                throw new InvalidOperationException(string.Join("; ", depositResult.Errors));
+                throw new InvalidOperationException(depositResult.GetErrorMessage());
             }
 
             logger.LogInformation($"Made merchant deposit of {depositAmount:0.00} for contract {contract.ContractId}");
 
             var uploadResult = await fileProcessingClient.Upload(merchant, contract, accessToken, generatedFile, cancellationToken);
-            if (uploadResult.IsFailed || uploadResult.Data == Guid.Empty)
+            if (uploadResult.Value is not Success<Guid> { Value: var fileId } || fileId == Guid.Empty)
             {
-                throw new InvalidOperationException(string.Join("; ", uploadResult.Errors));
+                throw new InvalidOperationException(uploadResult.GetErrorMessage() ?? "File upload result did not contain a file ID.");
             }
 
-            var fileId = uploadResult.Data;
             fileUploaded = true;
 
             await fileStatusStore.RecordSuccessAsync(runId, merchant, contract, scheduledRunUtc, fileId, generatedFile, cancellationToken);

@@ -1,6 +1,7 @@
 using TransactionProcessing.MerchantFileProcessor.Clients;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessing.MerchantFileProcessor.Services;
+using TransactionProcessing.UnionResults;
 
 namespace TransactionProcessing.MerchantFileProcessor;
 
@@ -51,12 +52,12 @@ public sealed class FileStatusPollingWorker(
         }
 
         var accessTokenResult = await accessTokenProvider.GetAccessToken(cancellationToken);
-        if (accessTokenResult.IsFailed)
+        if (accessTokenResult.Value is not Success<SharedAccessTokenProvider.CachedToken> { Value: { } token })
         {
-            throw new InvalidOperationException(string.Join("; ", accessTokenResult.Errors));
+            throw new InvalidOperationException(accessTokenResult.GetErrorMessage() ?? "Access token result did not contain a token.");
         }
 
-        var accessToken = accessTokenResult.Data.AccessToken;
+        var accessToken = token.AccessToken;
 
         foreach (var pendingFile in pendingFiles)
         {
@@ -68,7 +69,7 @@ public sealed class FileStatusPollingWorker(
                     pendingFile.FileProcessorFileId,
                     cancellationToken);
 
-                if (statusResult.IsFailed || statusResult.Data is null)
+                if (statusResult.Value is not Success<FileProcessingStatusSnapshot> { Value: { } status })
                 {
                     LocalLogger.For(pendingFile.MerchantId)
                         .LogWarning($"Unable to retrieve status for file {pendingFile.FileProcessorFileId} ({pendingFile.FileName}).");
@@ -77,10 +78,10 @@ public sealed class FileStatusPollingWorker(
 
                 await fileStatusStore.UpdateFileStatusAsync(
                     pendingFile.FileSendRecordId,
-                    statusResult.Data,
+                    status,
                     cancellationToken);
 
-                if (statusResult.Data.ProcessingCompleted)
+                if (status.ProcessingCompleted)
                 {
                     LocalLogger.For(pendingFile.MerchantId)
                         .LogInformation($"Completed line status tracking for file {pendingFile.FileProcessorFileId} ({pendingFile.FileName}).");

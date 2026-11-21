@@ -26,139 +26,129 @@ public class IdentityServerFunctions{
     private async Task<Result> GetManagementToken(CancellationToken cancellationToken) {
         var result = await this.SecurityServiceClient.GetToken(this.identityServerConfiguration.managementclientid, this.identityServerConfiguration.managementclientsecret, cancellationToken);
 
-        if (result.IsFailed)
-            return Result.Failure("Error getting management token");
+        if (result.Value is not Success<TokenResponse> { Value: { } token })
+            return Results.Fail("Error getting management token");
 
-        this.ManagmementToken = result.Data;
+        this.ManagmementToken = token;
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateRoles(CancellationToken cancellationToken) {
         Result<List<RoleResponse>> rolesResult = await this.SecurityServiceClient.GetRoles(this.ManagmementToken.AccessToken, cancellationToken);
-        if (rolesResult.IsFailed)
-            return ResultHelpers.CreateFailure(rolesResult);
+        if (rolesResult.Value is not Success<List<RoleResponse>> { Value: var roles })
+            return rolesResult.WithoutPayload();
 
-        List<RoleResponse> roles = rolesResult.Data;
-        if (roles == null)
-            roles = new List<RoleResponse>();
+        roles ??= [];
 
         foreach (String role in this.identityServerConfiguration.roles)
         {
             if (roles.Any(r => r.RoleName == role))
                 continue;
             Result createResult = await this.CreateRole(role, CancellationToken.None);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (!createResult.IsSuccess())
+                return createResult;
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateApiResources(CancellationToken cancellationToken) {
         var apiResourcesResult = await this.SecurityServiceClient.GetApiResources(this.ManagmementToken.AccessToken, cancellationToken);
-        if (apiResourcesResult.IsFailed)
-            return ResultHelpers.CreateFailure(apiResourcesResult);
+        if (apiResourcesResult.Value is not Success<List<ApiResourceResponse>> { Value: var apiResources })
+            return apiResourcesResult.WithoutPayload();
 
-        var apiResources = apiResourcesResult.Data;
-        if (apiResources == null)
-            apiResources = new List<ApiResourceResponse>();
+        apiResources ??= [];
         foreach (ApiResource apiResource in this.identityServerConfiguration.apiresources)
         {
             if (apiResources.Any(a => a.Name == apiResource.name))
                 continue;
             var createResult = await this.CreateApiResource(apiResource, CancellationToken.None);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (!createResult.IsSuccess())
+                return createResult;
         }
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateIdentityResources(CancellationToken cancellationToken) {
         var identityResourcesResult = await this.SecurityServiceClient.GetIdentityResources(this.ManagmementToken.AccessToken, cancellationToken);
-        if (identityResourcesResult.IsFailed)
-            return ResultHelpers.CreateFailure(identityResourcesResult);
+        if (identityResourcesResult.Value is not Success<List<IdentityResourceResponse>> { Value: var identityResources })
+            return identityResourcesResult.WithoutPayload();
 
-        var identityResources = identityResourcesResult.Data;
-        if (identityResources == null)
-            identityResources = new List<IdentityResourceResponse>();
+        identityResources ??= [];
 
         foreach (IdentityResource identityResource in this.identityServerConfiguration.identityresources)
         {
             if (identityResources.Any(i => i.Name == identityResource.name))
                 continue;
             var createResult = await this.CreateIdentityResource(identityResource, CancellationToken.None);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (!createResult.IsSuccess())
+                return createResult;
         }
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateClients(CancellationToken cancellationToken) {
         var clientsResult = await this.SecurityServiceClient.GetClients(this.ManagmementToken.AccessToken, cancellationToken);
-        if (clientsResult.IsFailed)
-            return ResultHelpers.CreateFailure(clientsResult);
+        if (clientsResult.Value is not Success<List<ClientResponse>> { Value: var clients })
+            return clientsResult.WithoutPayload();
 
-        var clients = clientsResult.Data;
-        if (clients == null)
-            clients = new List<ClientResponse>();
+        clients ??= [];
         foreach (identityserverconfig.Client client in this.identityServerConfiguration.clients)
         {
             if (clients.Any(c => c.ClientId == client.client_id))
                 continue;
             var createResult = await this.CreateClient(client, CancellationToken.None);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (!createResult.IsSuccess())
+                return createResult;
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateApiScopes(CancellationToken cancellationToken) {
         var apiScopesResult = await this.SecurityServiceClient.GetApiScopes(this.ManagmementToken.AccessToken, cancellationToken);
-        if (apiScopesResult.IsFailed)
-            return ResultHelpers.CreateFailure(apiScopesResult);
-        var apiScopes = apiScopesResult.Data;
-        if(apiScopes == null)
-            apiScopes = new List<ApiScopeResponse>();
+        if (apiScopesResult.Value is not Success<List<ApiScopeResponse>> { Value: var apiScopes })
+            return apiScopesResult.WithoutPayload();
+        apiScopes ??= [];
         foreach (ApiScope apiscope in this.identityServerConfiguration.apiscopes)
         {
             if (apiScopes.Any(a => a.Name== apiscope.name))
                 continue;
             var createResult = await this.CreateApiScope(apiscope, CancellationToken.None);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (!createResult.IsSuccess())
+                return createResult;
         }
-        return Result.Success();
+        return Results.Ok();
     }
 
     public async Task<Result> CreateConfig(CancellationToken cancellationToken) {
 
         var managementTokenResult = await this.GetManagementToken(cancellationToken);
-        if (managementTokenResult.IsFailed)
+        if (!managementTokenResult.IsSuccess())
             return managementTokenResult;
 
         Result createRolesResult = await this.CreateRoles(cancellationToken);
-        if (createRolesResult.IsFailed)
+        if (!createRolesResult.IsSuccess())
             return createRolesResult;
 
         Result createApiResourcesResult = await this.CreateApiResources(cancellationToken);
-        if (createApiResourcesResult.IsFailed)
+        if (!createApiResourcesResult.IsSuccess())
             return createApiResourcesResult;
 
         Result createIdentityResourcesResult = await this.CreateIdentityResources(cancellationToken);
-        if (createIdentityResourcesResult.IsFailed)
+        if (!createIdentityResourcesResult.IsSuccess())
             return createIdentityResourcesResult;
 
         Result createClientsResult = await this.CreateClients(cancellationToken);
-        if (createClientsResult.IsFailed)
+        if (!createClientsResult.IsSuccess())
             return createClientsResult;
 
         Result createApiScopesResult = await this.CreateApiScopes(cancellationToken);
-        if (createApiScopesResult.IsFailed)
+        if (!createApiScopesResult.IsSuccess())
             return createApiScopesResult;
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateRole(String role, CancellationToken cancellationToken){

@@ -21,15 +21,15 @@
 
   <ItemGroup>
     <PackageReference Include="EventStoreProjections" Version="2023.12.3" />
-    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.187" />
+    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.194" />
     <PackageReference Include="KurrentDB.Client" Version="1.6.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
-    <PackageReference Include="SecurityService.Client" Version="2026.10.3.213" />
-    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.5" />
+    <PackageReference Include="SecurityService.Client" Version="2026.10.3.219" />
+    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.7" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.437" />
-    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.5" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.448" />
+    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.7" />
   </ItemGroup>
 
   <ItemGroup>

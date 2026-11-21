@@ -5,6 +5,7 @@ using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessing.MerchantFileProcessor.FileBuilding;
 using TransactionProcessing.MerchantFileProcessor.Services;
+using Results = TransactionProcessing.UnionResults.Results;
 
 namespace TransactionProcessing.MerchantFileProcessor.Clients;
 
@@ -37,7 +38,7 @@ public sealed class FileProcessingClient(
 
         if (fileProfile is null)
         {
-            return Result<Guid>.Fail(Error.Failure($"Generated file references unknown file profile '{file.FileProfileId}'."));
+            return new Error(ErrorType.Failure, $"Generated file references unknown file profile '{file.FileProfileId}'.");
         }
 
         UploadFileRequest request = new UploadFileRequest
@@ -51,12 +52,12 @@ public sealed class FileProcessingClient(
 
         Result<Guid> result = await fileProcessorClient.UploadFile(accessToken, file.FileName, file.Content, request, cancellationToken);
 
-        if (result.IsFailed)
+        if (!result.IsSuccess())
         {
-            return Result<Guid>.Fail(Error.Failure($"File processor client failed to upload file '{file.FileName}'."));
+            return new Error(ErrorType.Failure, $"File processor client failed to upload file '{file.FileName}'.");
         }
 
-        return Result.Success(result.Data);
+        return result;
     }
 
     public async Task<Result<FileProcessingStatusSnapshot>> GetFileStatus(string accessToken,
@@ -66,15 +67,14 @@ public sealed class FileProcessingClient(
     {
         Result<FileDetails> result = await fileProcessorClient.GetFile(accessToken, estateId, fileId, cancellationToken);
 
-        if (result.IsFailed || result.Data is null)
+        if (result.Value is not Success<FileDetails> { Value: { } fileDetails })
         {
-            return Result<FileProcessingStatusSnapshot>.Fail(Error.Failure($"File processor client failed to retrieve status for file '{fileId}'."));
+            return new Error(ErrorType.Failure, $"File processor client failed to retrieve status for file '{fileId}'.");
         }
 
-        FileDetails? fileDetails = result.Data;
         FileProcessingLineStatusSnapshot[] lineStatuses = fileDetails.FileLines?.OrderBy(line => line.LineNumber).Select(MapLineStatus).ToArray() ?? [];
 
-        return Result.Success(new FileProcessingStatusSnapshot(fileDetails.ProcessingCompleted || AreAllLinesResolved(lineStatuses), lineStatuses));
+        return Results.Ok(new FileProcessingStatusSnapshot(fileDetails.ProcessingCompleted || AreAllLinesResolved(lineStatuses), lineStatuses));
     }
 
     private static FileProcessingLineStatusSnapshot MapLineStatus(FileLine line) => new(line.LineNumber, line.LineData, line.ProcessingResult.ToString(), string.IsNullOrWhiteSpace(line.RejectionReason) ? null : line.RejectionReason, line.TransactionId == Guid.Empty ? null : line.TransactionId);
