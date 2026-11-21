@@ -10,6 +10,7 @@ using SecurityService.DataTransferObjects;
 using Shouldly;
 using TransactionProcessing.MerchantPos.Persistence;
 using TransactionProcessing.MerchantPos.Runtime;
+using TransactionProcessing.UnionResults;
 using TransactionProcessor.Client;
 using TransactionProcessorACL.DataTransferObjects;
 using TransactionProcessorACL.DataTransferObjects.Responses;
@@ -33,7 +34,7 @@ public sealed class ApiClientTests
 
         var result = await client.SendReconciliation(config, CreateToken(), [first, second], CancellationToken.None);
 
-        result.IsSuccess.ShouldBeTrue(result.Message);
+        result.IsSuccess().ShouldBeTrue(result.GetErrorMessage());
         var request = handler.Requests.ShouldHaveSingleItem();
         request.Method.ShouldBe(HttpMethod.Post);
         request.Uri.AbsolutePath.ShouldBe("/api/reconciliationtransactions");
@@ -61,9 +62,9 @@ public sealed class ApiClientTests
 
         var result = await client.SendReconciliation(new MerchantConfig(), CreateToken(), [valid, invalid], CancellationToken.None);
 
-        result.IsFailed.ShouldBeTrue();
-        result.Message.ShouldContain(invalid.OperatorId.ToString());
-        result.Message.ShouldContain(invalid.ContractId.ToString());
+        var error = result.GetErrors().ShouldHaveSingleItem();
+        error.Message.ShouldContain(invalid.OperatorId.ToString());
+        error.Message.ShouldContain(invalid.ContractId.ToString());
         handler.Requests.ShouldBeEmpty();
     }
 
@@ -81,8 +82,7 @@ public sealed class ApiClientTests
 
         var result = await client.SendReconciliation(new MerchantConfig(), CreateToken(), [first, second], CancellationToken.None);
 
-        result.IsFailed.ShouldBeTrue();
-        result.Message.ShouldContain("aggregate");
+        result.GetErrors().ShouldHaveSingleItem().Message.ShouldContain("aggregate");
         handler.Requests.ShouldBeEmpty();
     }
 
@@ -96,7 +96,7 @@ public sealed class ApiClientTests
 
         var result = await client.SendReconciliation(new MerchantConfig(), CreateToken(), [total], CancellationToken.None);
 
-        result.IsSuccess.ShouldBeTrue(result.Message);
+        result.IsSuccess().ShouldBeTrue(result.GetErrorMessage());
         var request = handler.Requests.ShouldHaveSingleItem();
         var body = JsonConvert.DeserializeObject<ReconciliationRequestMessage>(request.Body);
         body.ShouldNotBeNull();
@@ -132,11 +132,11 @@ public sealed class ApiClientTests
         var result = await client.GetProductList(new MerchantConfig { ApplicationVersion = ApplicationVersion },
             CreateToken(), CancellationToken.None);
 
-        result.IsSuccess.ShouldBeTrue(result.Message);
+        result.IsSuccess().ShouldBeTrue(result.GetErrorMessage());
         var request = handler.Requests.ShouldHaveSingleItem();
         request.Method.ShouldBe(HttpMethod.Get);
         request.Uri.PathAndQuery.ShouldBe($"/api/merchants/contracts?applicationVersion={ApplicationVersion}");
-        var products = result.Data;
+        var products = result.Value.ShouldBeOfType<Success<List<Product>>>().Value;
         products.Count.ShouldBe(2);
         products.ShouldAllBe(product => product.ContractId == contract.ContractId && product.OperatorId == contract.OperatorId
             && product.ProductType == productType && product.ProductSubType == productSubType);
@@ -165,8 +165,8 @@ public sealed class ApiClientTests
 
         var result = await client.SendSale(config, CreateToken(), product, 15m, 42, CancellationToken.None);
 
-        result.IsSuccess.ShouldBeTrue(result.Message);
-        result.Data.Authorised.ShouldBe(expectedAuthorised);
+        result.IsSuccess().ShouldBeTrue(result.GetErrorMessage());
+        result.Value.ShouldBeOfType<Success<SaleResponse>>().Value.Authorised.ShouldBe(expectedAuthorised);
         var request = handler.Requests.ShouldHaveSingleItem();
         request.Method.ShouldBe(HttpMethod.Post);
         request.Uri.AbsolutePath.ShouldBe("/api/saletransactions");

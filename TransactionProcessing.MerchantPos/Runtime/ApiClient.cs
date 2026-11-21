@@ -16,6 +16,7 @@ using TransactionProcessorACL.DataTransferObjects.Responses;
 using OperatorTotalRequest = TransactionProcessorACL.DataTransferObjects.OperatorTotalRequest;
 using TransactionProcessing.MerchantPos.Persistence;
 using TransactionProcessor.DataTransferObjects.Responses.Merchant;
+using Results = TransactionProcessing.UnionResults.Results;
 
 namespace TransactionProcessing.MerchantPos.Runtime;
 
@@ -75,9 +76,8 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         // Process the response
         Result<MerchantResponse> result = await this.Get<MerchantResponse>(requestUri, token.AccessToken, cancellationToken);
         
-        if (result.IsFailed) {
-            Logger.LogInformation($"GetMerchant failed {result.Message}");
-            return ResultHelpers.CreateFailure(result);
+        if (!result.IsSuccess()) {
+            Logger.LogInformation($"GetMerchant failed {result.GetErrorMessage()}");
         }
 
         return result;
@@ -92,12 +92,11 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
 
         Result<LogonTransactionResponseMessage> result = await this.SendTransactionRequest<LogonTransactionRequestMessage, LogonTransactionResponseMessage>(logonTransactionRequest, "api/logontransactions", token, cancellationToken);
 
-        if (result.IsFailed) {
+        if (!result.IsSuccess()) {
             Logger.LogWarning($"Logon failed for Merchant {cfg.MerchantName}");
-            return ResultHelpers.CreateFailure(result);
         }
 
-        return Result.Success();
+        return result.WithoutPayload();
     }
 
     public async Task<Result<List<Product>>> GetProductList(MerchantConfig cfg,
@@ -116,12 +115,12 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         Result<List<ContractResponseX>?> result = await this.Get<List<ContractResponseX>?>(requestUri, token.AccessToken, cancellationToken);
 
         // Process the response
-        if (result.IsFailed) {
-            Logger.LogInformation($"GetMerchantContracts failed {result.Message}");
-            return ResultHelpers.CreateFailure(result);
+        if (result.Value is not Success<List<ContractResponseX>?> success) {
+            Logger.LogInformation($"GetMerchantContracts failed {result.GetErrorMessage()}");
+            return ResultExtensions.AsFailure<List<Product>>(result.Value);
         }
         
-        List<ContractResponseX> contracts = result.Data ?? [];
+        List<ContractResponseX> contracts = success.Value ?? [];
         Logger.LogInformation($"{contracts.Count} for merchant requested successfully");
 
         foreach (ContractResponseX contractResponse in contracts) {
@@ -138,7 +137,7 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
             }
         }
 
-        return Result.Success(products);
+        return Results.Ok(products);
     }
 
     public static ProductType GetProductType(String operatorName)
@@ -170,12 +169,12 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
                                           CancellationToken cancellationToken) {
         Result<MerchantBalanceResponse> result = await this.TransactionProcessorClient.GetMerchantBalance(token.AccessToken, cfg.EstateId, cfg.MerchantId, cancellationToken);
         
-        if (result.IsFailed) {
+        if (result.Value is not Success<MerchantBalanceResponse> { Value: var balance }) {
             Logger.LogWarning($"Error retrieving merchant balance for merchant {cfg.MerchantName}");
-            return ResultHelpers.CreateFailure(result);
+            return ResultExtensions.AsFailure<Decimal>(result.Value);
         }
         
-        return Result.Success(result.Data.Balance);
+        return Results.Ok(balance.Balance);
     }
 
     public async Task<Result<SaleResponse>> SendSale(MerchantConfig cfg,
@@ -193,23 +192,23 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
             _ => throw new NotImplementedException($"Product Type {product.ProductType} not implemented")
         };
 
-        if (requests.IsFailed) {
+        if (requests.Value is not Success<List<SaleTransactionRequestMessage>> { Value: var messages }) {
             Logger.LogWarning($"Error building transaction request for merchant {cfg.MerchantName} product {product.Name}");
-            return ResultHelpers.CreateFailure(requests);
+            return ResultExtensions.AsFailure<SaleResponse>(requests.Value);
         }
 
         Boolean approved = false;
-        foreach (SaleTransactionRequestMessage saleTransactionRequestMessage in requests.Data) {
+        foreach (SaleTransactionRequestMessage saleTransactionRequestMessage in messages) {
             Result<SaleTransactionResponseMessage> response = await this.SendTransactionRequest<SaleTransactionRequestMessage, SaleTransactionResponseMessage>(saleTransactionRequestMessage, "api/saletransactions", token, cancellationToken);
-            if (response.IsSuccess == false) {
+            if (response.Value is not Success<SaleTransactionResponseMessage> { Value: var sale }) {
                 // Exit the loop on failure
                 approved = false;
                 break;
             }
-            approved = response.Data.ResponseCode == "0000";
+            approved = sale.ResponseCode == "0000";
         }
 
-        return  Result.Success(new SaleResponse(approved));
+        return Results.Ok(new SaleResponse(approved));
     }
 
     public async Task<Result> SendDeposit(MerchantConfig cfg,
@@ -222,11 +221,10 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
             Reference = $"AutoDeposit{DateTime.UtcNow:yyyy-MM-dd}"
         }, cancellationToken);
 
-        if (result.IsFailed) {
+        if (!result.IsSuccess()) {
             Logger.LogWarning($"Error performing deposit for merchant {cfg.MerchantName}");
-            return ResultHelpers.CreateFailure(result);
         }
-        return Result.Success();
+        return result;
 
     }
 
@@ -237,7 +235,7 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         var invalidTotal = totals.FirstOrDefault(total => (total.TotalCount == 0) != (total.Total == 0m));
         if (invalidTotal is not null)
         {
-            return Result.Failure(
+            return Results.Fail(
                 $"Operator {invalidTotal.OperatorId}, contract {invalidTotal.ContractId} has an inconsistent reconciliation total " +
                 $"(count {invalidTotal.TotalCount}, value {invalidTotal.Total}). Count and value must both be zero or both be non-zero.");
         }
@@ -246,7 +244,7 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         var transactionValue = totals.Sum(total => total.Total);
         if ((transactionCount == 0 && transactionValue > 0m) || (transactionValue == 0m && transactionCount > 0))
         {
-            return Result.Failure($"Inconsistent aggregate reconciliation totals (count {transactionCount}, value {transactionValue}).");
+            return Results.Fail($"Inconsistent aggregate reconciliation totals (count {transactionCount}, value {transactionValue}).");
         }
 
         ReconciliationRequestMessage reconciliationRequest = new ReconciliationRequestMessage
@@ -271,11 +269,10 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
 
         Result<ReconciliationResponseMessage> result = await this.SendTransactionRequest<ReconciliationRequestMessage, ReconciliationResponseMessage>(reconciliationRequest, "api/reconciliationtransactions", token, cancellationToken);
 
-        if (result.IsFailed) {
+        if (!result.IsSuccess()) {
             Logger.LogWarning($"Error during reconciliation for merchant {cfg.MerchantName}");
-            return ResultHelpers.CreateFailure(result);
         }
-        return Result.Success();
+        return result.WithoutPayload();
     }
 
     private async Task<Result<List<SaleTransactionRequestMessage>>> BuildBillPaymentTransactionRequestMessages(MerchantConfig cfg,
@@ -289,8 +286,8 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
             _ => throw new InvalidOperationException($"Unsupported product subtype {product.ProductSubType}"),
         };
 
-        if (extraDetails.IsFailed) {
-            return ResultHelpers.CreateFailure(extraDetails);
+        if (extraDetails.Value is not Success<(String accountNumber, String accountName, String mobileNumber)> { Value: var account }) {
+            return ResultExtensions.AsFailure<List<SaleTransactionRequestMessage>>(extraDetails.Value);
         }
         
         List<SaleTransactionRequestMessage> requestMessages = new();
@@ -305,11 +302,11 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         };
 
         if (product.ProductSubType == ProductSubType.BillPaymentPostPay) {
-            getTransactionRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> { { "CustomerAccountNumber", extraDetails.Data.accountNumber }, { "PataPawaPostPaidMessageType", "VerifyAccount" } };
+            getTransactionRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> { { "CustomerAccountNumber", account.accountNumber }, { "PataPawaPostPaidMessageType", "VerifyAccount" } };
 
         }
         else if (product.ProductSubType == ProductSubType.BillPaymentPrePay) {
-            getTransactionRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> { { "MeterNumber", extraDetails.Data.accountNumber }, { "PataPawaPrePayMessageType", "meter" } };
+            getTransactionRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> { { "MeterNumber", account.accountNumber }, { "PataPawaPrePayMessageType", "meter" } };
         }
         requestMessages.Add(getTransactionRequestMessage);
 
@@ -327,24 +324,24 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         if (product.ProductSubType == ProductSubType.BillPaymentPostPay) {
             // Add the additional request data
             paymentRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> {
-                { "CustomerAccountNumber", extraDetails.Data.accountNumber },
-                { "CustomerName", extraDetails.Data.accountName },
-                { "MobileNumber", extraDetails.Data.mobileNumber },
+                { "CustomerAccountNumber", account.accountNumber },
+                { "CustomerName", account.accountName },
+                { "MobileNumber", account.mobileNumber },
                 { AmountKey, value.ToString() },
                 { "PataPawaPostPaidMessageType", "ProcessBill" }
             };
         }
         else {
             paymentRequestMessage.AdditionalRequestMetadata = new Dictionary<String, String> {
-                { "MeterNumber", extraDetails.Data.accountNumber  }, 
-                { "CustomerName", extraDetails.Data.accountName }, 
+                { "MeterNumber", account.accountNumber },
+                { "CustomerName", account.accountName },
                 { "PataPawaPrePayMessageType", "vend" }, 
                 { AmountKey, value.ToString() },
             };
         }
         requestMessages.Add(paymentRequestMessage);
         
-        return Result.Success(requestMessages);
+        return Results.Ok(requestMessages);
     }
     
     private Result<List<SaleTransactionRequestMessage>> BuildMobileSaleTransactionRequestMessage(MerchantConfig cfg,
@@ -364,7 +361,7 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         
         saleTransactionRequest.AdditionalRequestMetadata = new Dictionary<String, String> { { AmountKey, value.ToString() }, { "CustomerAccountNumber", DefaultCustomerAccountNumber } };
         requestMessages.Add(saleTransactionRequest);
-        return Result.Success(requestMessages);
+        return Results.Ok(requestMessages);
     }
 
     private Result<List<SaleTransactionRequestMessage>> BuildVoucherTransactionRequestMessage(MerchantConfig cfg,
@@ -389,7 +386,7 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
             { "RecipientMobile", DefaultCustomerAccountNumber }
         };
         requestMessages.Add(saleTransactionRequest);
-        return Result.Success(requestMessages);
+        return Results.Ok(requestMessages);
     }
 
     private async Task<Result<TResponse>> SendTransactionRequest<TRequest, TResponse>(TRequest request,
@@ -398,19 +395,13 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
                                                                                       CancellationToken cancellationToken) {
         String requestUri = this.BuildRequestUrl(route);
         try {
-            Result<TResponse> result = await this.Post<TRequest, TResponse>(requestUri, request, tokenResponse.AccessToken, cancellationToken);
-
-            if (result.IsFailed)
-            {
-                return Result<TResponse>.FromFailure(result);
-            }
-
-            return Result.Success(result.Data);
+            return await this.Post<TRequest, TResponse>(requestUri, request, tokenResponse.AccessToken, cancellationToken);
         }
         catch (Exception ex) {
             // An exception has occurred, add some additional information to the message
 
-            return Result<TResponse>.Fail(ResultHelpers.CreateFailure(ResultExtensions.FailureExtended("Error posting transaction", ex)));
+            var failure = ResultExtensions.FailureExtended("Error posting transaction", ex);
+            return ResultExtensions.AsFailure<TResponse>(failure.Value);
         }
     }
 
@@ -437,11 +428,11 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
 
         var result = await this.Post($"{baseAddress}/api/developer/patapawapostpay/createbill", content, cancellationToken);
 
-        if (result.IsFailed) {
-            return ResultHelpers.CreateFailure(result);
+        if (!result.IsSuccess()) {
+            return ResultExtensions.AsFailure<(String accountNumber, String accountName, String mobileNumber)>(result.Value);
         }
 
-        return Result.Success((body.account_number.ToString(), body.account_name, DefaultCustomerAccountNumber));
+        return Results.Ok((body.account_number.ToString(), body.account_name, DefaultCustomerAccountNumber));
     
     }
 
@@ -459,11 +450,11 @@ public class ApiClient : TransactionProcessing.ClientProxyBase.ClientProxyBase, 
         
             var result = await this.Post($"{baseAddress}/api/developer/patapawaprepay/createmeter", content, cancellationToken);
 
-            if (result.IsFailed) {
-                return ResultHelpers.CreateFailure(result);
+            if (!result.IsSuccess()) {
+                return ResultExtensions.AsFailure<(String accountNumber, String accountName, String mobileNumber)>(result.Value);
             }
 
-            return Result.Success((body.meter_number.ToString(), body.customer_name, DefaultCustomerAccountNumber));
+            return Results.Ok((body.meter_number.ToString(), body.customer_name, DefaultCustomerAccountNumber));
     }
 
 }

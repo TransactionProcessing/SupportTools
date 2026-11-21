@@ -84,22 +84,22 @@ namespace TransactionProcessor.SystemSetupTool
                 Mode.EventStoreSetup => await eventStoreFunctions.SetupEventStore(cancellationToken),
                 Mode.EstateSetup => await SetupEstates(configFileName, identityServerConfiguration, cancellationToken),
                 Mode.FileProcessorSetup => await SetupFileProcessors(fileProcessingOptions, cancellationToken),
-                _ => Result.Invalid($"Invalid mode {setupMode}")
+                _ => Results.Validation($"Invalid mode {setupMode}")
             };
 
-            if (result.IsSuccess) {
+            if (result.IsSuccess()) {
                 Console.WriteLine($"{setupMode} completed successfully");
             }
             else {
-                Console.WriteLine($"Status: {result.Errors[0].ErrorType} Message: {result.Message}");
+                Console.WriteLine($"Status: {result.GetErrors()[0].ErrorType} Message: {result.GetErrorMessage()}");
             }
         }
 
         private static async Task<Result> SetupFileProcessors(FileProcessingOptions fileProcessingOptions,
                                                               CancellationToken cancellationToken) {
             Result<TokenResponse> tokenResult = await SecurityServiceClient.GetToken("serviceClient", ResolveServiceClientSecret(), CancellationToken.None);
-            if (tokenResult.IsFailed)
-                return ResultHelpers.CreateFailure(tokenResult);
+            if (tokenResult.Value is not Success<TokenResponse> { Value: { } token })
+                return tokenResult.IsSuccess() ? Results.Fail("Security service returned no access token.") : tokenResult.WithoutPayload();
             foreach (FileProfile fileProfile in fileProcessingOptions.FileProfiles) {
                 CreateFileProfileRequest createFileProfileRequest = new()
                 {
@@ -111,11 +111,11 @@ namespace TransactionProcessor.SystemSetupTool
                     LineTerminator = Enum.Parse<LineTerminatorType>(fileProfile.LineTerminator),
                     FileFormatHandler = fileProfile.FileFormatHandler
                 };
-                Result<FileProcessor.Models.FileProfile> result = await Program.FileProcessorClient.CreateFileProfile(tokenResult.Data.AccessToken, createFileProfileRequest, cancellationToken);
-                if (result.IsFailed)
-                    return ResultHelpers.CreateFailure(result);
+                Result<FileProcessor.Models.FileProfile> result = await Program.FileProcessorClient.CreateFileProfile(token.AccessToken, createFileProfileRequest, cancellationToken);
+                if (!result.IsSuccess())
+                    return result.WithoutPayload();
             }
-            return Result.Success();
+            return Results.Ok();
         }
 
         static String Serialise(Object arg)
@@ -133,11 +133,11 @@ namespace TransactionProcessor.SystemSetupTool
             foreach (Estate estate in estateConfiguration.Estates) {
                 EstateSetupFunctions estateSetup = new(Program.SecurityServiceClient, Program.TransactionProcessorClient, estate, identityServerConfiguration);
                 Result result = await estateSetup.SetupEstate(cancellationToken);
-                if (result.IsFailed)
-                    return ResultHelpers.CreateFailure(result);
+                if (!result.IsSuccess())
+                    return result;
             }
 
-            return Result.Success();
+            return Results.Ok();
         }
 
         public enum Mode {

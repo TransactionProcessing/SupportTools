@@ -52,39 +52,41 @@ public class EstateSetupFunctions {
 
     public async Task<Result> SetupEstate(CancellationToken cancellationToken) {
         var result = await this.SecurityServiceClient.GetToken("serviceClient", ResolveServiceClientSecret(), CancellationToken.None);
-        this.TokenResponse = result.Data;
+        if (result.Value is not Success<TokenResponse> { Value: { } token })
+            return result.IsSuccess() ? Results.Fail("Security service returned no access token.") : result.WithoutPayload();
+        this.TokenResponse = token;
 
         Result<Guid> createEstateResult = await this.CreateEstate(cancellationToken);
-        if (createEstateResult.IsFailed)
-            return ResultHelpers.CreateFailure(createEstateResult);
-        this.EstateId = createEstateResult.Data;
+        if (createEstateResult.Value is not Success<Guid> { Value: var estateId })
+            return createEstateResult.WithoutPayload();
+        this.EstateId = estateId;
 
         Result<EstateResponse> getEstateResult = await this.GetEstate(this.EstateId, cancellationToken);
-        if (getEstateResult.IsFailed)
-            return ResultHelpers.CreateFailure(createEstateResult);
+        if (!getEstateResult.IsSuccess())
+            return getEstateResult.WithoutPayload();
 
         var createUserResult = await this.CreateEstateUser(cancellationToken);
-        if (createUserResult.IsFailed)
-            return ResultHelpers.CreateFailure(createUserResult);
+        if (!createUserResult.IsSuccess())
+            return createUserResult;
 
         var createOperatorsResult = await this.CreateOperators(cancellationToken);
-        if (createOperatorsResult.IsFailed)
-            return ResultHelpers.CreateFailure(createOperatorsResult);
+        if (!createOperatorsResult.IsSuccess())
+            return createOperatorsResult;
 
         var createContractsResult = await this.CreateContracts(cancellationToken);
-        if (createContractsResult.IsFailed)
-            return ResultHelpers.CreateFailure(createContractsResult);
+        if (!createContractsResult.IsSuccess())
+            return createContractsResult;
 
         var createMerchantsResult = await this.CreateMerchants(cancellationToken);
-        if (createMerchantsResult.IsFailed)
-            return ResultHelpers.CreateFailure(createMerchantsResult);
+        if (!createMerchantsResult.IsSuccess())
+            return createMerchantsResult;
 
         var createFloatsResult = await this.CreateFloats(cancellationToken);
-        if (createFloatsResult.IsFailed)
-            return ResultHelpers.CreateFailure(createFloatsResult);
+        if (!createFloatsResult.IsSuccess())
+            return createFloatsResult;
 
         // Will only get here is everything was OK
-        return Result.Success();
+        return Results.Ok();
     }
 
     private static string ResolveUserPassword(String password) {
@@ -110,26 +112,24 @@ public class EstateSetupFunctions {
     private async Task<Result<EstateResponse>> GetEstate(Guid estateId,
                                                          CancellationToken cancellationToken) {
         var estateResponse = await this.TransactionProcessorClient.GetEstates(this.TokenResponse.AccessToken, estateId, cancellationToken);
-        if (estateResponse.IsFailed)
-            return Result<EstateResponse>.FromFailure(estateResponse);
-        return Result.Success(estateResponse.Data.Single());
+        return estateResponse.Value switch {
+            Success<List<EstateResponse>> success => Results.Ok(success.Value.Single()),
+            Error error => error,
+            ErrorList errors => errors,
+            _ => new Error(ErrorType.Critical, "An uninitialized result has no outcome.")
+        };
     }
 
     private async Task<Result<Guid>> CreateEstate(CancellationToken cancellationToken) {
         CreateEstateRequest createEstateRequest = new CreateEstateRequest { EstateName = this.EstateConfig.Name };
 
-        Result<Guid> createResult = await this.TransactionProcessorClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
-        if (createResult.IsFailed)
-            return Result<Guid>.FromFailure(createResult);
-
-        return Result.Success(createResult.Data);
+        return await this.TransactionProcessorClient.CreateEstate(this.TokenResponse.AccessToken, createEstateRequest, cancellationToken);
     }
 
     private async Task<Result> CreateEstateUser(CancellationToken cancellationToken) {
         var estateResponse = await this.GetEstate(this.EstateId, cancellationToken);
-        if (estateResponse.IsFailed)
-            return ResultHelpers.CreateFailure(estateResponse);
-        var estate = estateResponse.Data;
+        if (estateResponse.Value is not Success<EstateResponse> { Value: var estate })
+            return estateResponse.WithoutPayload();
 
         SecurityUserResponse existingUser = estate.SecurityUsers.SingleOrDefault(u => u.EmailAddress == this.EstateConfig.User.EmailAddress);
 
@@ -146,15 +146,14 @@ public class EstateSetupFunctions {
             return await this.TransactionProcessorClient.CreateEstateUser(this.TokenResponse.AccessToken, this.EstateId, createEstateUserRequest, cancellationToken);
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateOperators(CancellationToken cancellationToken) {
         var estateResponse = await this.GetEstate(this.EstateId, cancellationToken);
-        if (estateResponse.IsFailed)
-            return ResultHelpers.CreateFailure(estateResponse);
+        if (estateResponse.Value is not Success<EstateResponse> { Value: var estate })
+            return estateResponse.WithoutPayload();
 
-        var estate = estateResponse.Data;
 
         // Now do the operators
         foreach (Operator @operator in this.EstateConfig.Operators) {
@@ -168,16 +167,16 @@ public class EstateSetupFunctions {
                 Name = @operator.Name, RequireCustomMerchantNumber = @operator.RequireCustomMerchantNumber, RequireCustomTerminalNumber = @operator.RequireCustomMerchantNumber,
             };
             Result<Guid> createResult = await this.TransactionProcessorClient.CreateOperator(this.TokenResponse.AccessToken, this.EstateId, createOperatorRequest, cancellationToken);
-            if (createResult.IsFailed)
-                return ResultHelpers.CreateFailure(createResult);
+            if (createResult.Value is not Success<Guid> { Value: var operatorId })
+                return createResult.WithoutPayload();
 
             // Now assign this to the estate
-            Result assignResult = await this.TransactionProcessorClient.AssignOperatorToEstate(this.TokenResponse.AccessToken, this.EstateId, new AssignOperatorRequest { OperatorId = createResult.Data }, cancellationToken);
-            if (assignResult.IsFailed)
-                return ResultHelpers.CreateFailure(assignResult);
+            Result assignResult = await this.TransactionProcessorClient.AssignOperatorToEstate(this.TokenResponse.AccessToken, this.EstateId, new AssignOperatorRequest { OperatorId = operatorId }, cancellationToken);
+            if (!assignResult.IsSuccess())
+                return assignResult;
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result<Guid>> GetContractId(String contractDescription,
@@ -185,10 +184,10 @@ public class EstateSetupFunctions {
         Guid contractId = Guid.Empty;
         await Retry.For(async () => {
             var existingContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-            if (existingContractsResult.IsFailed)
+            if (existingContractsResult.Value is not Success<List<ContractResponse>> { Value: var contracts })
                 throw new InvalidOperationException("GetContracts failed");
 
-            var c = existingContractsResult.Data.SingleOrDefault(c => c.Description == contractDescription);
+            var c = contracts.SingleOrDefault(c => c.Description == contractDescription);
             if (c == null) {
                 throw new NotFoundException($"Contract with description {contractDescription} not found");
             }
@@ -196,9 +195,9 @@ public class EstateSetupFunctions {
             contractId = c.ContractId;
         });
         if (contractId == Guid.Empty)
-            return Result.NotFound($"Contract with description {contractDescription} not found");
+            return new Error(ErrorType.NotFound, $"Contract with description {contractDescription} not found");
 
-        return Result.Success(contractId);
+        return Results.Ok(contractId);
     }
 
     private async Task<Result<Guid>> GetContractProductId(Guid contractId,
@@ -210,10 +209,10 @@ public class EstateSetupFunctions {
         await Retry.For(async () => {
 
             var getContractResult = await this.TransactionProcessorClient.GetContract(this.TokenResponse.AccessToken, this.EstateId, contractId, cancellationToken);
-            if (getContractResult.IsFailed)
+            if (getContractResult.Value is not Success<ContractResponse> { Value: var contract })
                 throw new InvalidOperationException("GetContract failed");
 
-            var cp = getContractResult.Data.Products.SingleOrDefault(p => p.Name == productName);
+            var cp = contract.Products.SingleOrDefault(p => p.Name == productName);
             if (cp == null) {
                 throw new NotFoundException($"Contract Product with name {productName} not found on Contract Id {contractId}");
             }
@@ -221,17 +220,17 @@ public class EstateSetupFunctions {
             contractProductId = cp.ProductId;
         });
         if (contractProductId == Guid.Empty)
-            return Result.NotFound($"Contract Product with name {productName} not found on Contract Id {contractId}");
+            return new Error(ErrorType.NotFound, $"Contract Product with name {productName} not found on Contract Id {contractId}");
 
-        return Result.Success(contractProductId);
+        return Results.Ok(contractProductId);
     }
 
     private async Task<Result> UpdateExistingContract(Contract contract,
                                                       ContractResponse existingContract,
                                                       CancellationToken cancellationToken) {
         var getContractResult = await this.TransactionProcessorClient.GetContract(this.TokenResponse.AccessToken, this.EstateId, existingContract.ContractId, cancellationToken);
-        if (getContractResult.IsFailed)
-            return ResultHelpers.CreateFailure(getContractResult);
+        if (getContractResult.Value is not Success<ContractResponse> { Value: var contractDetails })
+            return getContractResult.WithoutPayload();
 
         // Now we need to check if all the products are created
         foreach (Product contractProduct in contract.Products) {
@@ -245,36 +244,36 @@ public class EstateSetupFunctions {
                     new AddProductToContractRequest { ProductName = contractProduct.ProductName, DisplayText = contractProduct.DisplayText, Value = contractProduct.Value, 
                         ProductType = Enum.Parse<DataTransferObjects.Responses.Contract.ProductType>(contractProduct.ProductType.ToString()) }, cancellationToken);
 
-                if (addContractProductResult.IsFailed)
-                    return ResultHelpers.CreateFailure(addContractProductResult);
+                if (!addContractProductResult.IsSuccess())
+                    return addContractProductResult;
 
                 Result<Guid> contractProductIdResult = await GetContractProductId(existingContract.ContractId, contractProduct.ProductName, cancellationToken);
-                if (contractProductIdResult.IsFailed)
-                    return ResultHelpers.CreateFailure(contractProductIdResult);
+                if (contractProductIdResult.Value is not Success<Guid> { Value: var contractProductId })
+                    return contractProductIdResult.WithoutPayload();
 
                 foreach (var transactionFee in contractProduct.TransactionFees) {
-                    Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, existingContract.ContractId, contractProductIdResult.Data, new AddTransactionFeeForProductToContractRequest { Value = transactionFee.Value, Description = transactionFee.Description, CalculationType = (CalculationType)transactionFee.CalculationType, FeeType = (FeeType)transactionFee.FeeType }, cancellationToken);
+                    Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, existingContract.ContractId, contractProductId, new AddTransactionFeeForProductToContractRequest { Value = transactionFee.Value, Description = transactionFee.Description, CalculationType = (CalculationType)transactionFee.CalculationType, FeeType = (FeeType)transactionFee.FeeType }, cancellationToken);
 
-                    if (addTransactionFeeForProductToContractResult.IsFailed)
-                        return ResultHelpers.CreateFailure(addTransactionFeeForProductToContractResult);
+                    if (!addTransactionFeeForProductToContractResult.IsSuccess())
+                        return addTransactionFeeForProductToContractResult;
                 }
             }
             else {
-                var fullProduct = getContractResult.Data.Products.Single(p => p.Name == contractProduct.ProductName);
+                var fullProduct = contractDetails.Products.Single(p => p.Name == contractProduct.ProductName);
 
                 foreach (var transactionFee in contractProduct.TransactionFees) {
                     var feeExists = fullProduct.TransactionFees.Any(p => p.CalculationType == (CalculationType)transactionFee.CalculationType && p.FeeType == (FeeType)transactionFee.FeeType && p.Description == transactionFee.Description && p.Value == transactionFee.Value);
                     if (feeExists == false) {
                         Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, existingContract.ContractId, product.ProductId, new AddTransactionFeeForProductToContractRequest { Value = transactionFee.Value, Description = transactionFee.Description, CalculationType = (CalculationType)transactionFee.CalculationType, FeeType = (FeeType)transactionFee.FeeType }, cancellationToken);
 
-                        if (addTransactionFeeForProductToContractResult.IsFailed)
-                            return ResultHelpers.CreateFailure(addTransactionFeeForProductToContractResult);
+                        if (!addTransactionFeeForProductToContractResult.IsSuccess())
+                            return addTransactionFeeForProductToContractResult;
                     }
                 }
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateNewContract(EstateResponse estate,
@@ -284,65 +283,60 @@ public class EstateSetupFunctions {
 
         CreateContractRequest createContractRequest = new CreateContractRequest { Description = contract.Description, OperatorId = @operator.OperatorId };
         Result<Guid> createResult = await this.TransactionProcessorClient.CreateContract(this.TokenResponse.AccessToken, this.EstateId, createContractRequest, cancellationToken);
-        if (createResult.IsFailed)
-            return ResultHelpers.CreateFailure(createResult);
-
-        // Contract has been created, we now need to get it from the RM to get the contract Id
-        //Result<Guid> getContractIdResult = await GetContractId(contract.Description, cancellationToken);
-        //if (getContractIdResult.IsFailed)
-        //    return ResultHelpers.CreateFailure(getContractIdResult);
+        if (createResult.Value is not Success<Guid> { Value: var contractId })
+            return createResult.WithoutPayload();
 
         foreach (Product contractProduct in contract.Products) {
             AddProductToContractRequest addProductToContractRequest = new AddProductToContractRequest { DisplayText = contractProduct.DisplayText, ProductName = contractProduct.ProductName, Value = contractProduct.Value };
 
-            Result addProductToContractResult = await this.TransactionProcessorClient.AddProductToContract(this.TokenResponse.AccessToken, this.EstateId, createResult.Data, addProductToContractRequest, cancellationToken);
+            Result addProductToContractResult = await this.TransactionProcessorClient.AddProductToContract(this.TokenResponse.AccessToken, this.EstateId, contractId, addProductToContractRequest, cancellationToken);
 
-            if (addProductToContractResult.IsFailed)
-                return ResultHelpers.CreateFailure(addProductToContractResult);
+            if (!addProductToContractResult.IsSuccess())
+                return addProductToContractResult;
 
-            Result<Guid> contractProductIdResult = await GetContractProductId(createResult.Data, contractProduct.ProductName, cancellationToken);
-            if (contractProductIdResult.IsFailed)
-                return ResultHelpers.CreateFailure(contractProductIdResult);
+            Result<Guid> contractProductIdResult = await GetContractProductId(contractId, contractProduct.ProductName, cancellationToken);
+            if (contractProductIdResult.Value is not Success<Guid> { Value: var contractProductId })
+                return contractProductIdResult.WithoutPayload();
 
             foreach (TransactionFee contractProductTransactionFee in contractProduct.TransactionFees) {
                 AddTransactionFeeForProductToContractRequest addTransactionFeeForProductToContractRequest = new AddTransactionFeeForProductToContractRequest { Description = contractProductTransactionFee.Description, Value = contractProductTransactionFee.Value, CalculationType = (CalculationType)contractProductTransactionFee.CalculationType, FeeType = (FeeType)contractProductTransactionFee.FeeType };
 
-                Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, createResult.Data, contractProductIdResult.Data, addTransactionFeeForProductToContractRequest, cancellationToken);
+                Result addTransactionFeeForProductToContractResult = await this.TransactionProcessorClient.AddTransactionFeeForProductToContract(this.TokenResponse.AccessToken, this.EstateId, contractId, contractProductId, addTransactionFeeForProductToContractRequest, cancellationToken);
 
-                if (addTransactionFeeForProductToContractResult.IsFailed)
-                    return ResultHelpers.CreateFailure(addTransactionFeeForProductToContractResult);
+                if (!addTransactionFeeForProductToContractResult.IsSuccess())
+                    return addTransactionFeeForProductToContractResult;
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateContracts(CancellationToken cancellationToken) {
         var existingContractsResult= await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (existingContractsResult.IsFailed)
-            return ResultHelpers.CreateFailure(existingContractsResult);
+        if (existingContractsResult.Value is not Success<List<ContractResponse>> { Value: var existingContracts })
+            return existingContractsResult.WithoutPayload();
         var estateResponse = await this.GetEstate(this.EstateId, cancellationToken);
-        if (estateResponse.IsFailed)
-            return ResultHelpers.CreateFailure(estateResponse);
+        if (estateResponse.Value is not Success<EstateResponse> { Value: var estate })
+            return estateResponse.WithoutPayload();
 
         foreach (Contract contract in this.EstateConfig.Contracts) {
             // Is the contact created 
-            ContractResponse existingContract = existingContractsResult.Data.SingleOrDefault(c => c.Description == contract.Description);
+            ContractResponse existingContract = existingContracts.SingleOrDefault(c => c.Description == contract.Description);
             if (existingContract == null) {
                 // New contract
-                Result createResult = await CreateNewContract(estateResponse.Data, contract, cancellationToken);
-                if (createResult.IsFailed)
-                    return ResultHelpers.CreateFailure(createResult);
+                Result createResult = await CreateNewContract(estate, contract, cancellationToken);
+                if (!createResult.IsSuccess())
+                    return createResult;
             }
             else {
                 // Update contract
                 var updateResult = await UpdateExistingContract(contract, existingContract, cancellationToken);
-                if (updateResult.IsFailed)
-                    return ResultHelpers.CreateFailure(updateResult);
+                if (!updateResult.IsSuccess())
+                    return updateResult;
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result<List<MerchantResponse>>> GetMerchants(CancellationToken cancellationToken) {
@@ -365,14 +359,14 @@ public class EstateSetupFunctions {
             CreatedDateTime = merchant.CreateDate,
         };
         Result<Guid> createMerchantResult = await this.TransactionProcessorClient.CreateMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantRequest, cancellationToken);
-        if (createMerchantResult.IsFailed)
-            return ResultHelpers.CreateFailure(createMerchantResult);
+        if (createMerchantResult.Value is not Success<Guid> { Value: var merchantId })
+            return createMerchantResult.WithoutPayload();
 
         // Now add devices
         AddMerchantDeviceRequest addMerchantDeviceRequest = new AddMerchantDeviceRequest { DeviceIdentifier = merchant.Device.DeviceIdentifier };
-        var addDeviceResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, addMerchantDeviceRequest, cancellationToken);
-        if (addDeviceResult.IsFailed)
-            return ResultHelpers.CreateFailure(addDeviceResult);
+        var addDeviceResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, merchantId, addMerchantDeviceRequest, cancellationToken);
+        if (!addDeviceResult.IsSuccess())
+            return addDeviceResult;
 
         // Now security user
         CreateMerchantUserRequest createMerchantUserRequest = new CreateMerchantUserRequest {
@@ -382,94 +376,94 @@ public class EstateSetupFunctions {
             MiddleName = merchant.User.MiddleName,
             Password = ResolveUserPassword(merchant.User.Password)
         };
-        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, createMerchantUserRequest, cancellationToken);
-        if (createMerchantUserResult.IsFailed)
-            return ResultHelpers.CreateFailure(createMerchantUserResult);
+        var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, merchantId, createMerchantUserRequest, cancellationToken);
+        if (!createMerchantUserResult.IsSuccess())
+            return createMerchantUserResult;
 
 
         var getEstateResult = await this.TransactionProcessorClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getEstateResult.IsFailed)
-            return ResultHelpers.CreateFailure(getEstateResult);
-        foreach (var @operator in getEstateResult.Data.Operators) {
+        if (getEstateResult.Value is not Success<EstateResponse> { Value: var estate })
+            return getEstateResult.WithoutPayload();
+        foreach (var @operator in estate.Operators) {
             TransactionProcessor.DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new() { OperatorId = @operator.OperatorId, MerchantNumber = null, TerminalNumber = null };
 
-            Result assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, assignOperatorRequest, cancellationToken);
-            if (assignOperatorToMerchantResult.IsFailed)
-                return ResultHelpers.CreateFailure(assignOperatorToMerchantResult);
+            Result assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, merchantId, assignOperatorRequest, cancellationToken);
+            if (!assignOperatorToMerchantResult.IsSuccess())
+                return assignOperatorToMerchantResult;
         }
 
         var getContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getContractsResult.IsFailed)
-            return ResultHelpers.CreateFailure(getContractsResult);
+        if (getContractsResult.Value is not Success<List<ContractResponse>> { Value: var contracts })
+            return getContractsResult.WithoutPayload();
 
         // Now contracts
-        foreach (ContractResponse contractResponse in getContractsResult.Data) {
+        foreach (ContractResponse contractResponse in contracts) {
             AddMerchantContractRequest addMerchantContractRequest = new() { ContractId = contractResponse.ContractId };
-            var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, createMerchantResult.Data, addMerchantContractRequest, cancellationToken);
-            if (addContractToMerchantResult.IsFailed)
-                return ResultHelpers.CreateFailure(addContractToMerchantResult);
+            var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, merchantId, addMerchantContractRequest, cancellationToken);
+            if (!addContractToMerchantResult.IsSuccess())
+                return addContractToMerchantResult;
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> UpdateMerchant(Merchant merchant,
                                               MerchantResponse existingMerchant,
                                               CancellationToken cancellationToken) {
         var ensureDeviceResult = await EnsureMerchantDeviceAsync(merchant, existingMerchant, cancellationToken);
-        if (ensureDeviceResult.IsFailed)
+        if (!ensureDeviceResult.IsSuccess())
         {
-            return ResultHelpers.CreateFailure(ensureDeviceResult);
+            return ensureDeviceResult;
         }
 
         var ensureUserResult = await EnsureMerchantUserAsync(merchant, existingMerchant, cancellationToken);
-        if (ensureUserResult.IsFailed)
+        if (!ensureUserResult.IsSuccess())
         {
-            return ResultHelpers.CreateFailure(ensureUserResult);
+            return ensureUserResult;
         }
 
         var ensureOperatorsResult = await EnsureMerchantOperatorsAsync(existingMerchant, cancellationToken);
-        if (ensureOperatorsResult.IsFailed)
+        if (!ensureOperatorsResult.IsSuccess())
         {
-            return ResultHelpers.CreateFailure(ensureOperatorsResult);
+            return ensureOperatorsResult;
         }
 
         var ensureContractsResult = await EnsureMerchantContractsAsync(existingMerchant, cancellationToken);
-        if (ensureContractsResult.IsFailed)
+        if (!ensureContractsResult.IsSuccess())
         {
-            return ResultHelpers.CreateFailure(ensureContractsResult);
+            return ensureContractsResult;
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> EnsureMerchantDeviceAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken)
     {
         if (existingMerchant.Devices.ContainsValue(merchant.Device.DeviceIdentifier))
         {
-            return Result.Success();
+            return Results.Ok();
         }
 
         AddMerchantDeviceRequest addMerchantDeviceRequest = new() { DeviceIdentifier = merchant.Device.DeviceIdentifier };
         var addDeviceToMerchantResult = await this.TransactionProcessorClient.AddDeviceToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, addMerchantDeviceRequest, cancellationToken);
-        return addDeviceToMerchantResult.IsFailed ? ResultHelpers.CreateFailure(addDeviceToMerchantResult) : Result.Success();
+        return addDeviceToMerchantResult;
     }
 
     private async Task<Result> EnsureMerchantUserAsync(Merchant merchant, MerchantResponse existingMerchant, CancellationToken cancellationToken) {
         var managementTokenResult = await this.SecurityServiceClient.GetToken(this.IdentityServerConfiguration.managementclientid, this.IdentityServerConfiguration.managementclientsecret, cancellationToken);
 
-        if (managementTokenResult.IsFailed)
-            return Result.Failure("Error getting management token");
+        if (managementTokenResult.Value is not Success<TokenResponse> { Value: { } managementToken })
+            return Results.Fail("Error getting management token");
 
-        var userResult = await this.SecurityServiceClient.GetUsers(managementTokenResult.Data.AccessToken, merchant.User.EmailAddress, cancellationToken);
-        if (userResult.IsFailed)
+        var userResult = await this.SecurityServiceClient.GetUsers(managementToken.AccessToken, merchant.User.EmailAddress, cancellationToken);
+        if (userResult.Value is not Success<List<UserResponse>> { Value: var users })
         {
-            return ResultHelpers.CreateFailure(userResult);
+            return userResult.WithoutPayload();
         }
 
-        if (userResult.Data is { Count: > 0 })
+        if (users is { Count: > 0 })
         {
-            return Result.Success();
+            return Results.Ok();
         }
 
         CreateMerchantUserRequest createMerchantUserRequest = new() {
@@ -480,19 +474,19 @@ public class EstateSetupFunctions {
             Password = merchant.User.Password
         };
         var createMerchantUserResult = await this.TransactionProcessorClient.CreateMerchantUser(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, createMerchantUserRequest, cancellationToken);
-        return createMerchantUserResult.IsFailed ? ResultHelpers.CreateFailure(createMerchantUserResult) : Result.Success();
+        return createMerchantUserResult;
     }
 
     private async Task<Result> EnsureMerchantOperatorsAsync(MerchantResponse existingMerchant, CancellationToken cancellationToken)
     {
         var getEstateResult = await this.TransactionProcessorClient.GetEstate(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getEstateResult.IsFailed)
+        if (getEstateResult.Value is not Success<EstateResponse> { Value: var estate })
         {
-            return ResultHelpers.CreateFailure(getEstateResult);
+            return getEstateResult.WithoutPayload();
         }
 
         existingMerchant.Operators ??= new List<MerchantOperatorResponse>();
-        foreach (var @operator in getEstateResult.Data.Operators)
+        foreach (var @operator in estate.Operators)
         {
             if (existingMerchant.Operators.Any(o => o.OperatorId == @operator.OperatorId))
             {
@@ -501,34 +495,32 @@ public class EstateSetupFunctions {
 
             DataTransferObjects.Requests.Merchant.AssignOperatorRequest assignOperatorRequest = new() { OperatorId = @operator.OperatorId, MerchantNumber = null, TerminalNumber = null };
             var assignOperatorToMerchantResult = await this.TransactionProcessorClient.AssignOperatorToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, assignOperatorRequest, cancellationToken);
-            if (assignOperatorToMerchantResult.IsFailed)
+            if (!assignOperatorToMerchantResult.IsSuccess())
             {
-                return ResultHelpers.CreateFailure(assignOperatorToMerchantResult);
+                return assignOperatorToMerchantResult;
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> EnsureMerchantContractsAsync(MerchantResponse existingMerchant, CancellationToken cancellationToken)
     {
         var getContractsResult = await this.TransactionProcessorClient.GetContracts(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getContractsResult.IsFailed)
+        if (getContractsResult.Value is not Success<List<ContractResponse>> { Value: var contracts })
         {
-            return ResultHelpers.CreateFailure(getContractsResult);
+            return getContractsResult.WithoutPayload();
         }
 
         var merchantContractsResult = await this.TransactionProcessorClient.GetMerchantContracts(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, cancellationToken);
-        if (merchantContractsResult.IsFailed && merchantContractsResult.Errors[0].ErrorType != ErrorType.NotFound)
+        if (!merchantContractsResult.IsSuccess() && merchantContractsResult.GetErrors()[0].ErrorType != ErrorType.NotFound)
         {
-            return ResultHelpers.CreateFailure(merchantContractsResult);
+            return merchantContractsResult.WithoutPayload();
         }
 
-        var merchantContracts = merchantContractsResult.IsFailed || merchantContractsResult.Data is null
-            ? new List<ContractResponse>()
-            : merchantContractsResult.Data;
+        var merchantContracts = (merchantContractsResult.Value as Success<List<ContractResponse>>)?.Value ?? [];
 
-        foreach (ContractResponse contractResponse in getContractsResult.Data)
+        foreach (ContractResponse contractResponse in contracts)
         {
             if (merchantContracts.Any(c => c.ContractId == contractResponse.ContractId))
             {
@@ -537,58 +529,56 @@ public class EstateSetupFunctions {
 
             AddMerchantContractRequest addMerchantContractRequest = new() { ContractId = contractResponse.ContractId };
             var addContractToMerchantResult = await this.TransactionProcessorClient.AddContractToMerchant(this.TokenResponse.AccessToken, this.EstateId, existingMerchant.MerchantId, addMerchantContractRequest, cancellationToken);
-            if (addContractToMerchantResult.IsFailed)
+            if (!addContractToMerchantResult.IsSuccess())
             {
-                return ResultHelpers.CreateFailure(addContractToMerchantResult);
+                return addContractToMerchantResult;
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateMerchants(CancellationToken cancellationToken) {
 
         var getMerchantsResult = await this.GetMerchants(cancellationToken);
-        if (getMerchantsResult.IsFailed && getMerchantsResult.Errors[0].ErrorType != ErrorType.NotFound)
-            return ResultHelpers.CreateFailure(getMerchantsResult);
+        if (!getMerchantsResult.IsSuccess() && getMerchantsResult.GetErrors()[0].ErrorType != ErrorType.NotFound)
+            return getMerchantsResult.WithoutPayload();
 
-        var merchants = getMerchantsResult.IsFailed || getMerchantsResult.Data is null
-            ? new List<MerchantResponse>()
-            : getMerchantsResult.Data;
+        var merchants = (getMerchantsResult.Value as Success<List<MerchantResponse>>)?.Value ?? [];
         foreach (Merchant merchant in this.EstateConfig.Merchants) {
             MerchantResponse existingMerchant = merchants.SingleOrDefault(m => m.MerchantName == merchant.Name);
             if (existingMerchant == null) {
                 var createMerchantResult = await this.CreateMerchant(merchant, cancellationToken);
-                if (createMerchantResult.IsFailed)
-                    return ResultHelpers.CreateFailure(createMerchantResult);
+                if (!createMerchantResult.IsSuccess())
+                    return createMerchantResult;
             }
             else {
                 var updateMerchantResult = await this.UpdateMerchant(merchant, existingMerchant, cancellationToken);
-                if (updateMerchantResult.IsFailed)
-                    return ResultHelpers.CreateFailure(updateMerchantResult);
+                if (!updateMerchantResult.IsSuccess())
+                    return updateMerchantResult;
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateFloats(CancellationToken cancellationToken) {
 
         var getOperatorsResult = await this.TransactionProcessorClient.GetOperators(this.TokenResponse.AccessToken, this.EstateId, cancellationToken);
-        if (getOperatorsResult.IsFailed)
-            return ResultHelpers.CreateFailure(getOperatorsResult);
+        if (getOperatorsResult.Value is not Success<List<OperatorResponse>> { Value: var operators })
+            return getOperatorsResult.WithoutPayload();
 
-        foreach (OperatorResponse operatorResponse in getOperatorsResult.Data)
+        foreach (OperatorResponse operatorResponse in operators)
         {
             // Create the required floats
             CreateFloatRequest request = new CreateFloatRequest { OperatorId = operatorResponse.OperatorId, CreateDateTime = DateTime.Now };
 
             Result<Guid> createFloatResult = await this.TransactionProcessorClient.CreateFloat(this.TokenResponse.AccessToken, this.EstateId, request, cancellationToken);
-            if (createFloatResult.IsFailed)
-                return ResultHelpers.CreateFailure(createFloatResult);
+            if (!createFloatResult.IsSuccess())
+                return createFloatResult.WithoutPayload();
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 }
 

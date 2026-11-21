@@ -62,21 +62,21 @@ public sealed class MerchantRuntimeTests
         var userToken = TokenResponse.Create("merchant-token", "refresh-token", 3600, issued, issued.AddHours(1));
         var security = new Mock<ISecurityServiceClient>(MockBehavior.Strict);
         security.Setup(client => client.GetToken(ServiceClientId, ServiceClientSecret, ct))
-            .ReturnsAsync(Result.Success(serviceToken));
+            .ReturnsAsync(Results.Ok(serviceToken));
         security.Setup(client => client.GetToken(config.Username, config.Password, PosClientId, PosClientSecret, ct))
-            .ReturnsAsync(Result.Success(userToken));
+            .ReturnsAsync(Results.Ok(userToken));
 
         var api = new Mock<IApiClient>(MockBehavior.Strict);
         api.Setup(client => client.GetProductList(config, userToken, ct))
-            .ReturnsAsync(Result.Success(new List<Product> { product }));
-        api.Setup(client => client.GetBalance(config, serviceToken, ct)).ReturnsAsync(Result.Success(100m));
+            .ReturnsAsync(Results.Ok(new List<Product> { product }));
+        api.Setup(client => client.GetBalance(config, serviceToken, ct)).ReturnsAsync(Results.Ok(100m));
         api.Setup(client => client.GetMerchant(config, userToken, ct))
-            .ReturnsAsync(Result.Success(new MerchantResponse { MerchantId = config.MerchantId }));
-        api.Setup(client => client.SendLogon(config, userToken, 0, ct)).ReturnsAsync(Result.Success());
+            .ReturnsAsync(Results.Ok(new MerchantResponse { MerchantId = config.MerchantId }));
+        api.Setup(client => client.SendLogon(config, userToken, 0, ct)).ReturnsAsync(Results.Ok());
         var authorised = outcome == SaleOutcome.Authorised;
         var saleResult = outcome == SaleOutcome.ApiFailure
-            ? Result<SaleResponse>.Fail(Error.Failure("Sale request failed"))
-            : Result.Success(new SaleResponse(authorised));
+            ? new Result<SaleResponse>(new Error(ErrorType.Failure, "Sale request failed"))
+            : Results.Ok(new SaleResponse(authorised));
         api.Setup(client => client.SendSale(config, userToken, product, expectedSaleAmount, 1, ct))
             .Returns(() =>
             {
@@ -89,7 +89,7 @@ public sealed class MerchantRuntimeTests
             .Returns(() =>
             {
                 cancellation.Cancel();
-                return Task.FromResult(Result.Success());
+                return Task.FromResult(Results.Ok());
             });
 
         var metrics = new MerchantMetrics();
@@ -154,15 +154,15 @@ public sealed class MerchantRuntimeTests
         var issued = DateTimeOffset.UtcNow;
         var token = TokenResponse.Create("token", "refresh-token", 3600, issued, issued.AddHours(1));
         var security = new Mock<ISecurityServiceClient>(MockBehavior.Strict);
-        security.Setup(client => client.GetToken(ServiceClientId, ServiceClientSecret, ct)).ReturnsAsync(Result.Success(token));
+        security.Setup(client => client.GetToken(ServiceClientId, ServiceClientSecret, ct)).ReturnsAsync(Results.Ok(token));
         security.Setup(client => client.GetToken(config.Username, config.Password, PosClientId, PosClientSecret, ct))
-            .ReturnsAsync(Result.Success(token));
+            .ReturnsAsync(Results.Ok(token));
 
         var api = new Mock<IApiClient>(MockBehavior.Strict);
-        api.Setup(client => client.GetProductList(config, token, ct)).ReturnsAsync(Result.Success(new List<Product>()));
-        api.Setup(client => client.GetBalance(config, token, ct)).ReturnsAsync(Result.Success(100m));
-        api.Setup(client => client.GetMerchant(config, token, ct)).ReturnsAsync(Result.Success(new MerchantResponse()));
-        Result result = accepted ? Result.Success() : Result.Failure("Reconciliation rejected");
+        api.Setup(client => client.GetProductList(config, token, ct)).ReturnsAsync(Results.Ok(new List<Product>()));
+        api.Setup(client => client.GetBalance(config, token, ct)).ReturnsAsync(Results.Ok(100m));
+        api.Setup(client => client.GetMerchant(config, token, ct)).ReturnsAsync(Results.Ok(new MerchantResponse()));
+        Result result = accepted ? Results.Ok() : Results.Fail("Reconciliation rejected");
         api.Setup(client => client.SendReconciliation(config, token, It.IsAny<List<OperatorTotal>>(), ct))
             .Returns(() =>
             {

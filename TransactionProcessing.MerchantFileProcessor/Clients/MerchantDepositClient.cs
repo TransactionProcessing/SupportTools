@@ -3,6 +3,7 @@ using TransactionProcessing.UnionResults;
 using TransactionProcessing.MerchantFileProcessor.Configuration;
 using TransactionProcessor.Client;
 using TransactionProcessor.DataTransferObjects.Requests.Merchant;
+using Results = TransactionProcessing.UnionResults.Results;
 
 namespace TransactionProcessing.MerchantFileProcessor.Clients;
 
@@ -30,7 +31,7 @@ public sealed class MerchantDepositClient(
     {
         if (amount <= 0)
         {
-            return Result.Failure($"Deposit amount for merchant '{merchant.MerchantId}' must be greater than zero.");
+            return Results.Fail($"Deposit amount for merchant '{merchant.MerchantId}' must be greater than zero.");
         }
 
         var request = new MakeMerchantDepositRequest
@@ -49,8 +50,8 @@ public sealed class MerchantDepositClient(
             request,
             cancellationToken);
 
-        return result.IsFailed
-            ? Result.Failure($"Transaction processor client failed to make a deposit for merchant '{merchant.MerchantId}'.")
-            : Result.Success();
+        return result.IsSuccess()
+            ? result
+            : Results.Fail($"Transaction processor client failed to make a deposit for merchant '{merchant.MerchantId}'.");
     }
 }

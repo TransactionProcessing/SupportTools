@@ -2,6 +2,7 @@ using MerchantPos.EF.Persistence;
 using SecurityService.Client;
 using TransactionProcessing.Shared.Logger;
 using TransactionProcessing.UnionResults;
+using Results = TransactionProcessing.UnionResults.Results;
 using MerchantPos.EF.Models;
 using SecurityService.DataTransferObjects;
 using TransactionProcessing.MerchantPos.Runtime;
@@ -57,27 +58,25 @@ public class MerchantRuntime
         if (this.CurrentServiceToken == null)
         {
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ServiceClientCredentials.clientId, this.ServiceClientCredentials.clientSecret, cancellationToken);
-            if (tokenResult.IsFailed)
-                return ResultHelpers.CreateFailure(tokenResult);
-            TokenResponse token = tokenResult.Data;
+            if (tokenResult.Value is not Success<TokenResponse> { Value: var token })
+                return tokenResult.WithoutPayload();
             Logger.LogDebug($"Token is {token.AccessToken}");
             this.CurrentServiceToken = token;
-            return Result.Success();
+            return Results.Ok();
         }
 
         if (this.CurrentServiceToken.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2))
         {
             Logger.LogDebug($"Token is about to expire at {this.CurrentServiceToken.Expires.DateTime:O}");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(this.ServiceClientCredentials.clientId, this.ServiceClientCredentials.clientSecret, cancellationToken);
-            if (tokenResult.IsFailed)
-                return ResultHelpers.CreateFailure(tokenResult);
-            TokenResponse token = tokenResult.Data;
+            if (tokenResult.Value is not Success<TokenResponse> { Value: var token })
+                return tokenResult.WithoutPayload();
             Logger.LogDebug($"Token is {token.AccessToken}");
             this.CurrentServiceToken = token;
-            return Result.Success();
+            return Results.Ok();
         }
         
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> GetUserToken(MerchantConfig config,
@@ -86,34 +85,32 @@ public class MerchantRuntime
         if (this.CurrentUserToken == null)
         {
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(config.Username, config.Password, this.PosClientCredentials.clientId, this.PosClientCredentials.clientSecret, cancellationToken);
-            if (tokenResult.IsFailed)
-                return ResultHelpers.CreateFailure(tokenResult);
-            TokenResponse token = tokenResult.Data;
+            if (tokenResult.Value is not Success<TokenResponse> { Value: var token })
+                return tokenResult.WithoutPayload();
             Logger.LogDebug($"Token is {token.AccessToken}");
             this.CurrentUserToken = token;
-            return Result.Success();
+            return Results.Ok();
         }
 
         if (this.CurrentUserToken.Expires.UtcDateTime.Subtract(DateTime.UtcNow) < TimeSpan.FromMinutes(2))
         {
             Logger.LogDebug($"Token is about to expire at {this.CurrentUserToken.Expires.DateTime:O}");
             Result<TokenResponse> tokenResult = await this.SecurityServiceClient.GetToken(config.Username, config.Password, this.PosClientCredentials.clientId, this.PosClientCredentials.clientSecret, cancellationToken);
-            if (tokenResult.IsFailed)
-                return ResultHelpers.CreateFailure(tokenResult);
-            TokenResponse token = tokenResult.Data;
+            if (tokenResult.Value is not Success<TokenResponse> { Value: var token })
+                return tokenResult.WithoutPayload();
             Logger.LogDebug($"Token is {token.AccessToken}");
             this.CurrentUserToken = token;
-            return Result.Success();
+            return Results.Ok();
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task StartupSequence(MerchantConfig cfg,
                                        CancellationToken cancellationToken) {
         // 1. Token
         Result tokenResult = await this.GetServiceToken(cancellationToken);
-        if (tokenResult.IsFailed)
+        if (!tokenResult.IsSuccess())
         {
             Logger.LogWarning($"Failed to get service token during startup sequence.");
             return;
@@ -121,7 +118,7 @@ public class MerchantRuntime
 
         tokenResult = await this.GetUserToken(cfg, cancellationToken);
 
-        if (tokenResult.IsFailed) {
+        if (!tokenResult.IsSuccess()) {
             Logger.LogWarning($"Failed to get token for merchant {cfg.MerchantName} during startup sequence.");
             return;
         }
@@ -133,22 +130,27 @@ public class MerchantRuntime
 
         // 2. Load products
         Result<List<Product>> productsResult = await ApiClient.GetProductList(cfg, userToken, cancellationToken);
-        if (productsResult.IsFailed) {
+        if (productsResult.Value is not Success<List<Product>> { Value: var products }) {
             Logger.LogWarning($"Failed to get product list for merchant {cfg.MerchantName} during startup sequence.");
             return;
         }
-        cfg.Products = productsResult.Data;
+        cfg.Products = products;
         
         // 3. Balance
         Result<decimal> balanceResult = await ApiClient.GetBalance(cfg, serviceToken, cancellationToken);
-        if (balanceResult.IsFailed) {
+        if (balanceResult.Value is not Success<decimal> { Value: var balance }) {
             Logger.LogWarning($"Failed to get balance for merchant {cfg.MerchantName} during startup sequence.");
             return;
         }
-        await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balanceResult.Data);
+        await Repository.UpdateBalance(cfg.MerchantId,cfg.MerchantName, balance);
         // 4. get the merchant record
         var merchant = await ApiClient.GetMerchant(cfg, userToken, cancellationToken);
-        cfg.Merchant = merchant.Data;
+        if (merchant.Value is not Success<MerchantResponse> { Value: { } merchantDetails })
+        {
+            throw new InvalidOperationException(merchant.GetErrorMessage() ?? $"Merchant details were not loaded for {cfg.MerchantName}.");
+        }
+
+        cfg.Merchant = merchantDetails;
     }
 
     private async Task RunMainLoop(MerchantConfig cfg,
@@ -181,7 +183,7 @@ public class MerchantRuntime
             if (merchant.LastLogonDateTime.Date != now.Date)
             {
                 Result tokenResult = await this.GetUserToken(cfg, token);
-                if (tokenResult.IsFailed)
+                if (!tokenResult.IsSuccess())
                 {
                     Logger.LogWarning($"Failed to obtain token for daily logon for merchant {cfg.MerchantName}");
                 }
@@ -248,12 +250,12 @@ public class MerchantRuntime
     private async Task DoSaleCycle(MerchantConfig cfg,Int32 transactionNumber, CancellationToken cancellationToken)
     {
         Result tokenResult = await this.GetServiceToken(cancellationToken);
-        if (tokenResult.IsFailed)
+        if (!tokenResult.IsSuccess())
             return;
         TokenResponse serviceToken = this.CurrentServiceToken
             ?? throw new InvalidOperationException($"Service token was not initialized for merchant {cfg.MerchantName}.");
         tokenResult = await this.GetUserToken(cfg, cancellationToken);
-        if (tokenResult.IsFailed)
+        if (!tokenResult.IsSuccess())
             return;
         TokenResponse userToken = this.CurrentUserToken
             ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
@@ -275,14 +277,14 @@ public class MerchantRuntime
         
         Result<SaleResponse> result = await ApiClient.SendSale(cfg, userToken, product, saleValue, transactionNumber, cancellationToken);
 
-        if (result.IsFailed)
+        if (result.Value is not Success<SaleResponse> { Value: var sale })
         {
-            Logger.LogWarning($"Sale failed for merchant {cfg.MerchantName} with error: {result.Errors.FirstOrDefault()}");
+            Logger.LogWarning($"Sale failed for merchant {cfg.MerchantName} with error: {result.GetErrorMessage()}");
             Metrics.IncrementFailedSales(cfg.MerchantId);
             return;
         }
 
-        if (result.Data.Authorised)
+        if (sale.Authorised)
         {
             Metrics.IncrementSales(cfg.MerchantId);
             await Repository.UpdateTotals(cfg.MerchantId, product.OperatorId, product.ContractId, saleValue);
@@ -313,16 +315,16 @@ public class MerchantRuntime
     private async Task DoReconciliation(MerchantConfig cfg, CancellationToken cancellationToken)
     {
         Result tokenResult = await this.GetUserToken(cfg, cancellationToken);
-        if (tokenResult.IsFailed)
+        if (!tokenResult.IsSuccess())
             return;
         TokenResponse userToken = this.CurrentUserToken
             ?? throw new InvalidOperationException($"User token was not initialized for merchant {cfg.MerchantName}.");
 
         List<OperatorTotal> totals = await Repository.GetTotals(cfg.MerchantId);
         Result reconciliation = await ApiClient.SendReconciliation(cfg, userToken, totals, cancellationToken);
-        if (reconciliation.IsFailed)
+        if (!reconciliation.IsSuccess())
         {
-            Logger.LogWarning($"Could not complete reconciliation for merchant {cfg.MerchantId}. {reconciliation.Message}");
+            Logger.LogWarning($"Could not complete reconciliation for merchant {cfg.MerchantId}. {reconciliation.GetErrorMessage()}");
             return;
         }
 

@@ -8,17 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.187" />
+    <PackageReference Include="FileProcessor.Client" Version="2026.10.3.194" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="11.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="11.0.0" />
     <PackageReference Include="NLog.Extensions.Logging" Version="6.3.0" />
-    <PackageReference Include="SecurityService.Client" Version="2026.10.3.213" />
-    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.5" />
-    <PackageReference Include="TransactionProcessing.Shared.Logger" Version="2026.11.5" />
-    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.5" />
+    <PackageReference Include="SecurityService.Client" Version="2026.10.3.219" />
+    <PackageReference Include="TransactionProcessing.Shared" Version="2026.11.7" />
+    <PackageReference Include="TransactionProcessing.Shared.Logger" Version="2026.11.7" />
+    <PackageReference Include="TransactionProcessing.UnionResults" Version="2026.11.7" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
-    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.437" />
+    <PackageReference Include="TransactionProcessor.Client" Version="2026.10.3.448" />
 	  <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>

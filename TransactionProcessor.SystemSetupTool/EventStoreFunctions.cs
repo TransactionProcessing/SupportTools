@@ -32,18 +32,18 @@ public class EventStoreFunctions{
     public async Task<Result> SetupEventStore(CancellationToken cancellationToken)
     {
         Result projectionResult = await this.DeployProjections(cancellationToken);
-        if (projectionResult.IsFailed)
-            return ResultHelpers.CreateFailure(projectionResult);
+        if (!projectionResult.IsSuccess())
+            return projectionResult;
         
         Result indexResult = await this.CreateIndexes(cancellationToken);
-        if (indexResult.IsFailed)
-            return ResultHelpers.CreateFailure(indexResult);
+        if (!indexResult.IsSuccess())
+            return indexResult;
         
         Result subscriptionsResult = await this.SetupSubscriptions(cancellationToken);
-        if (subscriptionsResult.IsFailed)
-            return ResultHelpers.CreateFailure(subscriptionsResult);
+        if (!subscriptionsResult.IsSuccess())
+            return subscriptionsResult;
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> CreateIndexes(CancellationToken cancellationToken) {
@@ -58,7 +58,7 @@ public class EventStoreFunctions{
             await this.CatchupServiceClient.CreateIndexAsync(merchantBalanceArchiveIndexName, merchantBalanceArchiveIndexFilter, cancellationToken);
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     //private async Task<Result> SetupSubscriptions(CancellationToken cancellationToken){
@@ -131,7 +131,7 @@ public class EventStoreFunctions{
             {
                 var result = await this.CatchupServiceClient.CreateEndpointAsync(endpointDefinition, cancellationToken);
                 if (result.IsSuccessStatusCode == false)
-                    return Result.Failure($"Error creating endpoint name {endpointDefinition.Name} Status Code = {result.StatusCode}");
+                    return Results.Fail($"Error creating endpoint name {endpointDefinition.Name} Status Code = {result.StatusCode}");
             }
         }
         
@@ -180,7 +180,7 @@ public class EventStoreFunctions{
         {
             var endpoint = existingEndpoints.Value.SingleOrDefault(x => x.Name == subscription.endpointName);
             if (endpoint == null)
-                return Result.Failure($"Endpoint name {subscription.endpointName} not found");
+                return Results.Fail($"Endpoint name {subscription.endpointName} not found");
             // build the subscription id
             String subscriptionId = $"{subscription.IndexName}_{subscription.endpointName}_{subscription.tag}";
 
@@ -203,11 +203,11 @@ public class EventStoreFunctions{
 
                 var result = await this.CatchupServiceClient.CreateSubscriptionConfigurationAsync(subscriptionConfigurationRequest, cancellationToken);
                 if (result.IsSuccessStatusCode == false)
-                    return Result.Failure($"Error subscription configuration id {subscriptionConfigurationRequest.SubscriptionId} Status Code = {result.StatusCode}");
+                    return Results.Fail($"Error subscription configuration id {subscriptionConfigurationRequest.SubscriptionId} Status Code = {result.StatusCode}");
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 
     private async Task<Result> DeployProjections(CancellationToken cancellationToken) {
@@ -255,6 +255,6 @@ public class EventStoreFunctions{
             }
         }
 
-        return Result.Success();
+        return Results.Ok();
     }
 }
