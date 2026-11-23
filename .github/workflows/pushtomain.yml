@@ -1,157 +1,216 @@
-name: Push to Main
-
+name: Push to Main - Development
 on:
   push:
-    # branches to consider in the event; optional, defaults to all
-    branches:
-      - main
-
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to deploy
+        required: true
+        type: choice
+        default: all
+        options: [all, merchant-pos, merchant-file-processor, scheduled-tasks, health-monitoring, sql-agent-tool]
+permissions:
+  contents: read
 jobs:
-  build:
-    name: "Release"
-    env:
-        ASPNETCORE_ENVIRONMENT: "Production"
-
+  build-merchant-pos:
+    name: Build Merchant POS
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'merchant-pos' }}
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v1
-
-    - name: Install NET 11
-      uses: actions/setup-dotnet@v4.0.1
-      with:
-        dotnet-version: '11.0.x'
-        
-    - name: 'Get Previous tag'
-      id: get-latest-tag
-      uses: actions-ecosystem/action-get-latest-tag@v1
-      with:
-          semver_only: true
-
-    - name: 'Bump Version'
-      id: bump-semver
-      uses: actions-ecosystem/action-bump-semver@v1
-      with:
-        current_version: ${{ steps.get-latest-tag.outputs.tag }}
-        level: patch
-    
-    - name: Print Version
-      id: next_version
-      run: echo ::set-output name=VERSION::${{ steps.bump-semver.outputs.new_version }}.$GITHUB_RUN_NUMBER
-
-    - name: Restore Nuget Packages
-      run: |
-        dotnet restore TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
-        dotnet restore TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
-        dotnet restore HealthMonitoring/HealthMonitoring/HealthMonitoring.sln --source ${{ secrets.PUBLICFEEDURL }} --source ${{ secrets.PRIVATEFEED_URL }}
-
-    - name: Build Code
-      run: |
-        dotnet build TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln --configuration Release
-        dotnet build TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln --configuration Release
-        dotnet build HealthMonitoring/HealthMonitoring/HealthMonitoring.sln --configuration Release
-
-    - name: Publish API
-      run: |
-        dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" --configuration Release --output TransactionProcessing.MerchantPos/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
-        dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" --configuration Release --output TransactionProcessing.MerchantFileProcessor/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
-        dotnet publish "HealthMonitoring/HealthMonitoring/HealthMonitoring.csproj" --configuration Release --output HealthMonitoring/publishOutput -r win-x64 --self-contained -p:Version=${{ steps.next_version.outputs.VERSION }} -p:AssemblyVersion=${{ steps.next_version.outputs.VERSION }} -p:FileVersion=${{ steps.next_version.outputs.VERSION }} -p:InformationalVersion=${{ steps.next_version.outputs.VERSION }}
-        dotnet publish "ScheduledTasks/DailySupportCheck/KurrentDbClient/KurrentDbClient.csproj" --configuration Release --output ScheduledTasks/DailySupportCheck/KurrentDbClient/publishOutput --no-self-contained
-          
-    - name: Build Release Package (Merchant Pos)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/publishOutput
-         zip -r ../merchantpos.zip ./*
-         echo "Zip file created at: $(realpath ../merchantpos.zip)"
-    
-    - name: Upload the artifact (Merchant Pos)    
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: merchantpos
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantPos/merchantpos.zip
-
-    - name: Build Release Package (Merchant File Processor)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/publishOutput
-         zip -r ../merchantfileprocessor.zip ./*
-         echo "Zip file created at: $(realpath ../merchantfileprocessor.zip)"
-    
-    - name: Upload the artifact (Merchant File Processor)    
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: merchantfileprocessor
-        path: /home/runner/work/SupportTools/SupportTools/TransactionProcessing.MerchantFileProcessor/merchantfileprocessor.zip
-
-    - name: Download PowerShell 7.7 for scheduled tasks
-      run: |
-        curl --fail --location --silent --show-error --retry 3 \
-          --output ScheduledTasks/PowerShell-7.7.0-win-x64.zip \
-          https://github.com/PowerShell/PowerShell/releases/download/v7.7.0/PowerShell-7.7.0-win-x64.zip
-
-    - name: Upload ScheduledTasks
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: scheduledtasks
-        path: ScheduledTasks
-
-    - name: Build Release Package (Health Monitoring)
-      run: |
-         cd /home/runner/work/SupportTools/SupportTools/HealthMonitoring/publishOutput
-         zip -r ../healthmonitoring.zip ./*
-         echo "Zip file created at: $(realpath ../healthmonitoring.zip)"
-    
-    - name: Upload the artifact (Health Monitoring)    
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: healthmonitoring
-        path: /home/runner/work/SupportTools/SupportTools/HealthMonitoring/healthmonitoring.zip
-
-    - name: Build and Publish Nuget Packages
-      run: |
-        dotnet pack "HealthMonitoring\HealthMonitoring.Client\HealthMonitoring.Client.csproj" /p:PackageVersion=${{ steps.next_version.outputs.VERSION }} --output Nugets
-        dotnet nuget push Nugets/HealthMonitoring.Client.${{ steps.next_version.outputs.VERSION }}.nupkg --api-key ${{ secrets.PRIVATEFEED_APIKEY }} --source ${{ secrets.PRIVATEFEED_URL }}
-
-  buildsqlagentjobdeploymenttool:
-    name: "Build SQL Agent Job Deployment Tool"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Restore
+        run: dotnet restore "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln" --source "${{ secrets.PUBLICFEEDURL }}" --source "${{ secrets.PRIVATEFEED_URL }}"
+      - name: Build
+        run: dotnet build "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.sln" -c Release --no-restore
+      - name: Publish
+        run: dotnet publish "TransactionProcessing.MerchantPos/TransactionProcessing.MerchantPos.csproj" -c Release -r win-x64 --self-contained true -o "publish/merchant-pos" -p:Version=0.0.${{ github.run_number }} -p:AssemblyVersion=0.0.${{ github.run_number }} -p:FileVersion=0.0.${{ github.run_number }} -p:InformationalVersion=0.0.${{ github.run_number }}
+      - name: Archive
+        shell: bash
+        run: cd publish/merchant-pos && zip -r ../../merchantpos.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merchantpos
+          path: merchantpos.zip
+          if-no-files-found: error
+  build-merchant-file-processor:
+    name: Build Merchant File Processor
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'merchant-file-processor' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Restore
+        run: dotnet restore "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln" --source "${{ secrets.PUBLICFEEDURL }}" --source "${{ secrets.PRIVATEFEED_URL }}"
+      - name: Build
+        run: dotnet build "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.sln" -c Release --no-restore
+      - name: Publish
+        run: dotnet publish "TransactionProcessing.MerchantFileProcessor/TransactionProcessing.MerchantFileProcessor.csproj" -c Release -r win-x64 --self-contained true -o "publish/merchant-file-processor" -p:Version=0.0.${{ github.run_number }} -p:AssemblyVersion=0.0.${{ github.run_number }} -p:FileVersion=0.0.${{ github.run_number }} -p:InformationalVersion=0.0.${{ github.run_number }}
+      - name: Archive
+        shell: bash
+        run: cd publish/merchant-file-processor && zip -r ../../merchantfileprocessor.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merchantfileprocessor
+          path: merchantfileprocessor.zip
+          if-no-files-found: error
+  build-scheduled-tasks:
+    name: Build ScheduledTasks
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'scheduled-tasks' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Publish KurrentDB client
+        run: dotnet publish ScheduledTasks/DailySupportCheck/KurrentDbClient/KurrentDbClient.csproj -c Release --no-self-contained -o ScheduledTasks/DailySupportCheck/KurrentDbClient/publishOutput
+      - name: Download PowerShell
+        run: curl --fail --location --silent --show-error --retry 3 --output ScheduledTasks/PowerShell-7.7.0-win-x64.zip https://github.com/PowerShell/PowerShell/releases/download/v7.7.0/PowerShell-7.7.0-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scheduledtasks
+          path: ScheduledTasks
+          if-no-files-found: error
+  build-health-monitoring:
+    name: Build Health Monitoring
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'health-monitoring' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Restore
+        run: dotnet restore "HealthMonitoring/HealthMonitoring/HealthMonitoring.sln" --source "${{ secrets.PUBLICFEEDURL }}" --source "${{ secrets.PRIVATEFEED_URL }}"
+      - name: Build
+        run: dotnet build "HealthMonitoring/HealthMonitoring/HealthMonitoring.sln" -c Release --no-restore
+      - name: Publish
+        run: dotnet publish "HealthMonitoring/HealthMonitoring/HealthMonitoring.csproj" -c Release -r win-x64 --self-contained true -o "publish/health-monitoring" -p:Version=0.0.${{ github.run_number }} -p:AssemblyVersion=0.0.${{ github.run_number }} -p:FileVersion=0.0.${{ github.run_number }} -p:InformationalVersion=0.0.${{ github.run_number }}
+      - name: Archive
+        shell: bash
+        run: cd publish/health-monitoring && zip -r ../../healthmonitoring.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: healthmonitoring
+          path: healthmonitoring.zip
+          if-no-files-found: error
+      - name: Publish NuGet client
+        env:
+          PRIVATEFEED_APIKEY: ${{ secrets.PRIVATEFEED_APIKEY }}
+          PRIVATEFEED_URL: ${{ secrets.PRIVATEFEED_URL }}
+        run: |
+          dotnet pack HealthMonitoring/HealthMonitoring.Client/HealthMonitoring.Client.csproj -c Release -p:PackageVersion=0.0.${{ github.run_number }} --output Nugets
+          dotnet nuget push Nugets/HealthMonitoring.Client.0.0.${{ github.run_number }}.nupkg --api-key "$PRIVATEFEED_APIKEY" --source "$PRIVATEFEED_URL" --skip-duplicate
+  build-sql-agent-tool:
+    name: Build SQL Agent Job Deployment Tool
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'sql-agent-tool' }}
     runs-on: windows-latest
-
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Install NET 11
-      uses: actions/setup-dotnet@v4.0.1
-      with:
-        dotnet-version: '11.0.x'
-
-    - name: Publish SQL Agent Job Deployment Tool
-      shell: pwsh
-      run: |
-        dotnet publish SqlServerAgentJobDeploymentTool/SqlServerAgentJobDeploymentTool.csproj `
-          --configuration Release `
-          --runtime win-x64 `
-          --self-contained true `
-          --output SqlServerAgentJobDeploymentTool/publishOutput
-
-    - name: Build Release Package (SQL Agent Job Deployment Tool)
-      shell: pwsh
-      run: |
-        Compress-Archive `
-          -Path SqlServerAgentJobDeploymentTool/publishOutput/* `
-          -DestinationPath SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip `
-          -Force
-
-    - name: Upload the artifact (SQL Agent Job Deployment Tool)
-      uses: actions/upload-artifact@v4.4.0
-      with:
-        name: sqlagentjobdeploymenttool
-        path: SqlServerAgentJobDeploymentTool/sqlagentjobdeploymenttool.zip
-        
-  deploydevelopment:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Publish
+        run: dotnet publish "SqlServerAgentJobDeploymentTool/SqlServerAgentJobDeploymentTool.csproj" -c Release -r win-x64 --self-contained true -o "publish/sql-agent-tool" 
+      - name: Archive
+        shell: pwsh
+        run: Compress-Archive -Path publish/sql-agent-tool/* -DestinationPath sqlagentjobdeploymenttool.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sqlagentjobdeploymenttool
+          path: sqlagentjobdeploymenttool.zip
+          if-no-files-found: error
+  deploy-merchant-pos-development:
+    name: Deploy Merchant POS to Development
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'merchant-pos' }}
+    needs: [build-merchant-pos]
     runs-on: [developmentserver, windows]
-    needs: [build, buildsqlagentjobdeploymenttool]
     environment: development
-    name: "Deploy to Development"
-    
+    concurrency:
+      group: supporttools-development
+      cancel-in-progress: false
+    steps:
+      - name: Download the artifact (Merchant Pos) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantpos
+          
+      - name: Stop existing Windows service
+        shell: pwsh
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+          if ($service -and $service.Status -ne 'Stopped') {
+            Stop-Service -Name $serviceName -Force
+            (Get-Service -Name $serviceName).WaitForStatus('Stopped', '00:00:30')
+          }
+
+      - name: Unzip the files (Merchant Pos)
+        run: |
+          Expand-Archive -Path merchantpos.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantpos" -Force
+  
+      - name: Install as a Windows service (Merchant Pos)
+        run: |
+          $serviceName = "Transaction Processing - Merchant Pos"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessing.MerchantPos.exe"
+                   
+          if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
+            New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          }
+          Start-Service -Name $serviceName
+  deploy-merchant-file-processor-development:
+    name: Deploy Merchant File Processor to Development
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'merchant-file-processor' }}
+    needs: [build-merchant-file-processor]
+    runs-on: [developmentserver, windows]
+    environment: development
+    concurrency:
+      group: supporttools-development
+      cancel-in-progress: false
+    steps:
+      - name: Download the artifact (Merchant File Processor) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: merchantfileprocessor
+
+      - name: Stop existing Windows service
+        shell: pwsh
+        run: |
+          $serviceName = "Transaction Processing - Merchant File Processor"
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+          if ($service -and $service.Status -ne 'Stopped') {
+            Stop-Service -Name $serviceName -Force
+            (Get-Service -Name $serviceName).WaitForStatus('Stopped', '00:00:30')
+          }
+
+      - name: Unzip the files (Merchant File Processor)
+        run: |
+          Expand-Archive -Path merchantfileprocessor.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantfileprocessor" -Force
+  
+      - name: Install as a Windows service (Merchant File Processor)
+        run: |
+          $serviceName = "Transaction Processing - Merchant File Processor"
+          $servicePath = "C:\txnproc\transactionprocessing\merchantfileprocessor\TransactionProcessing.MerchantFileProcessor.exe"
+                   
+          if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
+            New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          }
+          Start-Service -Name $serviceName
+  deploy-scheduled-tasks-development:
+    name: Deploy ScheduledTasks to Development
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'scheduled-tasks' }}
+    needs: [build-scheduled-tasks]
+    runs-on: [developmentserver, windows]
+    environment: development
+    concurrency:
+      group: supporttools-development
+      cancel-in-progress: false
     steps:
       - name: Download ScheduledTasks
         uses: actions/download-artifact@v4.1.8
@@ -211,7 +270,54 @@ jobs:
                 throw "Failed to register scheduled task [$taskName] from [$($_.FullName)]"
               }
             }
+  deploy-health-monitoring-development:
+    name: Deploy Health Monitoring to Development
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'health-monitoring' }}
+    needs: [build-health-monitoring]
+    runs-on: [developmentserver, windows]
+    environment: development
+    concurrency:
+      group: supporttools-development
+      cancel-in-progress: false
+    steps:
+      - name: Download the artifact (Health Monitoring) 
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: healthmonitoring
+          
+      - name: Stop existing Windows service
+        shell: pwsh
+        run: |
+          $serviceName = "Transaction Processing - Health Monitoring"
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+          if ($service -and $service.Status -ne 'Stopped') {
+            Stop-Service -Name $serviceName -Force
+            (Get-Service -Name $serviceName).WaitForStatus('Stopped', '00:00:30')
+          }
 
+      - name: Unzip the files (Health Monitoring)
+        run: |
+          Expand-Archive -Path healthmonitoring.zip -DestinationPath "C:\txnproc\transactionprocessing\healthmonitoring" -Force
+  
+      - name: Install as a Windows service (Health Monitoring)
+        run: |
+          $serviceName = "Transaction Processing - Health Monitoring"
+          $servicePath = "C:\txnproc\transactionprocessing\healthmonitoring\HealthMonitoring.exe"
+                   
+          if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
+            New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
+          }
+          Start-Service -Name $serviceName
+  deploy-sql-agent-tool-development:
+    name: Deploy SQL Agent Job Deployment Tool to Development
+    if: ${{ github.event_name == 'push' || inputs.component == 'all' || inputs.component == 'sql-agent-tool' }}
+    needs: [build-sql-agent-tool]
+    runs-on: [developmentserver, windows]
+    environment: development
+    concurrency:
+      group: supporttools-development
+      cancel-in-progress: false
+    steps:
       - name: Download SQL Agent Job Deployment Tool
         uses: actions/download-artifact@v4.1.8
         with:
@@ -279,85 +385,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: sql-agent-job-deployment-logs-staging
+          name: sql-agent-job-deployment-logs-development
           path: |
             ${{ runner.temp }}\sql-agent-job-deployment.stdout.log
             ${{ runner.temp }}\sql-agent-job-deployment.stderr.log
-      
-      - name: Download the artifact (Merchant Pos) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: merchantpos
-          
-      - name: Remove existing Windows service (Merchant Pos)
-        run: |
-          $serviceName = "Transaction Processing - Merchant Pos"
-          # Check if the service exists
-          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $serviceName
-            sc.exe delete $serviceName
-          }
-
-      - name: Unzip the files (Merchant Pos)
-        run: |
-          Expand-Archive -Path merchantpos.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantpos" -Force
-  
-      - name: Install as a Windows service (Merchant Pos)
-        run: |
-          $serviceName = "Transaction Processing - Merchant Pos"
-          $servicePath = "C:\txnproc\transactionprocessing\merchantpos\TransactionProcessing.MerchantPos.exe"
-                   
-          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName
-
-      - name: Download the artifact (Merchant File Processor) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: merchantfileprocessor
-
-      - name: Remove existing Windows service (Merchant File Processor)
-        run: |
-          $serviceName = "Transaction Processing - Merchant File Processor"
-          # Check if the service exists
-          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $serviceName
-            sc.exe delete $serviceName
-          }
-
-      - name: Unzip the files (Merchant File Processor)
-        run: |
-          Expand-Archive -Path merchantfileprocessor.zip -DestinationPath "C:\txnproc\transactionprocessing\merchantfileprocessor" -Force
-  
-      - name: Install as a Windows service (Merchant File Processor)
-        run: |
-          $serviceName = "Transaction Processing - Merchant File Processor"
-          $servicePath = "C:\txnproc\transactionprocessing\merchantfileprocessor\TransactionProcessing.MerchantFileProcessor.exe"
-                   
-          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName
-
-      - name: Download the artifact (Health Monitoring) 
-        uses: actions/download-artifact@v4.1.8
-        with:
-          name: healthmonitoring
-          
-      - name: Remove existing Windows service (Health Monitoring)
-        run: |
-          $serviceName = "Transaction Processing - Health Monitoring"
-          # Check if the service exists
-          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-            Stop-Service -Name $serviceName
-            sc.exe delete $serviceName
-          }
-
-      - name: Unzip the files (Health Monitoring)
-        run: |
-          Expand-Archive -Path healthmonitoring.zip -DestinationPath "C:\txnproc\transactionprocessing\healthmonitoring" -Force
-  
-      - name: Install as a Windows service (Health Monitoring)
-        run: |
-          $serviceName = "Transaction Processing - Health Monitoring"
-          $servicePath = "C:\txnproc\transactionprocessing\healthmonitoring\HealthMonitoring.exe"
-                   
-          New-Service -Name $serviceName -BinaryPathName $servicePath -Description $serviceName -DisplayName $serviceName -StartupType Automatic
-          Start-Service -Name $serviceName          
