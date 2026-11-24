@@ -333,7 +333,7 @@ jobs:
         shell: powershell
         run: |
           $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
-          $configPath = Join-Path $toolRoot 'sql-agent-jobs.local.json'
+          $configPath = 'C:\home\txnproc\config\sql-agent-jobs.local.json'
           New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
           Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
           $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'

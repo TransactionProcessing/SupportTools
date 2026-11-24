@@ -8,13 +8,13 @@ This utility deploys SQL Server Agent jobs from a JSON manifest.
 SqlServerAgentJobDeploymentTool --manifest sql-agent-jobs.sample.json
 ```
 
-For a deployment-local configuration, keep `sql-agent-jobs.local.json` beside the executable and run:
+For a deployment-local configuration, keep `sql-agent-jobs.local.json` at `C:\home\txnproc\config\sql-agent-jobs.local.json` and run:
 
 ```text
-SqlServerAgentJobDeploymentTool --manifest sql-agent-jobs.local.json
+SqlServerAgentJobDeploymentTool --manifest C:\home\txnproc\config\sql-agent-jobs.local.json
 ```
 
-The local manifest must include `connectionString`. Keep this file on the deployment server; it is excluded from source control. The GitHub deployment workflows expect it at `C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool\sql-agent-jobs.local.json` on each environment's runner.
+The local manifest must include `connectionString`. Keep this file on the deployment server; it is excluded from source control. The GitHub deployment workflows expect it at `C:\home\txnproc\config\sql-agent-jobs.local.json` on each environment's runner.
 
 Optional overrides:
 
