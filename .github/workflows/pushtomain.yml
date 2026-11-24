@@ -462,9 +462,6 @@ jobs:
           $serviceName = 'Central Logging Forwarder'
           $serviceRoot = 'C:\txnproc\transactionprocessing\centralloggingforwarder'
           $servicePath = Join-Path $serviceRoot 'CentralLogging.Forwarder.exe'
-          if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_ENDPOINT)) {
-            throw 'Set the development environment variable CENTRAL_LOGGING_ENDPOINT.'
-          }
           if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_SOURCE_DIRECTORIES)) {
             throw 'Set CENTRAL_LOGGING_SOURCE_DIRECTORIES as a JSON array in the development environment, for example ["C:\\services\\app\\logs\\shared"].'
           }
@@ -479,6 +476,9 @@ jobs:
           $configRoot = 'C:\home\txnproc\config'
           $localSettingsPath = Join-Path $configRoot 'appsettings.local.json'
           $localSettings = if (Test-Path -LiteralPath $localSettingsPath) { Get-Content -LiteralPath $localSettingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+          $endpoint = $localSettings.LogForwarder.Endpoint
+          if ([string]::IsNullOrWhiteSpace($endpoint)) { $endpoint = $env:CENTRAL_LOGGING_ENDPOINT }
+          if ([string]::IsNullOrWhiteSpace($endpoint)) { throw 'Set CENTRAL_LOGGING_ENDPOINT or configure LogForwarder:Endpoint in C:\home\txnproc\config\appsettings.local.json.' }
           $apiKey = $env:CENTRAL_LOGGING_API_KEY
           if ([string]::IsNullOrWhiteSpace($apiKey) -or $apiKey -eq 'TestApiKey') {
             $configuredKeys = @($localSettings.LogForwarder.ApiKey, $localSettings.LogIngestion.ApiKey) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and $_ -ne 'TestApiKey' }
@@ -497,7 +497,7 @@ jobs:
               SourceDirectories = @($sourceDirectories)
               FilePatterns = @('structured-logger-*.json*')
               IncludeSubdirectories = $false
-              Endpoint = $env:CENTRAL_LOGGING_ENDPOINT
+              Endpoint = $endpoint
               CheckpointPath = 'C:\ProgramData\CentralLogging\forwarder-checkpoint.json'
               BatchSize = 100
               PollIntervalSeconds = 5
