@@ -20,6 +20,8 @@ name: Release - Independent Components
         - health-monitoring
         - sql-agent-tool
         - central-logging-forwarder
+permissions:
+  contents: read
 jobs:
   build-merchant-pos:
     name: Build Merchant POS
@@ -818,7 +820,10 @@ jobs:
         New-Item -ItemType Directory -Path $programData -Force | Out-Null
         $configRoot = 'C:\home\txnproc\config'
         New-Item -ItemType Directory -Path $configRoot -Force | Out-Null
-        @{ LogForwarder = @{ SourceDirectories = @($sourceDirectories); FilePatterns = @('structured-logger-*.json*'); IncludeSubdirectories = $false; Endpoint = $env:CENTRAL_LOGGING_ENDPOINT; ApiKey = $env:CENTRAL_LOGGING_API_KEY; CheckpointPath = (Join-Path $programData 'forwarder-checkpoint.json'); BatchSize = 100; PollIntervalSeconds = 5 } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $configRoot 'appsettings.local.json') -Encoding utf8
+        $localSettingsPath = Join-Path $configRoot 'appsettings.local.json'
+        $localSettings = if (Test-Path -LiteralPath $localSettingsPath) { Get-Content -LiteralPath $localSettingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+        $localSettings | Add-Member -NotePropertyName LogForwarder -NotePropertyValue @{ SourceDirectories = @($sourceDirectories); FilePatterns = @('structured-logger-*.json*'); IncludeSubdirectories = $false; Endpoint = $env:CENTRAL_LOGGING_ENDPOINT; ApiKey = $env:CENTRAL_LOGGING_API_KEY; CheckpointPath = (Join-Path $programData 'forwarder-checkpoint.json'); BatchSize = 100; PollIntervalSeconds = 5 } -Force
+        $localSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $localSettingsPath -Encoding utf8
         if (-not $existing) { New-Service -Name $serviceName -BinaryPathName ('"' + $exe + '"') -DisplayName $serviceName -Description 'Forwards shared application logs to Central Logging' -StartupType Automatic | Out-Null }
         else { sc.exe config $serviceName binPath= ('"' + $exe + '"') start= auto | Out-Host; if ($LASTEXITCODE -ne 0) { throw 'Failed to update service path.' } }
         Start-Service -Name $serviceName
@@ -900,7 +905,10 @@ jobs:
         New-Item -ItemType Directory -Path $programData -Force | Out-Null
         $configRoot = 'C:\home\txnproc\config'
         New-Item -ItemType Directory -Path $configRoot -Force | Out-Null
-        @{ LogForwarder = @{ SourceDirectories = @($sourceDirectories); FilePatterns = @('structured-logger-*.json*'); IncludeSubdirectories = $false; Endpoint = $env:CENTRAL_LOGGING_ENDPOINT; ApiKey = $env:CENTRAL_LOGGING_API_KEY; CheckpointPath = (Join-Path $programData 'forwarder-checkpoint.json'); BatchSize = 100; PollIntervalSeconds = 5 } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $configRoot 'appsettings.local.json') -Encoding utf8
+        $localSettingsPath = Join-Path $configRoot 'appsettings.local.json'
+        $localSettings = if (Test-Path -LiteralPath $localSettingsPath) { Get-Content -LiteralPath $localSettingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+        $localSettings | Add-Member -NotePropertyName LogForwarder -NotePropertyValue @{ SourceDirectories = @($sourceDirectories); FilePatterns = @('structured-logger-*.json*'); IncludeSubdirectories = $false; Endpoint = $env:CENTRAL_LOGGING_ENDPOINT; ApiKey = $env:CENTRAL_LOGGING_API_KEY; CheckpointPath = (Join-Path $programData 'forwarder-checkpoint.json'); BatchSize = 100; PollIntervalSeconds = 5 } -Force
+        $localSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $localSettingsPath -Encoding utf8
         if (-not $existing) { New-Service -Name $serviceName -BinaryPathName ('"' + $exe + '"') -DisplayName $serviceName -Description 'Forwards shared application logs to Central Logging' -StartupType Automatic | Out-Null }
         else { sc.exe config $serviceName binPath= ('"' + $exe + '"') start= auto | Out-Host; if ($LASTEXITCODE -ne 0) { throw 'Failed to update service path.' } }
         Start-Service -Name $serviceName

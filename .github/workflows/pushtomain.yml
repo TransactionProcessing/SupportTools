@@ -506,7 +506,10 @@ jobs:
           New-Item -ItemType Directory -Path $programData -Force | Out-Null
           $configRoot = 'C:\home\txnproc\config'
           New-Item -ItemType Directory -Path $configRoot -Force | Out-Null
-          $settings | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $configRoot 'appsettings.local.json') -Encoding utf8
+          $localSettingsPath = Join-Path $configRoot 'appsettings.local.json'
+          $localSettings = if (Test-Path -LiteralPath $localSettingsPath) { Get-Content -LiteralPath $localSettingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+          $localSettings | Add-Member -NotePropertyName LogForwarder -NotePropertyValue $settings.LogForwarder -Force
+          $localSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $localSettingsPath -Encoding utf8
           $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if (-not $service) {
             New-Service -Name $serviceName -BinaryPathName ('"' + $servicePath + '"') -Description 'Forwards shared application logs to Central Logging' -DisplayName $serviceName -StartupType Automatic | Out-Null
