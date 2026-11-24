@@ -8,7 +8,7 @@ Configure the shared log directories as sources. The logger writes each event to
 
 ## Configure and run
 
-Edit `appsettings.json` or provide environment variables:
+The worker loads optional `hosting.json` and `hosting.{Environment}.json` files beside its executable, then `appsettings.json` and `appsettings.{Environment}.json` from the shared config folder, then the same appsettings files beside the executable, and finally `appsettings.local.json` from the shared config folder. The shared config folder is `C:\home\txnproc\config` on Windows and `/home/txnproc/config` elsewhere. Later files override earlier files; environment variables are applied last. The deployment writes the forwarder settings to the shared `appsettings.local.json`. Add a repository-local `appsettings.local.json` to `.gitignore` if you use one for development.
 
 ```powershell
 $env:LogForwarder__SourceDirectories__0 = 'C:\services\payment\logs\shared'
@@ -21,5 +21,7 @@ dotnet run --project CentralLogging.Forwarder
 ```
 
 When hosted by Windows Service, set the same environment variables for the service account and install the published executable with `sc.exe`. Give the service account read access to source log directories and write access to the checkpoint directory. Use HTTPS for the API endpoint.
+
+The GitHub deployment workflows install this worker as the `Central Logging Forwarder` Windows service. Configure `CENTRAL_LOGGING_ENDPOINT` and `CENTRAL_LOGGING_SOURCE_DIRECTORIES` as variables in each target GitHub environment (`development`, `staging`, and `production`), and configure `CENTRAL_LOGGING_API_KEY` as an environment secret. The endpoint should be the API's ingestion URL, such as `http://127.0.0.1:7100/api/logs` when both services are on the same server. The source directories variable must be a JSON array, for example `["C:\\services\\payment\\logs\\shared"]`. Deployment writes these settings to `C:\home\txnproc\config\appsettings.local.json` and stores checkpoints under `C:\ProgramData\CentralLogging`.
 
 The worker reads completed newline-terminated JSON records. A partially written last record waits until the next poll. Malformed JSON and incomplete or invalid structured records are forwarded as `Unknown` events with their exact source text in `rawLog`; valid records after them continue to be forwarded. Fallback event IDs are deterministic for a source file identity, byte position, and line content, so retrying after an API or checkpoint failure is deduplicated. Each batch log reports how many invalid lines it retained. File retention remains controlled by the logging service; the worker only follows the files still present during a successful scan.
