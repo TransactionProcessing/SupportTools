@@ -12,7 +12,7 @@
           "subsystem": "tSql",
           "command": "EXEC dbo.spBuildTodaysTransactions;",
           "onSuccessAction": "goToNextStep",
-          "onFailAction": "quitWithFailure"
+          "onFailAction": "goToNextStep"
         },
         {
           "stepId": 2,

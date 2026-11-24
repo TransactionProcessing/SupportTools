@@ -42,6 +42,8 @@ public sealed class JobStepDefinition
 
     public string Command { get; set; } = string.Empty;
 
+    public string? DatabaseName { get; set; }
+
     public JobStepAction OnSuccessAction { get; set; } = JobStepAction.QuitWithSuccess;
 
     public int? OnSuccessStepId { get; set; }

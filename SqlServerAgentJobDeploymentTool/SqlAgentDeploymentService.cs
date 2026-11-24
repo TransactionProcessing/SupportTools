@@ -116,7 +116,9 @@ internal sealed class SqlAgentDeploymentService
             new SqlParameter("@step_name", step.Name),
             new SqlParameter("@subsystem", ToSubsystemName(step.Subsystem)),
             new SqlParameter("@command", step.Command),
-            new SqlParameter("@database_name", string.IsNullOrWhiteSpace(databaseNameOverride) ? DBNull.Value : databaseNameOverride),
+            new SqlParameter("@database_name", string.IsNullOrWhiteSpace(step.DatabaseName)
+                ? (string.IsNullOrWhiteSpace(databaseNameOverride) ? DBNull.Value : databaseNameOverride)
+                : step.DatabaseName),
             new SqlParameter("@on_success_action", (int)step.OnSuccessAction),
             new SqlParameter("@on_success_step_id", step.OnSuccessStepId ?? 0),
             new SqlParameter("@on_fail_action", (int)step.OnFailAction),
