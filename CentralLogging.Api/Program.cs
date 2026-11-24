@@ -1,13 +1,33 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using CentralLogging.Api.Data;
 using CentralLogging.Api.Endpoints;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+FileInfo assemblyFile = new(Assembly.GetExecutingAssembly().Location);
+String assemblyDirectory = assemblyFile.Directory!.FullName;
+String externalConfigDirectory = OperatingSystem.IsWindows()
+    ? @"C:\home\txnproc\config"
+    : "/home/txnproc/config";
+builder.Configuration
+    .SetBasePath(assemblyDirectory)
+    .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"hosting.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(externalConfigDirectory, "appsettings.json"), optional: true, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(externalConfigDirectory, $"appsettings.{builder.Environment.EnvironmentName}.json"), optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(externalConfigDirectory, "appsettings.local.json"), optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
+builder.Services.AddWindowsService(options => options.ServiceName = "Central Logging API");
+builder.WebHost.UseUrls(builder.Configuration["Urls"] ?? "http://127.0.0.1:7100");
 
 String? configuredConnectionString = builder.Configuration.GetConnectionString("CentralLogs");
 if (String.IsNullOrWhiteSpace(configuredConnectionString))
