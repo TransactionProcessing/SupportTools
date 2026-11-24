@@ -8,6 +8,14 @@ This utility deploys SQL Server Agent jobs from a JSON manifest.
 SqlServerAgentJobDeploymentTool --manifest sql-agent-jobs.sample.json
 ```
 
+For a deployment-local configuration, keep `sql-agent-jobs.local.json` at `C:\home\txnproc\config\sql-agent-jobs.local.json` and run:
+
+```text
+SqlServerAgentJobDeploymentTool --manifest C:\home\txnproc\config\sql-agent-jobs.local.json
+```
+
+The local manifest must include `connectionString`. Keep this file on the deployment server; it is excluded from source control. The GitHub deployment workflows expect it at `C:\home\txnproc\config\sql-agent-jobs.local.json` on each environment's runner.
+
 Optional overrides:
 
 - `--connection-string <value>`
@@ -22,7 +30,11 @@ Logging is written through NLog to the console and to `%LOCALAPPDATA%\SqlServerA
 - `connectionString`: SQL Server connection string for `msdb`.
 - `jobs[]`: one or more job definitions.
 - Each job contains `steps[]` and optional `schedules[]`.
-- The target database is supplied at deploy time from the CLI or the UI. When set, it overrides the database for all T-SQL steps.
+- Each T-SQL step can set its own `databaseName`, allowing one job to run steps against multiple databases on the connected SQL Server.
+- If a step has no `databaseName`, the target database can be supplied at deploy time from the CLI or UI. This override remains a fallback for steps without an explicit database.
+- Set `onFailAction` to `goToNextStep` on steps that should allow the job to continue after an error. The step history records failures; the last step's outcome determines whether the job quits with success or failure.
+
+For multiple estates on the same SQL Server, add one step per estate and set each step's `databaseName` to that estate's database. Set `onFailAction` to `goToNextStep` on each estate step so a failed estate does not prevent later estates from running.
 
 The sample manifest includes the existing settlement and scavenge jobs from this repository.
 

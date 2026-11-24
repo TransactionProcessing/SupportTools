@@ -552,11 +552,9 @@ jobs:
         path: C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool
     - name: Deploy SQL Agent Job
       shell: powershell
-      env:
-        SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
-        SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
       run: |
         $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
+        $configPath = 'C:\home\txnproc\config\sql-agent-jobs.local.json'
         New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
         Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
         $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
@@ -570,10 +568,12 @@ jobs:
 
         Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
+        if (-not (Test-Path -LiteralPath $configPath)) {
+          throw "Local SQL Agent job config not found: $configPath"
+        }
+
         $arguments = @(
-          '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
-          '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
-          '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
+          '--manifest', $configPath
         ) | ForEach-Object { Quote-Argument $_ }
 
         $process = Start-Process `
@@ -630,11 +630,9 @@ jobs:
         path: C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool
     - name: Deploy SQL Agent Job
       shell: powershell
-      env:
-        SQL_AGENT_JOB_CONNECTION_STRING: ${{ secrets.SQL_AGENT_JOB_CONNECTION_STRING }}
-        SQL_AGENT_JOB_DATABASE_NAME: ${{ secrets.SQL_AGENT_JOB_DATABASE_NAME }}
       run: |
         $toolRoot = 'C:\txnproc\transactionprocessing\sqlagentjobdeploymenttool'
+        $configPath = 'C:\home\txnproc\config\sql-agent-jobs.local.json'
         New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
         Expand-Archive -Path (Join-Path $toolRoot 'sqlagentjobdeploymenttool.zip') -DestinationPath $toolRoot -Force
         $toolExe = Join-Path $toolRoot 'SqlServerAgentJobDeploymentTool.exe'
@@ -648,10 +646,12 @@ jobs:
 
         Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
 
+        if (-not (Test-Path -LiteralPath $configPath)) {
+          throw "Local SQL Agent job config not found: $configPath"
+        }
+
         $arguments = @(
-          '--manifest', (Join-Path $toolRoot 'transactionprocessor-readmodel-transaction-jobs.json'),
-          '--connection-string', $env:SQL_AGENT_JOB_CONNECTION_STRING,
-          '--database-name', $env:SQL_AGENT_JOB_DATABASE_NAME
+          '--manifest', $configPath
         ) | ForEach-Object { Quote-Argument $_ }
 
         $process = Start-Process `

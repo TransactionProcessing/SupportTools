@@ -361,3 +361,4 @@ MigrationBackup/
 .worktrees/
 /MerchantPosData
 /ScheduledTasks/DailySupportCheck/daily-support-check.local.json
+/SqlServerAgentJobDeploymentTool/sql-agent-jobs.local.json
