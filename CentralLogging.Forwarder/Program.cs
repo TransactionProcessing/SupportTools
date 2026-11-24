@@ -17,7 +17,8 @@ builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddJsonFile(Path.Combine(externalConfigDirectory, "appsettings.local.json"), optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables();
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "Central Logging Forwarder");
 builder.Services.Configure<ForwarderOptions>(builder.Configuration.GetSection(ForwarderOptions.SectionName));
 builder.Services.AddHttpClient("CentralLogs", client => client.Timeout = TimeSpan.FromSeconds(30));
