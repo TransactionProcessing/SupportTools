@@ -542,7 +542,6 @@ jobs:
           CENTRAL_LOGGING_API_LISTEN_URLS: ${{ vars.CENTRAL_LOGGING_API_LISTEN_URLS }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_CONNECTION_STRING)) { throw 'Set the development secret CENTRAL_LOGGING_CONNECTION_STRING.' }
           if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_API_KEY)) { throw 'Set the development secret CENTRAL_LOGGING_API_KEY.' }
           $serviceName = 'Central Logging API'
           $serviceRoot = 'C:\txnproc\transactionprocessing\centralloggingapi'
@@ -552,12 +551,14 @@ jobs:
           New-Item -ItemType Directory -Path $serviceRoot -Force | Out-Null
           Expand-Archive -Path centralloggingapi.zip -DestinationPath $serviceRoot -Force
           $settings = @{
-            ConnectionStrings = @{ CentralLogs = $env:CENTRAL_LOGGING_CONNECTION_STRING }
             LogIngestion = @{ ApiKey = $env:CENTRAL_LOGGING_API_KEY; MaximumRequestBytes = 10485760; MaximumUploadBytes = 104857600; MaximumLineBytes = 1048576 }
             LogRetention = @{ Enabled = $false; RetentionDays = 90; BatchSize = 1000; IntervalMinutes = 60 }
             Logging = @{ LogLevel = @{ Default = 'Information'; 'Microsoft.AspNetCore' = 'Warning' } }
             AllowedHosts = '*'
             Urls = $(if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_API_LISTEN_URLS)) { 'http://127.0.0.1:7100' } else { $env:CENTRAL_LOGGING_API_LISTEN_URLS })
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_CONNECTION_STRING)) {
+            $settings.ConnectionStrings = @{ CentralLogs = $env:CENTRAL_LOGGING_CONNECTION_STRING }
           }
           $settings | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $serviceRoot 'appsettings.json') -Encoding utf8
           if (-not $service) { New-Service -Name $serviceName -BinaryPathName ('"' + $servicePath + '"') -DisplayName $serviceName -Description 'Central Logging API and browser UI' -StartupType Automatic | Out-Null }
