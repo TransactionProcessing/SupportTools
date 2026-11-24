@@ -550,17 +550,18 @@ jobs:
           if ($service -and $service.Status -ne 'Stopped') { Stop-Service -Name $serviceName -Force; (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(60)) }
           New-Item -ItemType Directory -Path $serviceRoot -Force | Out-Null
           Expand-Archive -Path centralloggingapi.zip -DestinationPath $serviceRoot -Force
-          $settings = @{
-            LogIngestion = @{ ApiKey = $env:CENTRAL_LOGGING_API_KEY; MaximumRequestBytes = 10485760; MaximumUploadBytes = 104857600; MaximumLineBytes = 1048576 }
-            LogRetention = @{ Enabled = $false; RetentionDays = 90; BatchSize = 1000; IntervalMinutes = 60 }
-            Logging = @{ LogLevel = @{ Default = 'Information'; 'Microsoft.AspNetCore' = 'Warning' } }
-            AllowedHosts = '*'
-            Urls = $(if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_API_LISTEN_URLS)) { 'http://127.0.0.1:7100' } else { $env:CENTRAL_LOGGING_API_LISTEN_URLS })
-          }
+          $settingsPath = Join-Path $serviceRoot 'appsettings.json'
+          $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+          if (-not $settings.ConnectionStrings) { $settings | Add-Member -NotePropertyName ConnectionStrings -NotePropertyValue ([pscustomobject]@{}) }
           if (-not [string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_CONNECTION_STRING)) {
-            $settings.ConnectionStrings = @{ CentralLogs = $env:CENTRAL_LOGGING_CONNECTION_STRING }
+            $settings.ConnectionStrings | Add-Member -NotePropertyName CentralLogs -NotePropertyValue $env:CENTRAL_LOGGING_CONNECTION_STRING -Force
           }
-          $settings | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $serviceRoot 'appsettings.json') -Encoding utf8
+          $settings | Add-Member -NotePropertyName LogIngestion -NotePropertyValue @{ ApiKey = $env:CENTRAL_LOGGING_API_KEY; MaximumRequestBytes = 10485760; MaximumUploadBytes = 104857600; MaximumLineBytes = 1048576 } -Force
+          $settings | Add-Member -NotePropertyName LogRetention -NotePropertyValue @{ Enabled = $false; RetentionDays = 90; BatchSize = 1000; IntervalMinutes = 60 } -Force
+          $settings | Add-Member -NotePropertyName Logging -NotePropertyValue @{ LogLevel = @{ Default = 'Information'; 'Microsoft.AspNetCore' = 'Warning' } } -Force
+          $settings | Add-Member -NotePropertyName AllowedHosts -NotePropertyValue '*' -Force
+          $settings | Add-Member -NotePropertyName Urls -NotePropertyValue $(if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_API_LISTEN_URLS)) { 'http://127.0.0.1:7100' } else { $env:CENTRAL_LOGGING_API_LISTEN_URLS }) -Force
+          $settings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $settingsPath -Encoding utf8
           if (-not $service) { New-Service -Name $serviceName -BinaryPathName ('"' + $servicePath + '"') -DisplayName $serviceName -Description 'Central Logging API and browser UI' -StartupType Automatic | Out-Null }
           else { sc.exe config $serviceName binPath= ('"' + $servicePath + '"') start= auto | Out-Host; if ($LASTEXITCODE -ne 0) { throw 'Failed to update API service path.' } }
           Start-Service -Name $serviceName
