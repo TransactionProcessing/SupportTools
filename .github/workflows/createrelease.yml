@@ -827,7 +827,7 @@ jobs:
         $preflightConfigPath = Join-Path 'C:\home\txnproc\config' 'appsettings.local.json'
         $preflightSettings = if (Test-Path -LiteralPath $preflightConfigPath) { Get-Content -LiteralPath $preflightConfigPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
         $sourceDirectories = $preflightSettings.LogForwarder.SourceDirectories
-        if ($null -eq $sourceDirectories -or $sourceDirectories -isnot [System.Array]) {
+        if ($null -eq $sourceDirectories -or $sourceDirectories -isnot [System.Array] -or $sourceDirectories.Count -eq 0) {
           if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_SOURCE_DIRECTORIES)) { throw 'Configure LogForwarder:SourceDirectories in C:\home\txnproc\config\appsettings.local.json or set CENTRAL_LOGGING_SOURCE_DIRECTORIES as a JSON array.' }
           try { $sourceDirectories = @(ConvertFrom-Json -InputObject $env:CENTRAL_LOGGING_SOURCE_DIRECTORIES -ErrorAction Stop) } catch { throw 'CENTRAL_LOGGING_SOURCE_DIRECTORIES must be a JSON array of directory paths.' }
         }
@@ -952,7 +952,7 @@ jobs:
         $preflightConfigPath = Join-Path 'C:\home\txnproc\config' 'appsettings.local.json'
         $preflightSettings = if (Test-Path -LiteralPath $preflightConfigPath) { Get-Content -LiteralPath $preflightConfigPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
         $sourceDirectories = $preflightSettings.LogForwarder.SourceDirectories
-        if ($null -eq $sourceDirectories -or $sourceDirectories -isnot [System.Array]) {
+        if ($null -eq $sourceDirectories -or $sourceDirectories -isnot [System.Array] -or $sourceDirectories.Count -eq 0) {
           if ([string]::IsNullOrWhiteSpace($env:CENTRAL_LOGGING_SOURCE_DIRECTORIES)) { throw 'Configure LogForwarder:SourceDirectories in C:\home\txnproc\config\appsettings.local.json or set CENTRAL_LOGGING_SOURCE_DIRECTORIES as a JSON array.' }
           try { $sourceDirectories = @(ConvertFrom-Json -InputObject $env:CENTRAL_LOGGING_SOURCE_DIRECTORIES -ErrorAction Stop) } catch { throw 'CENTRAL_LOGGING_SOURCE_DIRECTORIES must be a JSON array of directory paths.' }
         }
