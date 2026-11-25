@@ -21,29 +21,60 @@ public sealed class LogForwarderWorker(IHttpClientFactory httpClientFactory,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        String apiKey = ValidateConfiguration(this.Settings);
+        String apiKey;
+        try
+        {
+            apiKey = ValidateConfiguration(this.Settings);
+        }
+        catch (Exception exception)
+        {
+            logger.LogCritical(exception, "Central Logging Forwarder configuration is invalid; the service cannot start.");
+            throw;
+        }
 
         Int32 batchSize = Math.Clamp(this.Settings.BatchSize, 1, 500);
         TimeSpan pollInterval = TimeSpan.FromSeconds(Math.Clamp(this.Settings.PollIntervalSeconds, 1, 300));
         HttpClient client = httpClientFactory.CreateClient("CentralLogs");
         client.DefaultRequestHeaders.Add("X-Log-Api-Key", apiKey);
 
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await this.PollAsync(client, batchSize, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Log forwarding poll failed; files will be retried.");
-            }
+        logger.LogInformation(
+            "Central Logging Forwarder started. Monitoring {SourceDirectoryCount} directories with patterns {FilePatterns}; recursive scanning {IncludeSubdirectories}; poll interval {PollIntervalSeconds} seconds; batch size {BatchSize}.",
+            this.Settings.SourceDirectories.Length,
+            String.Join(", ", this.Settings.FilePatterns),
+            this.Settings.IncludeSubdirectories,
+            pollInterval.TotalSeconds,
+            batchSize);
 
-            await Task.Delay(pollInterval, stoppingToken);
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await this.PollAsync(client, batchSize, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Log forwarding poll failed; files will be retried.");
+                }
+
+                try
+                {
+                    await Task.Delay(pollInterval, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            logger.LogInformation("Central Logging Forwarder stopped.");
         }
     }
 

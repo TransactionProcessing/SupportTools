@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -7,9 +8,16 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+    options.UseUtcTimestamp = true;
+});
 FileInfo assemblyFile = new(Assembly.GetExecutingAssembly().Location);
 String assemblyDirectory = assemblyFile.Directory!.FullName;
 String externalConfigDirectory = OperatingSystem.IsWindows()
@@ -27,7 +35,8 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "Central Logging API");
-builder.WebHost.UseUrls(builder.Configuration["Urls"] ?? "http://127.0.0.1:7100");
+String listenUrls = builder.Configuration["Urls"] ?? "http://127.0.0.1:7100";
+builder.WebHost.UseUrls(listenUrls);
 
 String? configuredConnectionString = builder.Configuration.GetConnectionString("CentralLogs");
 if (String.IsNullOrWhiteSpace(configuredConnectionString))
@@ -58,14 +67,80 @@ builder.Services.Configure<FormOptions>(options =>
 WebApplication app = builder.Build();
 LogIngestionOptions ingestionOptions = app.Services.GetRequiredService<IOptions<LogIngestionOptions>>().Value;
 
-await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
+app.Logger.LogInformation("Applying Central Logging database migrations.");
+try
 {
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
     CentralLogsDbContext database = scope.ServiceProvider.GetRequiredService<CentralLogsDbContext>();
     await database.Database.MigrateAsync();
+    app.Logger.LogInformation("Central Logging database migrations completed.");
+}
+catch (Exception exception)
+{
+    app.Logger.LogCritical(exception, "Central Logging database migrations failed; API startup is stopping.");
+    throw;
 }
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/api"))
+    {
+        await next(context);
+        return;
+    }
+
+    Stopwatch stopwatch = Stopwatch.StartNew();
+    try
+    {
+        await next(context);
+    }
+    catch (Exception exception)
+    {
+        stopwatch.Stop();
+        app.Logger.LogError(exception,
+            "API request {Method} {Path} failed after {ElapsedMilliseconds} ms. RequestId {RequestId}.",
+            context.Request.Method,
+            context.Request.Path,
+            stopwatch.ElapsedMilliseconds,
+            context.TraceIdentifier);
+        throw;
+    }
+
+    stopwatch.Stop();
+    if (context.Response.StatusCode >= StatusCodes.Status500InternalServerError)
+    {
+        app.Logger.LogError(
+            "API request {Method} {Path} returned {StatusCode} after {ElapsedMilliseconds} ms. RequestId {RequestId}.",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode,
+            stopwatch.ElapsedMilliseconds,
+            context.TraceIdentifier);
+    }
+    else if (context.Response.StatusCode >= StatusCodes.Status400BadRequest)
+    {
+        app.Logger.LogWarning(
+            "API request {Method} {Path} returned {StatusCode} after {ElapsedMilliseconds} ms. RequestId {RequestId}.",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode,
+            stopwatch.ElapsedMilliseconds,
+            context.TraceIdentifier);
+    }
+    else
+    {
+        app.Logger.LogInformation(
+            "API request {Method} {Path} returned {StatusCode} after {ElapsedMilliseconds} ms. RequestId {RequestId}.",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode,
+            stopwatch.ElapsedMilliseconds,
+            context.TraceIdentifier);
+    }
+});
 
 app.Use(async (context, next) =>
 {
@@ -92,6 +167,10 @@ app.MapGet("/api/logs/export", LogEndpoints.ExportAsync);
 app.MapGet("/api/logs/aggregates", LogEndpoints.AggregateAsync);
 app.MapGet("/api/logs/fields", LogEndpoints.GetStructuredFieldsAsync);
 app.MapGet("/api/logs/services", LogEndpoints.GetServicesAsync);
+
+app.Logger.LogInformation("Central Logging API started in {EnvironmentName}; listening on {ListenUrls}.",
+    app.Environment.EnvironmentName,
+    listenUrls);
 
 app.Run();
 

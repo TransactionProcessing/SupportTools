@@ -1,8 +1,15 @@
 using System.Reflection;
 using CentralLogging.Forwarder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+    options.UseUtcTimestamp = true;
+});
 FileInfo assemblyFile = new(Assembly.GetExecutingAssembly().Location);
 String assemblyDirectory = assemblyFile.Directory!.FullName;
 String externalConfigDirectory = OperatingSystem.IsWindows()
