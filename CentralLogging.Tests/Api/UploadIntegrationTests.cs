@@ -137,7 +137,8 @@ public sealed class UploadIntegrationTests(SqlServerApiFixture fixture)
                 await fixture.ReadDatabaseAsync(async database =>
                 {
                     await LogEndpoints.UploadAsync(file, database,
-                        Microsoft.Extensions.Options.Options.Create(new LogIngestionOptions()), CancellationToken.None);
+                        Microsoft.Extensions.Options.Options.Create(new LogIngestionOptions()),
+                        Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
                     return true;
                 });
             });

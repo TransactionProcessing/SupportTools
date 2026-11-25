@@ -18,7 +18,8 @@ public sealed class IngestionSizeLimitTests
         FormFile file = CreateFile("12345");
         LogIngestionOptions options = new() { MaximumUploadBytes = 4, MaximumLineBytes = 100 };
 
-        IResult result = await LogEndpoints.UploadAsync(file, database, Options.Create(options), CancellationToken.None);
+        IResult result = await LogEndpoints.UploadAsync(file, database, Options.Create(options),
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
 
         ProblemHttpResult problem = result.ShouldBeOfType<ProblemHttpResult>();
         problem.StatusCode.ShouldBe(StatusCodes.Status413PayloadTooLarge);
@@ -32,7 +33,8 @@ public sealed class IngestionSizeLimitTests
         FormFile file = CreateFile("12345\n");
         LogIngestionOptions options = new() { MaximumUploadBytes = 100, MaximumLineBytes = 4 };
 
-        IResult result = await LogEndpoints.UploadAsync(file, database, Options.Create(options), CancellationToken.None);
+        IResult result = await LogEndpoints.UploadAsync(file, database, Options.Create(options),
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
 
         ProblemHttpResult problem = result.ShouldBeOfType<ProblemHttpResult>();
         problem.StatusCode.ShouldBe(StatusCodes.Status413PayloadTooLarge);
