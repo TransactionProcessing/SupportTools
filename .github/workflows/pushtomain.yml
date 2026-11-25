@@ -510,7 +510,7 @@ jobs:
           if (-not $service) {
             New-Service -Name $serviceName -BinaryPathName ('"' + $servicePath + '"') -Description 'Forwards shared application logs to Central Logging' -DisplayName $serviceName -StartupType Automatic | Out-Null
           } else {
-            & sc.exe config $serviceName "binPath= `"$servicePath`"" start= auto | Out-Null
+            & sc.exe config $serviceName binPath= ('"' + $servicePath + '"') start= auto | Out-Host
             if ($LASTEXITCODE -ne 0) { throw 'Failed to update the Central Logging Forwarder service executable path.' }
             Set-Service -Name $serviceName -StartupType Automatic
           }
