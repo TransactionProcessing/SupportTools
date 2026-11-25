@@ -52,7 +52,7 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
                 return;
 
             this.EnsureWriter(DateOnly.FromDateTime(timestamp.UtcDateTime));
-            this.Writer!.WriteLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff}Z [{FormatLevel(logLevel)}] {categoryName}: {message}");
+            this.Writer!.WriteLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff}Z [{FormatLevel(logLevel)}] {categoryName} ({eventId.Id}): {message}");
             if (exception is not null)
                 this.Writer.WriteLine(exception);
         }
@@ -83,7 +83,7 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
 
     private sealed class TraceFileLogger(TraceFileLoggerProvider provider, String categoryName) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public IDisposable? BeginScope<TState>(TState _) where TState : notnull => NullScope.Instance;
 
         public Boolean IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
@@ -103,6 +103,9 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
     private sealed class NullScope : IDisposable
     {
         public static NullScope Instance { get; } = new();
-        public void Dispose() { }
+        public void Dispose()
+        {
+            // This no-op scope does not allocate any resources to release.
+        }
     }
 }
