@@ -662,7 +662,7 @@ public static partial class LogEndpoints
             }
             else
             {
-                database.ServiceStructuredFields.Add(new ServiceStructuredField
+                ServiceStructuredField newField = new()
                 {
                     ServiceName = key.ServiceName,
                     FieldName = key.FieldName,
@@ -670,7 +670,9 @@ public static partial class LogEndpoints
                     EventCount = observation.EventCount,
                     FirstSeenUtc = observation.FirstSeenUtc,
                     LastSeenUtc = observation.LastSeenUtc
-                });
+                };
+                database.ServiceStructuredFields.Add(newField);
+                existingByKey.Add(key, newField);
             }
         }
     }

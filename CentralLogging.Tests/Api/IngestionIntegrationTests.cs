@@ -92,6 +92,30 @@ public sealed class IngestionIntegrationTests(SqlServerApiFixture fixture)
         catalogRows.ShouldBe(2);
     }
 
+    [SqlServerFact]
+    public async Task Ingest_tracks_field_names_using_case_sensitive_catalog_keys()
+    {
+        await fixture.ResetDatabaseAsync();
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        LogEventInput[] inputs =
+        [
+            CreateEvent("Payments", timestamp, "Region", "eu-west"),
+            CreateEvent("Payments", timestamp.AddSeconds(1), "region", "eu-west")
+        ];
+
+        using HttpRequestMessage request = ApiTestData.AuthorizedRequest(
+            HttpMethod.Post, LogsEndpoint, JsonContent.Create(inputs));
+        using HttpResponseMessage response = await fixture.Client.SendAsync(request);
+
+        String responseBody = await response.Content.ReadAsStringAsync();
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted, responseBody);
+        (Int32 logCount, Int32 catalogRows) = await fixture.ReadDatabaseAsync(async database =>
+            (await database.LogEvents.CountAsync(),
+             await database.ServiceStructuredFields.CountAsync(field => field.ServiceName == "Payments")));
+        logCount.ShouldBe(2);
+        catalogRows.ShouldBe(2);
+    }
+
     private static LogEventInput CreateEvent(String serviceName,
                                              DateTimeOffset timestamp,
                                              String fieldName,

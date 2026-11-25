@@ -53,7 +53,14 @@ public sealed class CentralLogsDbContext(DbContextOptions<CentralLogsDbContext> 
                 (left, right) => StringComparer.Ordinal.Equals(left, right),
                 value => StringComparer.Ordinal.GetHashCode(value),
                 value => value));
-        structuredField.Property(field => field.FieldName).HasMaxLength(200).UseCollation("Latin1_General_100_BIN2").IsRequired();
+        structuredField.Property(field => field.FieldName)
+            .HasMaxLength(200)
+            .UseCollation("Latin1_General_100_BIN2")
+            .IsRequired()
+            .Metadata.SetValueComparer(new ValueComparer<String>(
+                (left, right) => StringComparer.Ordinal.Equals(left, right),
+                value => StringComparer.Ordinal.GetHashCode(value),
+                value => value));
         structuredField.Property(field => field.JsonType).HasMaxLength(16).IsRequired();
         structuredField.Property(field => field.FirstSeenUtc).HasColumnType("datetimeoffset(7)").IsRequired();
         structuredField.Property(field => field.LastSeenUtc).HasColumnType("datetimeoffset(7)").IsRequired();
