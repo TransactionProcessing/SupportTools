@@ -1,5 +1,6 @@
 using System.Reflection;
 using CentralLogging.Forwarder;
+using CentralLogging.Shared;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -12,6 +13,8 @@ builder.Logging.AddSimpleConsole(options =>
 });
 FileInfo assemblyFile = new(Assembly.GetExecutingAssembly().Location);
 String assemblyDirectory = assemblyFile.Directory!.FullName;
+String traceDirectory = OperatingSystem.IsWindows() ? @"C:\home\txnproc\trace" : "/home/txnproc/trace";
+builder.Logging.AddProvider(new TraceFileLoggerProvider(traceDirectory, "central-logging-forwarder"));
 String externalConfigDirectory = OperatingSystem.IsWindows()
     ? @"C:\home\txnproc\config"
     : "/home/txnproc/config";
