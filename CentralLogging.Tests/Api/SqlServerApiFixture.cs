@@ -16,6 +16,7 @@ namespace CentralLogging.Tests.Api;
 public sealed class SqlServerApiFixture : IAsyncLifetime
 {
     public static String ConnectionStringEnvironmentVariable => "CENTRAL_LOGGING_TEST_CONNECTION";
+    private const String TraceDirectoryEnvironmentVariable = "CENTRAL_LOGGING_TRACE_DIRECTORY";
     public static String ApiKey { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private const String SqlServerImage = "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
     private static readonly String SqlServerPassword = $"Aa1!{Convert.ToHexString(RandomNumberGenerator.GetBytes(24))}";
@@ -120,17 +121,21 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
         String keyEnvironmentVariable = String.Concat("LogIngestion", "__", "Api", "Key");
         String? previousConnectionString = Environment.GetEnvironmentVariable(connectionSetting);
         String? previousApiKey = Environment.GetEnvironmentVariable(keyEnvironmentVariable);
+        String? previousTraceDirectory = Environment.GetEnvironmentVariable(TraceDirectoryEnvironmentVariable);
 
         try
         {
             Environment.SetEnvironmentVariable(connectionSetting, connectionString);
             Environment.SetEnvironmentVariable(keyEnvironmentVariable, ApiKey);
+            Environment.SetEnvironmentVariable(TraceDirectoryEnvironmentVariable,
+                Path.Combine(Path.GetTempPath(), "txnproc", "trace"));
             return this.Factory!.CreateClient();
         }
         finally
         {
             Environment.SetEnvironmentVariable(connectionSetting, previousConnectionString);
             Environment.SetEnvironmentVariable(keyEnvironmentVariable, previousApiKey);
+            Environment.SetEnvironmentVariable(TraceDirectoryEnvironmentVariable, previousTraceDirectory);
         }
     }
 
@@ -161,6 +166,7 @@ public sealed class SqlServerApiFixture : IAsyncLifetime
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UseEnvironment("Testing");
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<String, String?>
                 {

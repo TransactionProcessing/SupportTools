@@ -7,6 +7,7 @@ using CentralLogging.Api.Data;
 using CentralLogging.Api.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CentralLogging.Api.Endpoints;
 
@@ -20,8 +21,10 @@ public static partial class LogEndpoints
 
     public static async Task<IResult> IngestAsync(IReadOnlyList<LogEventInput> events,
                                                    CentralLogsDbContext database,
+                                                   ILoggerFactory loggerFactory,
                                                    CancellationToken cancellationToken)
     {
+        ILogger logger = loggerFactory.CreateLogger("CentralLogging.Api.Endpoints.LogEndpoints");
         if (events.Count is < 1 or > MaximumBatchSize)
             return Results.Problem($"A batch must contain between 1 and {MaximumBatchSize} events.", statusCode: StatusCodes.Status400BadRequest);
 
@@ -30,19 +33,31 @@ public static partial class LogEndpoints
             return Results.Problem(validationError, statusCode: StatusCodes.Status400BadRequest);
 
         IngestionCounts counts = await IngestBatchAsync(events, database, cancellationToken);
+        logger.LogInformation(
+            "Processed log batch with {SubmittedEventCount} events; stored {AcceptedEventCount} and skipped {DuplicateEventCount} duplicates.",
+            events.Count,
+            counts.Accepted,
+            counts.Duplicates);
         return Results.Accepted(value: new { accepted = counts.Accepted, duplicates = counts.Duplicates });
     }
 
     public static async Task<IResult> UploadAsync(IFormFile? file,
                                                    CentralLogsDbContext database,
                                                    Microsoft.Extensions.Options.IOptions<LogIngestionOptions> options,
+                                                   ILoggerFactory loggerFactory,
                                                    CancellationToken cancellationToken)
     {
+        ILogger logger = loggerFactory.CreateLogger("CentralLogging.Api.Endpoints.LogEndpoints");
         if (file is null)
             return Results.Problem("Choose a log file to upload.", statusCode: StatusCodes.Status400BadRequest);
         if (file.Length > options.Value.MaximumUploadBytes)
+        {
+            logger.LogWarning("Rejected log upload of {UploadBytes} bytes; maximum allowed is {MaximumUploadBytes} bytes.",
+                file.Length,
+                options.Value.MaximumUploadBytes);
             return Results.Problem($"The uploaded file exceeds the {options.Value.MaximumUploadBytes} byte limit.",
                 statusCode: StatusCodes.Status413PayloadTooLarge);
+        }
 
         Int32 accepted = 0;
         Int32 retainedLines = 0;
@@ -76,6 +91,8 @@ public static partial class LogEndpoints
         }
         catch (UploadLimitExceededException exception)
         {
+            logger.LogWarning(exception, "Rejected log upload because a line exceeded the {MaximumLineBytes} byte limit.",
+                options.Value.MaximumLineBytes);
             return Results.Problem(exception.Message, statusCode: StatusCodes.Status413PayloadTooLarge);
         }
 
@@ -87,6 +104,12 @@ public static partial class LogEndpoints
             duplicates += counts.Duplicates;
         }
 
+        logger.LogInformation(
+            "Processed log upload of {UploadBytes} bytes; stored {AcceptedEventCount} events, retained {RetainedLineCount} invalid lines, and skipped {DuplicateEventCount} duplicates.",
+            file.Length,
+            accepted,
+            retainedLines,
+            duplicates);
         return Results.Ok(new { accepted, retainedLines, duplicates });
     }
 

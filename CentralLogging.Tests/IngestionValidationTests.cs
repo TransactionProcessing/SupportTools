@@ -22,7 +22,8 @@ public sealed class IngestionValidationTests
             ServiceName = "Payments",
             Message = ""
         };
-        IResult result = await LogEndpoints.IngestAsync([input], database, CancellationToken.None);
+        IResult result = await LogEndpoints.IngestAsync([input], database,
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
 
         ShouldBeBadRequest(result);
         database.ChangeTracker.Entries().ShouldBeEmpty();
@@ -32,7 +33,8 @@ public sealed class IngestionValidationTests
     public async Task Ingest_rejects_an_empty_batch()
     {
         await using CentralLogsDbContext database = CreateDatabase();
-        IResult result = await LogEndpoints.IngestAsync([], database, CancellationToken.None);
+        IResult result = await LogEndpoints.IngestAsync([], database,
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
 
         ShouldBeBadRequest(result);
     }
@@ -49,7 +51,8 @@ public sealed class IngestionValidationTests
             ServiceName = "Payments",
             Message = "accepted shape"
         }).ToArray();
-        IResult result = await LogEndpoints.IngestAsync(events, database, CancellationToken.None);
+        IResult result = await LogEndpoints.IngestAsync(events, database,
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None);
 
         ShouldBeBadRequest(result);
         database.ChangeTracker.Entries().ShouldBeEmpty();

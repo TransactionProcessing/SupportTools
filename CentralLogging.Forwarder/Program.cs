@@ -1,10 +1,21 @@
 using System.Reflection;
 using CentralLogging.Forwarder;
+using CentralLogging.Shared;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+    options.UseUtcTimestamp = true;
+});
 FileInfo assemblyFile = new(Assembly.GetExecutingAssembly().Location);
 String assemblyDirectory = assemblyFile.Directory!.FullName;
+String traceDirectory = Environment.GetEnvironmentVariable("CENTRAL_LOGGING_TRACE_DIRECTORY")
+    ?? (OperatingSystem.IsWindows() ? @"C:\home\txnproc\trace" : "/home/txnproc/trace");
+builder.Logging.AddProvider(new TraceFileLoggerProvider(traceDirectory, "central-logging-forwarder"));
 String externalConfigDirectory = OperatingSystem.IsWindows()
     ? @"C:\home\txnproc\config"
     : "/home/txnproc/config";
