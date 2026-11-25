@@ -3,11 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace CentralLogging.Shared;
 
-public sealed class TraceFileLoggerProvider : ILoggerProvider
+public sealed class TraceFileLoggerProvider : ILoggerProvider, ISupportExternalScope
 {
     private readonly Object Sync = new();
     private readonly String DirectoryPath;
     private readonly String FilePrefix;
+    private IExternalScopeProvider ScopeProvider = new LoggerExternalScopeProvider();
     private StreamWriter? Writer;
     private DateOnly? WriterDate;
     private Boolean IsDisposed;
@@ -22,6 +23,14 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
     }
 
     public ILogger CreateLogger(String categoryName) => new TraceFileLogger(this, categoryName);
+
+    public void SetScopeProvider(IExternalScopeProvider scopeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(scopeProvider);
+        this.ScopeProvider = scopeProvider;
+    }
+
+    internal IDisposable? BeginScope<TState>(TState state) where TState : notnull => this.ScopeProvider.Push(state);
 
     public void Dispose()
     {
@@ -45,6 +54,15 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
     {
         String message = formatter(state, exception);
         DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        StringBuilder scopeBuilder = new();
+        this.ScopeProvider.ForEachScope(static (scope, builder) =>
+        {
+            if (builder.Length > 0)
+                builder.Append(" => ");
+
+            builder.Append(scope);
+        }, scopeBuilder);
+        String scopeText = scopeBuilder.Length > 0 ? $" [{scopeBuilder}]" : String.Empty;
 
         lock (this.Sync)
         {
@@ -52,7 +70,7 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
                 return;
 
             this.EnsureWriter(DateOnly.FromDateTime(timestamp.UtcDateTime));
-            this.Writer!.WriteLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff}Z [{FormatLevel(logLevel)}] {categoryName} ({eventId.Id}): {message}");
+            this.Writer!.WriteLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff}Z [{FormatLevel(logLevel)}] {categoryName}{scopeText} ({eventId.Id}): {message}");
             if (exception is not null)
                 this.Writer.WriteLine(exception);
         }
@@ -83,7 +101,7 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
 
     private sealed class TraceFileLogger(TraceFileLoggerProvider provider, String categoryName) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState _) where TState : notnull => NullScope.Instance;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => provider.BeginScope(state);
 
         public Boolean IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
@@ -97,15 +115,6 @@ public sealed class TraceFileLoggerProvider : ILoggerProvider
                 return;
 
             provider.Write(categoryName, logLevel, eventId, state, exception, formatter);
-        }
-    }
-
-    private sealed class NullScope : IDisposable
-    {
-        public static NullScope Instance { get; } = new();
-        public void Dispose()
-        {
-            // This no-op scope does not allocate any resources to release.
         }
     }
 }
